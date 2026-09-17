@@ -1,0 +1,105 @@
+.cluster-resumen {
+  display: flex;
+  gap: 24px;
+  margin: 12px 0;
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.stat-valor {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.lista-nodos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nodo {
+  display: grid;
+  grid-template-columns: 10px 32px 56px 1fr 56px 64px;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.estado-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.estado-dot.estado-activo {
+  background: var(--status-good);
+}
+
+.estado-dot.estado-inactivo {
+  background: var(--text-muted);
+}
+
+.nodo-id {
+  font-family: var(--mono);
+  color: var(--text-primary);
+}
+
+.barra-contenedor {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--gridline);
+  overflow: hidden;
+}
+
+.barra-fill {
+  height: 100%;
+  background: var(--serie-1);
+  border-radius: 4px;
+}
+
+.perdida-epoca {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.perdida-epoca h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.perdida-epoca svg {
+  width: 100%;
+  max-width: 200px;
+  height: 60px;
+  display: block;
+}
+
+.sparkline {
+  fill: none;
+  stroke: var(--serie-1);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.perdida-valor {
+  font-size: 12px;
+  color: var(--text-muted);
+}

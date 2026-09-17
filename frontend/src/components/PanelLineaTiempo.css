@@ -1,0 +1,65 @@
+.panel-linea-tiempo svg {
+  width: 100%;
+  height: auto;
+}
+
+.panel-linea-tiempo .gridline {
+  stroke: var(--gridline);
+  stroke-width: 1;
+}
+
+.panel-linea-tiempo .linea {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.panel-linea-tiempo .linea-observado {
+  stroke: var(--serie-1);
+}
+
+.panel-linea-tiempo .linea-predicho {
+  stroke: var(--serie-2);
+}
+
+.panel-linea-tiempo .punto {
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.panel-linea-tiempo .punto-observado {
+  fill: var(--serie-1);
+}
+
+.panel-linea-tiempo .punto-predicho {
+  fill: var(--serie-2);
+}
+
+.panel-linea-tiempo .etiqueta-final {
+  font-size: 11px;
+  dominant-baseline: middle;
+  fill: var(--text-secondary);
+}
+
+.leyenda-series {
+  list-style: none;
+  display: flex;
+  gap: 16px;
+  margin: 8px 0 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.leyenda-series li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.linea-key {
+  width: 14px;
+  height: 2px;
+  display: inline-block;
+}

@@ -1,0 +1,51 @@
+.app-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 20px 48px;
+}
+
+.app-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 24px;
+}
+
+.app-header h1 {
+  font-size: 26px;
+  letter-spacing: -0.3px;
+}
+
+.app-header p {
+  font-size: 14px;
+}
+
+.dashboard {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 860px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 0;
+  text-align: left;
+}
+
+.panel figcaption h3 {
+  font-size: 16px;
+}
+
+.panel figcaption p {
+  font-size: 13px;
+  margin-top: 2px;
+}

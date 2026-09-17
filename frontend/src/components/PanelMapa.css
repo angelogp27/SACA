@@ -1,0 +1,38 @@
+.panel-mapa svg {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.panel-mapa .estacion {
+  cursor: pointer;
+}
+
+.panel-mapa .estacion:focus-visible circle:last-child {
+  outline: 2px solid var(--serie-1);
+  outline-offset: 2px;
+}
+
+.leyenda-estado {
+  list-style: none;
+  display: flex;
+  gap: 16px;
+  margin: 12px 0 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.leyenda-estado li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pastilla {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}

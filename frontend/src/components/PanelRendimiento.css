@@ -1,0 +1,60 @@
+.graficas-rendimiento {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.mini-grafica {
+  flex: 1;
+  min-width: 200px;
+}
+
+.mini-grafica h4 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.mini-grafica svg {
+  width: 100%;
+  height: auto;
+}
+
+.panel-rendimiento .gridline {
+  stroke: var(--gridline);
+  stroke-width: 1;
+}
+
+.panel-rendimiento .linea {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.panel-rendimiento .linea-real {
+  stroke: var(--serie-1);
+}
+
+.panel-rendimiento .linea-ideal {
+  stroke: var(--text-muted);
+  stroke-dasharray: 3 3;
+}
+
+.panel-rendimiento .punto-real {
+  fill: var(--serie-1);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.panel-rendimiento .tick-x {
+  font-size: 10px;
+  fill: var(--text-muted);
+  text-anchor: middle;
+}
+
+.linea-key-punteada {
+  height: 0 !important;
+  border-top: 2px dashed var(--text-muted);
+}
