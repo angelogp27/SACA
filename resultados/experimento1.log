@@ -1,0 +1,269 @@
+﻿== repeticion 1/3: secuencial
+2026/10/13 22:39:21 data\raw\hourly_44201_2025.csv: leidas=8867266 descartadas=1610 convertidas=0 (sin_medicion=0 qualifier_excluido=1610 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:39:24 data\raw\hourly_42101_2025.csv: leidas=1674907 descartadas=0 convertidas=0 (sin_medicion=0 qualifier_excluido=0 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:39:31 data\raw\hourly_42401_2025.csv: leidas=2940386 descartadas=15 convertidas=0 (sin_medicion=0 qualifier_excluido=15 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:39:38 data\raw\hourly_42602_2025.csv: leidas=3489728 descartadas=0 convertidas=0 (sin_medicion=0 qualifier_excluido=0 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:39:38 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:39:38 registros unicos (estacion, hora): 10838667
+2026/10/13 22:41:42 registros escritos en mongo: 10838667
+2026/10/13 22:41:42 T(1) secuencial: total=2m43.559s procesamiento=39.468s indexado=10.85s mongo=2m4.091s memoria=4197 MB
+== repeticion 1/3: concurrente con 1 goroutines
+2026/10/13 22:41:59 16 bloques repartidos entre 1 goroutines trabajadoras y 1 agregadoras
+2026/10/13 22:42:47 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:42:47 registros unicos (estacion, hora): 10838667
+2026/10/13 22:44:16 registros escritos en mongo: 10838667
+2026/10/13 22:44:16 T(1) concurrente: total=2m17.258s procesamiento=47.93s indexado=13.635s mongo=1m29.327s memoria=4730 MB
+== repeticion 1/3: concurrente particionado con 1 goroutines y 1 agregadoras
+2026/10/13 22:44:16 16 bloques repartidos entre 1 goroutines trabajadoras y 1 agregadoras
+2026/10/13 22:44:52 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:44:52 registros unicos (estacion, hora): 10838667
+2026/10/13 22:46:18 registros escritos en mongo: 10838667
+2026/10/13 22:46:18 T(1) concurrente_particionado: total=2m1.725s procesamiento=36.058s indexado=12.539s mongo=1m25.665s memoria=4428 MB
+== repeticion 1/3: concurrente con 2 goroutines
+2026/10/13 22:46:28 32 bloques repartidos entre 2 goroutines trabajadoras y 1 agregadoras
+2026/10/13 22:46:52 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:46:52 registros unicos (estacion, hora): 10838667
+2026/10/13 22:48:24 registros escritos en mongo: 10838667
+2026/10/13 22:48:24 T(2) concurrente: total=1m56.054s procesamiento=23.914s indexado=13.238s mongo=1m32.138s memoria=4413 MB
+== repeticion 1/3: concurrente particionado con 2 goroutines y 2 agregadoras
+2026/10/13 22:48:25 32 bloques repartidos entre 2 goroutines trabajadoras y 2 agregadoras
+2026/10/13 22:48:50 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:48:50 registros unicos (estacion, hora): 10838667
+2026/10/13 22:49:42 registros escritos en mongo: 10838667
+2026/10/13 22:49:42 T(2) concurrente_particionado: total=1m16.81s procesamiento=24.497s indexado=7.388s mongo=52.31s memoria=4514 MB
+== repeticion 1/3: concurrente con 4 goroutines
+2026/10/13 22:49:43 64 bloques repartidos entre 4 goroutines trabajadoras y 1 agregadoras
+2026/10/13 22:50:08 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:50:08 registros unicos (estacion, hora): 10838667
+2026/10/13 22:51:44 registros escritos en mongo: 10838667
+2026/10/13 22:51:44 T(4) concurrente: total=2m1.264s procesamiento=24.767s indexado=14.475s mongo=1m36.497s memoria=4593 MB
+== repeticion 1/3: concurrente particionado con 4 goroutines y 4 agregadoras
+2026/10/13 22:51:45 64 bloques repartidos entre 4 goroutines trabajadoras y 4 agregadoras
+2026/10/13 22:52:03 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:52:03 registros unicos (estacion, hora): 10838667
+2026/10/13 22:52:42 registros escritos en mongo: 10838667
+2026/10/13 22:52:42 T(4) concurrente_particionado: total=57.567s procesamiento=18.161s indexado=4.639s mongo=39.405s memoria=5197 MB
+== repeticion 1/3: concurrente con 8 goroutines
+2026/10/13 22:52:43 128 bloques repartidos entre 8 goroutines trabajadoras y 1 agregadoras
+2026/10/13 22:53:12 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:53:12 registros unicos (estacion, hora): 10838667
+2026/10/13 22:54:45 registros escritos en mongo: 10838667
+2026/10/13 22:54:45 T(8) concurrente: total=2m1.49s procesamiento=29.07s indexado=16.789s mongo=1m32.42s memoria=4931 MB
+== repeticion 1/3: concurrente particionado con 8 goroutines y 8 agregadoras
+2026/10/13 22:54:45 128 bloques repartidos entre 8 goroutines trabajadoras y 8 agregadoras
+2026/10/13 22:54:59 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:54:59 registros unicos (estacion, hora): 10838667
+2026/10/13 22:55:26 registros escritos en mongo: 10838667
+2026/10/13 22:55:26 T(8) concurrente_particionado: total=41.304s procesamiento=14.141s indexado=3.426s mongo=27.161s memoria=5052 MB
+== repeticion 1/3: concurrente con 12 goroutines
+2026/10/13 22:55:27 192 bloques repartidos entre 12 goroutines trabajadoras y 1 agregadoras
+2026/10/13 22:55:56 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:55:56 registros unicos (estacion, hora): 10838667
+2026/10/13 22:57:31 registros escritos en mongo: 10838667
+2026/10/13 22:57:31 T(12) concurrente: total=2m4.207s procesamiento=29.272s indexado=16.83s mongo=1m34.934s memoria=4525 MB
+== repeticion 1/3: concurrente particionado con 12 goroutines y 12 agregadoras
+2026/10/13 22:57:32 192 bloques repartidos entre 12 goroutines trabajadoras y 12 agregadoras
+2026/10/13 22:57:44 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:57:44 registros unicos (estacion, hora): 10838667
+2026/10/13 22:58:09 registros escritos en mongo: 10838667
+2026/10/13 22:58:09 T(12) concurrente_particionado: total=37.433s procesamiento=12.825s indexado=2.98s mongo=24.602s memoria=5483 MB
+== repeticion 1/3: concurrente con 16 goroutines
+2026/10/13 22:58:10 256 bloques repartidos entre 16 goroutines trabajadoras y 1 agregadoras
+2026/10/13 22:58:42 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 22:58:42 registros unicos (estacion, hora): 10838667
+2026/10/13 23:00:15 registros escritos en mongo: 10838667
+2026/10/13 23:00:15 T(16) concurrente: total=2m5.458s procesamiento=32.431s indexado=18.974s mongo=1m33.026s memoria=4649 MB
+== repeticion 1/3: concurrente particionado con 16 goroutines y 16 agregadoras
+2026/10/13 23:00:16 256 bloques repartidos entre 16 goroutines trabajadoras y 16 agregadoras
+2026/10/13 23:00:28 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:00:28 registros unicos (estacion, hora): 10838667
+2026/10/13 23:00:55 registros escritos en mongo: 10838667
+2026/10/13 23:00:55 T(16) concurrente_particionado: total=38.592s procesamiento=11.786s indexado=2.117s mongo=26.8s memoria=5487 MB
+== repeticion 2/3: secuencial
+2026/10/13 23:01:01 data\raw\hourly_42101_2025.csv: leidas=1674907 descartadas=0 convertidas=0 (sin_medicion=0 qualifier_excluido=0 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:01:08 data\raw\hourly_42401_2025.csv: leidas=2940386 descartadas=15 convertidas=0 (sin_medicion=0 qualifier_excluido=15 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:01:15 data\raw\hourly_42602_2025.csv: leidas=3489728 descartadas=0 convertidas=0 (sin_medicion=0 qualifier_excluido=0 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:01:35 data\raw\hourly_44201_2025.csv: leidas=8867266 descartadas=1610 convertidas=0 (sin_medicion=0 qualifier_excluido=1610 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:01:35 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:01:35 registros unicos (estacion, hora): 10838667
+2026/10/13 23:03:09 registros escritos en mongo: 10838667
+2026/10/13 23:03:09 T(1) secuencial: total=2m12.396s procesamiento=38.202s indexado=11.306s mongo=1m34.193s memoria=3266 MB
+== repeticion 2/3: concurrente con 1 goroutines
+2026/10/13 23:03:10 16 bloques repartidos entre 1 goroutines trabajadoras y 1 agregadoras
+2026/10/13 23:03:58 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:03:58 registros unicos (estacion, hora): 10838667
+2026/10/13 23:05:34 registros escritos en mongo: 10838667
+2026/10/13 23:05:34 T(1) concurrente: total=2m24.282s procesamiento=48.456s indexado=17.178s mongo=1m35.826s memoria=4433 MB
+== repeticion 2/3: concurrente particionado con 1 goroutines y 1 agregadoras
+2026/10/13 23:05:34 16 bloques repartidos entre 1 goroutines trabajadoras y 1 agregadoras
+2026/10/13 23:06:23 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:06:23 registros unicos (estacion, hora): 10838667
+2026/10/13 23:07:59 registros escritos en mongo: 10838667
+2026/10/13 23:07:59 T(1) concurrente_particionado: total=2m24.271s procesamiento=49.097s indexado=16.58s mongo=1m35.173s memoria=4606 MB
+== repeticion 2/3: concurrente con 2 goroutines
+2026/10/13 23:07:59 32 bloques repartidos entre 2 goroutines trabajadoras y 1 agregadoras
+2026/10/13 23:08:28 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:08:28 registros unicos (estacion, hora): 10838667
+2026/10/13 23:10:03 registros escritos en mongo: 10838667
+2026/10/13 23:10:03 T(2) concurrente: total=2m4.084s procesamiento=29.218s indexado=16.289s mongo=1m34.866s memoria=4675 MB
+== repeticion 2/3: concurrente particionado con 2 goroutines y 2 agregadoras
+2026/10/13 23:10:04 32 bloques repartidos entre 2 goroutines trabajadoras y 2 agregadoras
+2026/10/13 23:10:33 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:10:33 registros unicos (estacion, hora): 10838667
+2026/10/13 23:11:58 registros escritos en mongo: 10838667
+2026/10/13 23:11:58 T(2) concurrente_particionado: total=1m53.677s procesamiento=29.38s indexado=8.676s mongo=1m24.292s memoria=4605 MB
+== repeticion 2/3: concurrente con 4 goroutines
+2026/10/13 23:13:10 64 bloques repartidos entre 4 goroutines trabajadoras y 1 agregadoras
+2026/10/13 23:13:35 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:13:35 registros unicos (estacion, hora): 10838667
+2026/10/13 23:15:26 registros escritos en mongo: 10838667
+2026/10/13 23:15:26 T(4) concurrente: total=2m16.245s procesamiento=24.797s indexado=16.328s mongo=1m51.447s memoria=4755 MB
+== repeticion 2/3: concurrente particionado con 4 goroutines y 4 agregadoras
+2026/10/13 23:15:27 64 bloques repartidos entre 4 goroutines trabajadoras y 4 agregadoras
+2026/10/13 23:15:47 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:15:47 registros unicos (estacion, hora): 10838667
+2026/10/13 23:16:49 registros escritos en mongo: 10838667
+2026/10/13 23:16:49 T(4) concurrente_particionado: total=1m22.639s procesamiento=20.001s indexado=4.759s mongo=1m2.638s memoria=4655 MB
+== repeticion 2/3: concurrente con 8 goroutines
+2026/10/13 23:16:50 128 bloques repartidos entre 8 goroutines trabajadoras y 1 agregadoras
+2026/10/13 23:17:20 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:17:20 registros unicos (estacion, hora): 10838667
+2026/10/13 23:19:04 registros escritos en mongo: 10838667
+2026/10/13 23:19:04 T(8) concurrente: total=2m14.543s procesamiento=29.773s indexado=18.296s mongo=1m44.768s memoria=4906 MB
+== repeticion 2/3: concurrente particionado con 8 goroutines y 8 agregadoras
+2026/10/13 23:19:05 128 bloques repartidos entre 8 goroutines trabajadoras y 8 agregadoras
+2026/10/13 23:19:18 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:19:18 registros unicos (estacion, hora): 10838667
+2026/10/13 23:19:45 registros escritos en mongo: 10838667
+2026/10/13 23:19:45 T(8) concurrente_particionado: total=40.407s procesamiento=12.568s indexado=3.156s mongo=27.838s memoria=5766 MB
+== repeticion 2/3: concurrente con 12 goroutines
+2026/10/13 23:19:46 192 bloques repartidos entre 12 goroutines trabajadoras y 1 agregadoras
+2026/10/13 23:20:17 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:20:17 registros unicos (estacion, hora): 10838667
+2026/10/13 23:21:53 registros escritos en mongo: 10838667
+2026/10/13 23:21:53 T(12) concurrente: total=2m6.692s procesamiento=30.543s indexado=18.591s mongo=1m36.147s memoria=4389 MB
+== repeticion 2/3: concurrente particionado con 12 goroutines y 12 agregadoras
+2026/10/13 23:21:53 192 bloques repartidos entre 12 goroutines trabajadoras y 12 agregadoras
+2026/10/13 23:22:04 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:22:04 registros unicos (estacion, hora): 10838667
+2026/10/13 23:22:29 registros escritos en mongo: 10838667
+2026/10/13 23:22:29 T(12) concurrente_particionado: total=35.912s procesamiento=11.115s indexado=2.818s mongo=24.796s memoria=5236 MB
+== repeticion 2/3: concurrente con 16 goroutines
+2026/10/13 23:22:30 256 bloques repartidos entre 16 goroutines trabajadoras y 1 agregadoras
+2026/10/13 23:23:01 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:23:01 registros unicos (estacion, hora): 10838667
+2026/10/13 23:24:40 registros escritos en mongo: 10838667
+2026/10/13 23:24:40 T(16) concurrente: total=2m10.091s procesamiento=31.181s indexado=18.701s mongo=1m38.909s memoria=4433 MB
+== repeticion 2/3: concurrente particionado con 16 goroutines y 16 agregadoras
+2026/10/13 23:24:41 256 bloques repartidos entre 16 goroutines trabajadoras y 16 agregadoras
+2026/10/13 23:24:51 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:24:51 registros unicos (estacion, hora): 10838667
+2026/10/13 23:25:16 registros escritos en mongo: 10838667
+2026/10/13 23:25:16 T(16) concurrente_particionado: total=35.094s procesamiento=10.866s indexado=2.25s mongo=24.228s memoria=6014 MB
+== repeticion 3/3: secuencial
+2026/10/13 23:25:25 data\raw\hourly_42602_2025.csv: leidas=3489728 descartadas=0 convertidas=0 (sin_medicion=0 qualifier_excluido=0 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:25:47 data\raw\hourly_44201_2025.csv: leidas=8867266 descartadas=1610 convertidas=0 (sin_medicion=0 qualifier_excluido=1610 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:25:50 data\raw\hourly_42101_2025.csv: leidas=1674907 descartadas=0 convertidas=0 (sin_medicion=0 qualifier_excluido=0 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:25:56 data\raw\hourly_42401_2025.csv: leidas=2940386 descartadas=15 convertidas=0 (sin_medicion=0 qualifier_excluido=15 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:25:56 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:25:56 registros unicos (estacion, hora): 10838667
+2026/10/13 23:27:28 registros escritos en mongo: 10838667
+2026/10/13 23:27:28 T(1) secuencial: total=2m10.389s procesamiento=38.952s indexado=11.871s mongo=1m31.437s memoria=3706 MB
+== repeticion 3/3: concurrente con 1 goroutines
+2026/10/13 23:27:28 16 bloques repartidos entre 1 goroutines trabajadoras y 1 agregadoras
+2026/10/13 23:28:17 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:28:17 registros unicos (estacion, hora): 10838667
+2026/10/13 23:29:52 registros escritos en mongo: 10838667
+2026/10/13 23:29:52 T(1) concurrente: total=2m23.987s procesamiento=48.462s indexado=16.104s mongo=1m35.524s memoria=4613 MB
+== repeticion 3/3: concurrente particionado con 1 goroutines y 1 agregadoras
+2026/10/13 23:29:53 16 bloques repartidos entre 1 goroutines trabajadoras y 1 agregadoras
+2026/10/13 23:30:43 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:30:43 registros unicos (estacion, hora): 10838667
+2026/10/13 23:32:13 registros escritos en mongo: 10838667
+2026/10/13 23:32:13 T(1) concurrente_particionado: total=2m20.455s procesamiento=50.189s indexado=16.938s mongo=1m30.265s memoria=4764 MB
+== repeticion 3/3: concurrente con 2 goroutines
+2026/10/13 23:32:14 32 bloques repartidos entre 2 goroutines trabajadoras y 1 agregadoras
+2026/10/13 23:32:42 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:32:42 registros unicos (estacion, hora): 10838667
+2026/10/13 23:34:11 registros escritos en mongo: 10838667
+2026/10/13 23:34:11 T(2) concurrente: total=1m57.351s procesamiento=28.357s indexado=15.68s mongo=1m28.994s memoria=4694 MB
+== repeticion 3/3: concurrente particionado con 2 goroutines y 2 agregadoras
+2026/10/13 23:34:11 32 bloques repartidos entre 2 goroutines trabajadoras y 2 agregadoras
+2026/10/13 23:34:40 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:34:40 registros unicos (estacion, hora): 10838667
+2026/10/13 23:35:38 registros escritos en mongo: 10838667
+2026/10/13 23:35:38 T(2) concurrente_particionado: total=1m26.116s procesamiento=28.153s indexado=8.688s mongo=57.962s memoria=4482 MB
+== repeticion 3/3: concurrente con 4 goroutines
+2026/10/13 23:35:49 64 bloques repartidos entre 4 goroutines trabajadoras y 1 agregadoras
+2026/10/13 23:36:12 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:36:12 registros unicos (estacion, hora): 10838667
+2026/10/13 23:37:47 registros escritos en mongo: 10838667
+2026/10/13 23:37:47 T(4) concurrente: total=1m57.075s procesamiento=22.346s indexado=15.293s mongo=1m34.729s memoria=4675 MB
+== repeticion 3/3: concurrente particionado con 4 goroutines y 4 agregadoras
+2026/10/13 23:37:52 64 bloques repartidos entre 4 goroutines trabajadoras y 4 agregadoras
+2026/10/13 23:38:10 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:38:10 registros unicos (estacion, hora): 10838667
+2026/10/13 23:38:46 registros escritos en mongo: 10838667
+2026/10/13 23:38:46 T(4) concurrente_particionado: total=54.796s procesamiento=18.663s indexado=5.24s mongo=36.132s memoria=5194 MB
+== repeticion 3/3: concurrente con 8 goroutines
+2026/10/13 23:38:47 128 bloques repartidos entre 8 goroutines trabajadoras y 1 agregadoras
+2026/10/13 23:39:16 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:39:16 registros unicos (estacion, hora): 10838667
+2026/10/13 23:40:50 registros escritos en mongo: 10838667
+2026/10/13 23:40:50 T(8) concurrente: total=2m3.071s procesamiento=28.522s indexado=17.793s mongo=1m34.548s memoria=4409 MB
+== repeticion 3/3: concurrente particionado con 8 goroutines y 8 agregadoras
+2026/10/13 23:40:51 128 bloques repartidos entre 8 goroutines trabajadoras y 8 agregadoras
+2026/10/13 23:41:04 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:41:04 registros unicos (estacion, hora): 10838667
+2026/10/13 23:41:33 registros escritos en mongo: 10838667
+2026/10/13 23:41:33 T(8) concurrente_particionado: total=41.966s procesamiento=13.482s indexado=3.195s mongo=28.483s memoria=5938 MB
+== repeticion 3/3: concurrente con 12 goroutines
+2026/10/13 23:41:33 192 bloques repartidos entre 12 goroutines trabajadoras y 1 agregadoras
+2026/10/13 23:42:04 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:42:04 registros unicos (estacion, hora): 10838667
+2026/10/13 23:43:38 registros escritos en mongo: 10838667
+2026/10/13 23:43:38 T(12) concurrente: total=2m4.491s procesamiento=30.818s indexado=18.767s mongo=1m33.672s memoria=4711 MB
+== repeticion 3/3: concurrente particionado con 12 goroutines y 12 agregadoras
+2026/10/13 23:43:38 192 bloques repartidos entre 12 goroutines trabajadoras y 12 agregadoras
+2026/10/13 23:43:50 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:43:50 registros unicos (estacion, hora): 10838667
+2026/10/13 23:44:16 registros escritos en mongo: 10838667
+2026/10/13 23:44:16 T(12) concurrente_particionado: total=37.335s procesamiento=11.449s indexado=2.574s mongo=25.881s memoria=5824 MB
+== repeticion 3/3: concurrente con 16 goroutines
+2026/10/13 23:44:17 256 bloques repartidos entre 16 goroutines trabajadoras y 1 agregadoras
+2026/10/13 23:44:48 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:44:48 registros unicos (estacion, hora): 10838667
+2026/10/13 23:46:25 registros escritos en mongo: 10838667
+2026/10/13 23:46:25 T(16) concurrente: total=2m8.099s procesamiento=31.333s indexado=18.721s mongo=1m36.765s memoria=4829 MB
+== repeticion 3/3: concurrente particionado con 16 goroutines y 16 agregadoras
+2026/10/13 23:46:36 256 bloques repartidos entre 16 goroutines trabajadoras y 16 agregadoras
+2026/10/13 23:46:47 total: leidas=16972287 descartadas=1625 convertidas=0 (sin_medicion=0 qualifier_excluido=1625 unidad_desconocida=0 formato_invalido=0)
+2026/10/13 23:46:47 registros unicos (estacion, hora): 10838667
+2026/10/13 23:47:11 registros escritos en mongo: 10838667
+2026/10/13 23:47:11 T(16) concurrente_particionado: total=34.377s procesamiento=11.072s indexado=2.21s mongo=23.297s memoria=5878 MB
+## Experimento 1 — Cargador: ingesta de los 4 CSV horarios de la EPA
+
+Máquina: 12 CPUs lógicas. T(1) = 132.396 s (modo secuencial, mediana).
+Fracción serial medida en T(1) (t_indexado_s + t_mongo_s): f = 0.797 → speedup máximo de Amdahl = 1.25.
+
+### concurrente
+
+| p | reps | T(p) [s] | S(p) | E(p) | Karp-Flatt | S Amdahl |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 3 | 143.987 | 0.92 | 92% | — | 1.00 |
+| 2 | 3 | 117.351 | 1.13 | 56% | 0.773 | 1.11 |
+| 4 | 3 | 121.264 | 1.09 | 27% | 0.888 | 1.18 |
+| 8 | 3 | 123.071 | 1.08 | 13% | 0.920 | 1.22 |
+| 12 | 3 | 124.491 | 1.06 | 9% | 0.935 | 1.23 |
+| 16 | 3 | 128.099 | 1.03 | 6% | 0.965 | 1.24 |
+
+### concurrente_particionado
+
+| p | reps | T(p) [s] | S(p) | E(p) | Karp-Flatt | S Amdahl |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 3 | 140.455 | 0.94 | 94% | — | 1.00 |
+| 2 | 3 | 86.116 | 1.54 | 77% | 0.301 | 1.11 |
+| 4 | 3 | 57.567 | 2.30 | 57% | 0.246 | 1.18 |
+| 8 | 3 | 41.304 | 3.21 | 40% | 0.214 | 1.22 |
+| 12 | 3 | 37.335 | 3.55 | 30% | 0.217 | 1.23 |
+| 16 | 3 | 35.094 | 3.77 | 24% | 0.216 | 1.24 |

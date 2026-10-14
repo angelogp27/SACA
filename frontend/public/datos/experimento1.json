@@ -1,0 +1,354 @@
+{
+  "experimento": "Experimento 1",
+  "descripcion": "Cargador: ingesta de los 4 CSV horarios de la EPA",
+  "generado": "2026-10-13T23:47:12-05:00",
+  "cpus_logicas": 12,
+  "modo_base": "secuencial",
+  "modo_paralelo": "concurrente",
+  "t1_s": 132.396,
+  "fases_base": {
+    "filas_leidas": 16972287,
+    "memoria_mb": 3706,
+    "registros": 10838667,
+    "t_indexado_s": 11.306,
+    "t_mongo_s": 94.193,
+    "t_procesamiento_s": 38.952,
+    "t_total_s": 132.396
+  },
+  "fraccion_serial": 0.7968443155382339,
+  "origen_fraccion_serial": "fases_medidas",
+  "columnas_serial": [
+    "t_indexado_s",
+    "t_mongo_s"
+  ],
+  "speedup_maximo_amdahl": 1.2549502838889466,
+  "puntos": [
+    {
+      "unidades": 1,
+      "repeticiones": 3,
+      "t_total_s": 143.987,
+      "speedup": 0.9194996770541785,
+      "eficiencia": 0.9194996770541785,
+      "speedup_amdahl": 1,
+      "fases": {
+        "filas_leidas": 16972287,
+        "memoria_mb": 4613,
+        "registros": 10838667,
+        "t_indexado_s": 16.104,
+        "t_mongo_s": 95.524,
+        "t_procesamiento_s": 48.456,
+        "t_total_s": 143.987
+      }
+    },
+    {
+      "unidades": 2,
+      "repeticiones": 3,
+      "t_total_s": 117.351,
+      "speedup": 1.1282051282051282,
+      "eficiencia": 0.5641025641025641,
+      "karp_flatt": 0.7727272727272727,
+      "speedup_amdahl": 1.1130624855503477,
+      "fases": {
+        "filas_leidas": 16972287,
+        "memoria_mb": 4675,
+        "registros": 10838667,
+        "t_indexado_s": 15.68,
+        "t_mongo_s": 92.138,
+        "t_procesamiento_s": 28.357,
+        "t_total_s": 117.351
+      }
+    },
+    {
+      "unidades": 4,
+      "repeticiones": 3,
+      "t_total_s": 121.264,
+      "speedup": 1.091799709724238,
+      "eficiencia": 0.2729499274310595,
+      "karp_flatt": 0.8878918799158081,
+      "speedup_amdahl": 1.1797555319419104,
+      "fases": {
+        "filas_leidas": 16972287,
+        "memoria_mb": 4675,
+        "registros": 10838667,
+        "t_indexado_s": 15.293,
+        "t_mongo_s": 96.497,
+        "t_procesamiento_s": 24.767,
+        "t_total_s": 121.264
+      }
+    },
+    {
+      "unidades": 8,
+      "repeticiones": 3,
+      "t_total_s": 123.071,
+      "speedup": 1.075769271396186,
+      "eficiencia": 0.13447115892452324,
+      "karp_flatt": 0.9195055526062506,
+      "speedup_amdahl": 1.2161917305190442,
+      "fases": {
+        "filas_leidas": 16972287,
+        "memoria_mb": 4906,
+        "registros": 10838667,
+        "t_indexado_s": 17.793,
+        "t_mongo_s": 94.548,
+        "t_procesamiento_s": 29.07,
+        "t_total_s": 123.071
+      }
+    },
+    {
+      "unidades": 12,
+      "repeticiones": 3,
+      "t_total_s": 124.491,
+      "speedup": 1.0634985661614091,
+      "eficiencia": 0.08862488051345076,
+      "karp_flatt": 0.9348648270065837,
+      "speedup_amdahl": 1.2288424724550133,
+      "fases": {
+        "filas_leidas": 16972287,
+        "memoria_mb": 4525,
+        "registros": 10838667,
+        "t_indexado_s": 18.591,
+        "t_mongo_s": 94.934,
+        "t_procesamiento_s": 30.543,
+        "t_total_s": 124.491
+      }
+    },
+    {
+      "unidades": 16,
+      "repeticiones": 3,
+      "t_total_s": 128.099,
+      "speedup": 1.0335443680278535,
+      "eficiencia": 0.06459652300174085,
+      "karp_flatt": 0.9653806257993695,
+      "speedup_amdahl": 1.2352670535156665,
+      "fases": {
+        "filas_leidas": 16972287,
+        "memoria_mb": 4649,
+        "registros": 10838667,
+        "t_indexado_s": 18.721,
+        "t_mongo_s": 96.765,
+        "t_procesamiento_s": 31.333,
+        "t_total_s": 128.099
+      }
+    }
+  ],
+  "series": {
+    "concurrente": [
+      {
+        "unidades": 1,
+        "repeticiones": 3,
+        "t_total_s": 143.987,
+        "speedup": 0.9194996770541785,
+        "eficiencia": 0.9194996770541785,
+        "speedup_amdahl": 1,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 4613,
+          "registros": 10838667,
+          "t_indexado_s": 16.104,
+          "t_mongo_s": 95.524,
+          "t_procesamiento_s": 48.456,
+          "t_total_s": 143.987
+        }
+      },
+      {
+        "unidades": 2,
+        "repeticiones": 3,
+        "t_total_s": 117.351,
+        "speedup": 1.1282051282051282,
+        "eficiencia": 0.5641025641025641,
+        "karp_flatt": 0.7727272727272727,
+        "speedup_amdahl": 1.1130624855503477,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 4675,
+          "registros": 10838667,
+          "t_indexado_s": 15.68,
+          "t_mongo_s": 92.138,
+          "t_procesamiento_s": 28.357,
+          "t_total_s": 117.351
+        }
+      },
+      {
+        "unidades": 4,
+        "repeticiones": 3,
+        "t_total_s": 121.264,
+        "speedup": 1.091799709724238,
+        "eficiencia": 0.2729499274310595,
+        "karp_flatt": 0.8878918799158081,
+        "speedup_amdahl": 1.1797555319419104,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 4675,
+          "registros": 10838667,
+          "t_indexado_s": 15.293,
+          "t_mongo_s": 96.497,
+          "t_procesamiento_s": 24.767,
+          "t_total_s": 121.264
+        }
+      },
+      {
+        "unidades": 8,
+        "repeticiones": 3,
+        "t_total_s": 123.071,
+        "speedup": 1.075769271396186,
+        "eficiencia": 0.13447115892452324,
+        "karp_flatt": 0.9195055526062506,
+        "speedup_amdahl": 1.2161917305190442,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 4906,
+          "registros": 10838667,
+          "t_indexado_s": 17.793,
+          "t_mongo_s": 94.548,
+          "t_procesamiento_s": 29.07,
+          "t_total_s": 123.071
+        }
+      },
+      {
+        "unidades": 12,
+        "repeticiones": 3,
+        "t_total_s": 124.491,
+        "speedup": 1.0634985661614091,
+        "eficiencia": 0.08862488051345076,
+        "karp_flatt": 0.9348648270065837,
+        "speedup_amdahl": 1.2288424724550133,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 4525,
+          "registros": 10838667,
+          "t_indexado_s": 18.591,
+          "t_mongo_s": 94.934,
+          "t_procesamiento_s": 30.543,
+          "t_total_s": 124.491
+        }
+      },
+      {
+        "unidades": 16,
+        "repeticiones": 3,
+        "t_total_s": 128.099,
+        "speedup": 1.0335443680278535,
+        "eficiencia": 0.06459652300174085,
+        "karp_flatt": 0.9653806257993695,
+        "speedup_amdahl": 1.2352670535156665,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 4649,
+          "registros": 10838667,
+          "t_indexado_s": 18.721,
+          "t_mongo_s": 96.765,
+          "t_procesamiento_s": 31.333,
+          "t_total_s": 128.099
+        }
+      }
+    ],
+    "concurrente_particionado": [
+      {
+        "unidades": 1,
+        "repeticiones": 3,
+        "t_total_s": 140.455,
+        "speedup": 0.9426221921611903,
+        "eficiencia": 0.9426221921611903,
+        "speedup_amdahl": 1,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 4606,
+          "registros": 10838667,
+          "t_indexado_s": 16.58,
+          "t_mongo_s": 90.265,
+          "t_procesamiento_s": 49.097,
+          "t_total_s": 140.455
+        }
+      },
+      {
+        "unidades": 2,
+        "repeticiones": 3,
+        "t_total_s": 86.116,
+        "speedup": 1.5374146500069672,
+        "eficiencia": 0.7687073250034836,
+        "karp_flatt": 0.3008852231185233,
+        "speedup_amdahl": 1.1130624855503477,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 4514,
+          "registros": 10838667,
+          "t_indexado_s": 8.676,
+          "t_mongo_s": 57.962,
+          "t_procesamiento_s": 28.153,
+          "t_total_s": 86.116
+        }
+      },
+      {
+        "unidades": 4,
+        "repeticiones": 3,
+        "t_total_s": 57.567,
+        "speedup": 2.299859294387409,
+        "eficiencia": 0.5749648235968523,
+        "karp_flatt": 0.2464122783165655,
+        "speedup_amdahl": 1.1797555319419104,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 5194,
+          "registros": 10838667,
+          "t_indexado_s": 4.759,
+          "t_mongo_s": 39.405,
+          "t_procesamiento_s": 18.663,
+          "t_total_s": 57.567
+        }
+      },
+      {
+        "unidades": 8,
+        "repeticiones": 3,
+        "t_total_s": 41.304,
+        "speedup": 3.2054038349796623,
+        "eficiencia": 0.4006754793724578,
+        "karp_flatt": 0.21368362445132144,
+        "speedup_amdahl": 1.2161917305190442,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 5766,
+          "registros": 10838667,
+          "t_indexado_s": 3.195,
+          "t_mongo_s": 27.838,
+          "t_procesamiento_s": 13.482,
+          "t_total_s": 41.304
+        }
+      },
+      {
+        "unidades": 12,
+        "repeticiones": 3,
+        "t_total_s": 37.335,
+        "speedup": 3.5461631177179584,
+        "eficiencia": 0.2955135931431632,
+        "karp_flatt": 0.21672173561958757,
+        "speedup_amdahl": 1.2288424724550133,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 5483,
+          "registros": 10838667,
+          "t_indexado_s": 2.818,
+          "t_mongo_s": 24.796,
+          "t_procesamiento_s": 11.449,
+          "t_total_s": 37.335
+        }
+      },
+      {
+        "unidades": 16,
+        "repeticiones": 3,
+        "t_total_s": 35.094,
+        "speedup": 3.772610702684219,
+        "eficiencia": 0.2357881689177637,
+        "karp_flatt": 0.21607299314178677,
+        "speedup_amdahl": 1.2352670535156665,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 5878,
+          "registros": 10838667,
+          "t_indexado_s": 2.21,
+          "t_mongo_s": 24.228,
+          "t_procesamiento_s": 11.072,
+          "t_total_s": 35.094
+        }
+      }
+    ]
+  }
+}
