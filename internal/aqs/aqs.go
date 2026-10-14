@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"proyecto9/internal/registro"
@@ -37,21 +39,79 @@ const (
 	numColumnas = 24
 )
 
+const (
+	unidadPPM = "Parts per million"
+	unidadPPB = "Parts per billion"
+)
+
 // unidadEsperada por contaminante, según la tabla de umbrales AQI del
-// proyecto. Si el CSV trae una unidad distinta, la fila se descarta en vez
-// de convertirla a ciegas.
+// proyecto. Si el CSV trae la otra unidad (ppm↔ppb) se convierte; si trae
+// cualquier otra, la fila se descarta con MotivoUnidad.
 var unidadEsperada = map[string]string{
-	"o3":  "Parts per million",
-	"co":  "Parts per million",
-	"so2": "Parts per billion",
-	"no2": "Parts per billion",
+	"o3":  unidadPPM,
+	"co":  unidadPPM,
+	"so2": unidadPPB,
+	"no2": unidadPPB,
 }
 
-// qualifiersExcluidos marca los códigos de evento excepcional a descartar.
-// Pendiente de completar contra el catálogo oficial de AQS (ver
-// docs/contrato_registro_procesado.md); vacío por ahora porque ninguno de
-// los 4 archivos de 2025 trae qualifiers de ese tipo.
-var qualifiersExcluidos = map[string]bool{}
+// Archivos devuelve la ruta del CSV horario de cada contaminante para un
+// año, con el nombre que usa la EPA (hourly_<codigo>_<anio>.csv).
+func Archivos(dir, anio string) map[string]string {
+	codigos := map[string]string{"o3": "44201", "co": "42101", "so2": "42401", "no2": "42602"}
+	archivos := make(map[string]string, len(codigos))
+	for contaminante, codigo := range codigos {
+		archivos[contaminante] = filepath.Join(dir, fmt.Sprintf("hourly_%s_%s.csv", codigo, anio))
+	}
+	return archivos
+}
+
+// Motivo explica por qué una fila se aceptó o se descartó; los cargadores
+// reportan el conteo por motivo para documentar la limpieza.
+type Motivo int
+
+const (
+	Aceptada Motivo = iota
+	MotivoSinMedicion
+	MotivoQualifier
+	MotivoUnidad
+	MotivoFormato
+	numMotivos
+)
+
+var nombresMotivo = [numMotivos]string{"aceptada", "sin_medicion", "qualifier_excluido", "unidad_desconocida", "formato_invalido"}
+
+func (m Motivo) String() string { return nombresMotivo[m] }
+
+// Conteo acumula las filas leídas, las descartadas por motivo y las que
+// requirieron convertir unidades.
+type Conteo struct {
+	Leidas      int64
+	PorMotivo   [numMotivos]int64
+	Convertidas int64
+}
+
+func (c *Conteo) Descartadas() int64 { return c.Leidas - c.PorMotivo[Aceptada] }
+
+func (c *Conteo) Sumar(otro Conteo) {
+	c.Leidas += otro.Leidas
+	c.Convertidas += otro.Convertidas
+	for i := range c.PorMotivo {
+		c.PorMotivo[i] += otro.PorMotivo[i]
+	}
+}
+
+func (c *Conteo) String() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "leidas=%d descartadas=%d convertidas=%d (", c.Leidas, c.Descartadas(), c.Convertidas)
+	for m := MotivoSinMedicion; m < numMotivos; m++ {
+		if m > MotivoSinMedicion {
+			b.WriteString(" ")
+		}
+		fmt.Fprintf(&b, "%s=%d", m, c.PorMotivo[m])
+	}
+	b.WriteString(")")
+	return b.String()
+}
 
 // ValorLeido es una fila del CSV ya validada y lista para unirse al
 // registro procesado de su (estacion, hora). Es el tipo que cruza el
@@ -68,23 +128,31 @@ type ValorLeido struct {
 }
 
 // procesarFila valida y transforma una fila cruda; no toca el índice
-// compartido, así que es segura de llamar desde cualquier goroutine.
-func procesarFila(fila []string, contaminante string) (ValorLeido, bool) {
-	unidad, ok := unidadEsperada[contaminante]
-	if !ok || fila[idxSampleMeasurement] == "" || qualifiersExcluidos[fila[idxQualifier]] || fila[idxUnitsOfMeasure] != unidad {
-		return ValorLeido{}, false
+// compartido, así que es segura de llamar desde cualquier goroutine. El
+// segundo valor indica si hubo que convertir la unidad.
+func procesarFila(fila []string, contaminante string) (ValorLeido, Motivo, bool) {
+	if fila[idxSampleMeasurement] == "" {
+		return ValorLeido{}, MotivoSinMedicion, false
+	}
+	if excluidoPorQualifier(fila[idxQualifier]) {
+		return ValorLeido{}, MotivoQualifier, false
 	}
 
 	valor, errValor := strconv.ParseFloat(fila[idxSampleMeasurement], 64)
 	lat, errLat := strconv.ParseFloat(fila[idxLatitude], 64)
 	lon, errLon := strconv.ParseFloat(fila[idxLongitude], 64)
 	if errValor != nil || errLat != nil || errLon != nil {
-		return ValorLeido{}, false
+		return ValorLeido{}, MotivoFormato, false
+	}
+
+	valor, convertida, ok := convertirUnidad(valor, fila[idxUnitsOfMeasure], unidadEsperada[contaminante])
+	if !ok {
+		return ValorLeido{}, MotivoUnidad, false
 	}
 
 	marcaUTC, errFecha := timestampUTC(fila[idxDateGMT], fila[idxTimeGMT])
 	if errFecha != nil {
-		return ValorLeido{}, false
+		return ValorLeido{}, MotivoFormato, false
 	}
 
 	return ValorLeido{
@@ -96,56 +164,116 @@ func procesarFila(fila []string, contaminante string) (ValorLeido, bool) {
 		Condado:      fila[idxCountyName],
 		Contaminante: contaminante,
 		Valor:        valor,
-	}, true
+	}, Aceptada, convertida
 }
 
-// Indexar agrega un ValorLeido al índice compartido, uniendo por
-// (estacion_id, timestamp_utc). No es segura para llamar desde varias
-// goroutines a la vez sobre el mismo índice — la usa siempre una única
+// convertirUnidad lleva valor de la unidad del archivo a la esperada,
+// según el contrato: ppm↔ppb se convierte (factor 1000), nunca se descarta
+// por eso. Cualquier otra unidad no se puede convertir con seguridad.
+func convertirUnidad(valor float64, unidad, esperada string) (float64, bool, bool) {
+	switch {
+	case unidad == esperada:
+		return valor, false, true
+	case unidad == unidadPPB && esperada == unidadPPM:
+		return valor / 1000, true, true
+	case unidad == unidadPPM && esperada == unidadPPB:
+		return valor * 1000, true, true
+	default:
+		return 0, false, false
+	}
+}
+
+// excluidoPorQualifier descarta las mediciones marcadas por la agencia con
+// un código de "solicitud de exclusión" por evento excepcional (prefijo R
+// en el catálogo de qualifiers de AQS, p. ej. RT = incendio forestal). Los
+// códigos informativos (prefijo I) y los de validación no se descartan:
+// la medición es válida, solo viene anotada.
+func excluidoPorQualifier(qualifier string) bool {
+	return len(qualifier) >= 2 && qualifier[0] == 'R' && qualifier[1] >= 'A' && qualifier[1] <= 'Z'
+}
+
+// Indice une los valores leídos por (estacion_id, timestamp_utc). No es
+// seguro para varias goroutines a la vez: lo usa siempre una única
 // goroutina agregadora, tanto en el cargador secuencial como en el
 // concurrente.
-func Indexar(indice map[string]*registro.RegistroProcesado, v ValorLeido) {
+type Indice struct {
+	Registros map[string]*registro.RegistroProcesado
+	// textos interna estado y condado: hay ~50 estados y ~1000 condados
+	// para millones de registros, así que cada registro comparte la misma
+	// cadena en vez de tener la suya.
+	textos map[string]string
+}
+
+func NuevoIndice() *Indice {
+	return &Indice{
+		Registros: make(map[string]*registro.RegistroProcesado),
+		textos:    make(map[string]string),
+	}
+}
+
+func (ix *Indice) internar(s string) string {
+	if t, ok := ix.textos[s]; ok {
+		return t
+	}
+	t := strings.Clone(s)
+	ix.textos[t] = t
+	return t
+}
+
+// Agregar une v al registro de su (estacion, hora).
+//
+// Cuidado con la memoria: v.Estado y v.Condado son subcadenas de la línea
+// completa que devolvió csv.Reader. Guardarlas tal cual, o tomar &v.Valor
+// (que hace escapar a todo v al heap), mantendría viva cada línea del CSV
+// mientras viva el índice: unos 4 GB extra para 16 M de filas, que era la
+// causa de que el cargador se quedara sin memoria. Por eso se internan las
+// cadenas y solo se reserva el float64.
+func (ix *Indice) Agregar(v ValorLeido) {
 	clave := v.EstacionID + "|" + v.TimestampUTC
 
-	reg, existe := indice[clave]
+	reg, existe := ix.Registros[clave]
 	if !existe {
 		reg = &registro.RegistroProcesado{
 			EstacionID:   v.EstacionID,
 			TimestampUTC: v.TimestampUTC,
 			Latitud:      v.Latitud,
 			Longitud:     v.Longitud,
-			Estado:       v.Estado,
-			Condado:      v.Condado,
+			Estado:       ix.internar(v.Estado),
+			Condado:      ix.internar(v.Condado),
 		}
-		indice[clave] = reg
+		ix.Registros[clave] = reg
 	}
 
+	valor := new(float64)
+	*valor = v.Valor
 	switch v.Contaminante {
 	case "o3":
-		reg.O3Ppm = &v.Valor
+		reg.O3Ppm = valor
 	case "no2":
-		reg.NO2Ppb = &v.Valor
+		reg.NO2Ppb = valor
 	case "so2":
-		reg.SO2Ppb = &v.Valor
+		reg.SO2Ppb = valor
 	case "co":
-		reg.COPpm = &v.Valor
+		reg.COPpm = valor
 	}
 }
 
 // Procesar lee secuencialmente el CSV horario de un contaminante y agrega
-// sus valores válidos a indice. Devuelve cuántas filas leyó y cuántas
-// descartó. Es la versión de una sola goroutine (línea base T(1)); para el
-// cargador concurrente ver LimitesBloques y ProcesarRango.
-func Procesar(entrada io.Reader, contaminante string, indice map[string]*registro.RegistroProcesado) (leidas, descartadas int64, err error) {
+// sus valores válidos a indice. Es la versión de una sola goroutine (línea
+// base T(1)); para el cargador concurrente ver LimitesBloques y
+// ProcesarRango. tiempoIndexado acumula lo que se tarda en Agregar, la
+// parte que en el concurrente queda serializada en la agregadora.
+func Procesar(entrada io.Reader, contaminante string, indice *Indice) (c Conteo, tiempoIndexado time.Duration, err error) {
 	if _, ok := unidadEsperada[contaminante]; !ok {
-		return 0, 0, fmt.Errorf("contaminante desconocido: %s", contaminante)
+		return c, 0, fmt.Errorf("contaminante desconocido: %s", contaminante)
 	}
 
 	lector := csv.NewReader(entrada)
 	lector.ReuseRecord = true
+	lector.FieldsPerRecord = numColumnas
 
 	if _, err = lector.Read(); err != nil {
-		return 0, 0, fmt.Errorf("leyendo encabezado: %w", err)
+		return c, 0, fmt.Errorf("leyendo encabezado: %w", err)
 	}
 
 	for {
@@ -154,19 +282,24 @@ func Procesar(entrada io.Reader, contaminante string, indice map[string]*registr
 			break
 		}
 		if errLectura != nil {
-			return leidas, descartadas, fmt.Errorf("leyendo fila %d: %w", leidas+descartadas+1, errLectura)
+			return c, tiempoIndexado, fmt.Errorf("leyendo fila %d: %w", c.Leidas+1, errLectura)
 		}
-		leidas++
+		c.Leidas++
 
-		valor, ok := procesarFila(fila, contaminante)
-		if !ok {
-			descartadas++
+		valor, motivo, convertida := procesarFila(fila, contaminante)
+		c.PorMotivo[motivo]++
+		if motivo != Aceptada {
 			continue
 		}
-		Indexar(indice, valor)
+		if convertida {
+			c.Convertidas++
+		}
+		inicio := time.Now()
+		indice.Agregar(valor)
+		tiempoIndexado += time.Since(inicio)
 	}
 
-	return leidas, descartadas, nil
+	return c, tiempoIndexado, nil
 }
 
 // LimitesBloques divide ruta en n bloques de bytes contiguos, cada corte
@@ -227,10 +360,10 @@ func finDeLinea(f *os.File, offset int64) (int64, error) {
 // por bloque. La llama cada goroutine trabajadora sobre su propio bloque;
 // no toca estado compartido, así que varias corren en paralelo sin
 // necesidad de sincronización.
-func ProcesarRango(ruta, contaminante string, inicio, fin int64, salida chan<- ValorLeido) (leidas, descartadas int64, err error) {
+func ProcesarRango(ruta, contaminante string, inicio, fin int64, salida chan<- ValorLeido) (c Conteo, err error) {
 	f, err := os.Open(ruta)
 	if err != nil {
-		return 0, 0, err
+		return c, err
 	}
 	defer f.Close()
 
@@ -243,19 +376,22 @@ func ProcesarRango(ruta, contaminante string, inicio, fin int64, salida chan<- V
 			break
 		}
 		if errLectura != nil {
-			return leidas, descartadas, fmt.Errorf("leyendo fila %d de %s[%d:%d]: %w", leidas+descartadas+1, ruta, inicio, fin, errLectura)
+			return c, fmt.Errorf("leyendo fila %d de %s[%d:%d]: %w", c.Leidas+1, ruta, inicio, fin, errLectura)
 		}
-		leidas++
+		c.Leidas++
 
-		valor, ok := procesarFila(fila, contaminante)
-		if !ok {
-			descartadas++
+		valor, motivo, convertida := procesarFila(fila, contaminante)
+		c.PorMotivo[motivo]++
+		if motivo != Aceptada {
 			continue
+		}
+		if convertida {
+			c.Convertidas++
 		}
 		salida <- valor
 	}
 
-	return leidas, descartadas, nil
+	return c, nil
 }
 
 func timestampUTC(fechaGMT, horaGMT string) (string, error) {

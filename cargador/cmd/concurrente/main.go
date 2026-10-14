@@ -12,15 +12,11 @@ import (
 	"fmt"
 	"log"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
-
 	"proyecto9/internal/aqs"
+	"proyecto9/internal/medicion"
 	"proyecto9/internal/persistencia"
-	"proyecto9/internal/registro"
 )
 
 type bloque struct {
@@ -35,22 +31,18 @@ func main() {
 	mongoURI := flag.String("mongo-uri", "mongodb://localhost:27017", "cadena de conexión a MongoDB")
 	baseDatos := flag.String("db", "proyecto9", "nombre de la base de datos")
 	goroutines := flag.Int("goroutines", 4, "numero de goroutines trabajadoras (parametro del Experimento 1)")
+	bloquesPorGoroutine := flag.Int("bloques-por-goroutine", 4, "bloques por archivo y goroutine; más de 1 reparte mejor la carga entre archivos de distinto tamaño")
+	sinMongo := flag.Bool("sin-mongo", false, "no escribir en MongoDB (mide solo el procesamiento)")
+	rutaResultado := flag.String("resultado", "", "CSV al que se agrega una fila con los tiempos de esta corrida")
 	flag.Parse()
 
-	if *goroutines < 1 {
-		log.Fatal("-goroutines debe ser >= 1")
+	if *goroutines < 1 || *bloquesPorGoroutine < 1 {
+		log.Fatal("-goroutines y -bloques-por-goroutine deben ser >= 1")
 	}
 
 	inicio := time.Now()
 
-	archivos := map[string]string{
-		"o3":  fmt.Sprintf("%s/hourly_44201_%s.csv", *dirDatos, *anio),
-		"co":  fmt.Sprintf("%s/hourly_42101_%s.csv", *dirDatos, *anio),
-		"so2": fmt.Sprintf("%s/hourly_42401_%s.csv", *dirDatos, *anio),
-		"no2": fmt.Sprintf("%s/hourly_42602_%s.csv", *dirDatos, *anio),
-	}
-
-	bloques, err := despachar(archivos, *goroutines)
+	bloques, err := despachar(aqs.Archivos(*dirDatos, *anio), *goroutines**bloquesPorGoroutine)
 	if err != nil {
 		log.Fatalf("error calculando los bloques: %v", err)
 	}
@@ -58,12 +50,20 @@ func main() {
 
 	entradaBloques := make(chan bloque)
 	salida := make(chan aqs.ValorLeido, 1000)
-	var leidas, descartadas atomic.Int64
+
+	// total lo actualiza cada trabajadora al terminar un bloque. Es una
+	// sección crítica (varias goroutines escriben el mismo struct), así que
+	// se protege con un mutex; se toma una vez por bloque, no por fila, para
+	// que la contención sea despreciable.
+	var (
+		total   aqs.Conteo
+		muTotal sync.Mutex
+	)
 
 	var trabajadoras sync.WaitGroup
 	for i := 0; i < *goroutines; i++ {
 		trabajadoras.Add(1)
-		go trabajador(entradaBloques, salida, &leidas, &descartadas, &trabajadoras)
+		go trabajador(entradaBloques, salida, &total, &muTotal, &trabajadoras)
 	}
 
 	go func() {
@@ -78,38 +78,51 @@ func main() {
 		close(salida)
 	}()
 
-	indice := make(map[string]*registro.RegistroProcesado)
+	// Agregadora: la goroutine principal es la única que toca el índice,
+	// por eso Agregar no necesita sincronización.
+	indice := aqs.NuevoIndice()
+	var tiempoIndexado time.Duration
 	for v := range salida {
-		aqs.Indexar(indice, v)
-	}
-	log.Printf("registros unicos (estacion, hora): %d", len(indice))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
-
-	cliente, err := mongo.Connect(options.Client().ApplyURI(*mongoURI))
-	if err != nil {
-		log.Fatalf("no se pudo conectar a mongo: %v", err)
-	}
-	defer cliente.Disconnect(ctx)
-
-	coleccion := cliente.Database(*baseDatos).Collection("registros_procesados")
-	if err := coleccion.Drop(ctx); err != nil {
-		log.Fatalf("no se pudo limpiar la coleccion: %v", err)
+		t := time.Now()
+		indice.Agregar(v)
+		tiempoIndexado += time.Since(t)
 	}
 
-	escritos, err := persistencia.EscribirLotes(ctx, coleccion, indice, 5000)
-	if err != nil {
-		log.Fatalf("error escribiendo en mongo: %v", err)
+	corrida := medicion.Corrida{
+		Modo:          "concurrente",
+		Goroutines:    *goroutines,
+		Procesamiento: time.Since(inicio),
+		Indexado:      tiempoIndexado,
+		FilasLeidas:   total.Leidas,
+		Registros:     int64(len(indice.Registros)),
+		MemoriaMB:     medicion.MemoriaMB(),
+	}
+	log.Printf("total: %s", &total)
+	log.Printf("registros unicos (estacion, hora): %d", corrida.Registros)
+
+	if !*sinMongo {
+		inicioMongo := time.Now()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+		escritos, err := persistencia.Reemplazar(ctx, *mongoURI, *baseDatos, indice.Registros, 5000)
+		if err != nil {
+			log.Fatalf("error escribiendo en mongo: %v", err)
+		}
+		corrida.Mongo = time.Since(inicioMongo)
+		log.Printf("registros escritos en mongo: %d", escritos)
 	}
 
-	duracion := time.Since(inicio)
-	log.Printf("filas leidas: %d | descartadas: %d | registros escritos: %d", leidas.Load(), descartadas.Load(), escritos)
-	log.Printf("T(%d) cargador concurrente: %s", *goroutines, duracion)
+	corrida.Total = time.Since(inicio)
+	log.Print(corrida)
+	if *rutaResultado != "" {
+		if err := medicion.Agregar(*rutaResultado, corrida); err != nil {
+			log.Fatalf("no se pudo guardar el resultado: %v", err)
+		}
+	}
 }
 
-// despachador: calcula los límites de bloque de cada archivo y arma la
-// lista completa de bloques a repartir entre los trabajadores.
+// despachar calcula los límites de bloque de cada archivo y arma la lista
+// completa de bloques a repartir entre los trabajadores.
 func despachar(archivos map[string]string, n int) ([]bloque, error) {
 	var bloques []bloque
 	for contaminante, ruta := range archivos {
@@ -126,16 +139,16 @@ func despachar(archivos map[string]string, n int) ([]bloque, error) {
 
 // trabajador consume bloques del channel de entrada hasta que se cierra y
 // procesa cada uno de forma independiente, emitiendo sus valores válidos a
-// medida que los encuentra. leidas y descartadas son atómicos porque los
-// suman varias goroutines a la vez.
-func trabajador(entrada <-chan bloque, salida chan<- aqs.ValorLeido, leidas, descartadas *atomic.Int64, wg *sync.WaitGroup) {
+// medida que los encuentra.
+func trabajador(entrada <-chan bloque, salida chan<- aqs.ValorLeido, total *aqs.Conteo, mu *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for b := range entrada {
-		l, d, err := aqs.ProcesarRango(b.ruta, b.contaminante, b.inicio, b.fin, salida)
+		c, err := aqs.ProcesarRango(b.ruta, b.contaminante, b.inicio, b.fin, salida)
 		if err != nil {
 			log.Fatalf("error procesando %s[%d:%d]: %v", b.ruta, b.inicio, b.fin, err)
 		}
-		leidas.Add(l)
-		descartadas.Add(d)
+		mu.Lock()
+		total.Sumar(c)
+		mu.Unlock()
 	}
 }
