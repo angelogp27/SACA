@@ -10,12 +10,25 @@ Este documento consolida todo el material de referencia del proyecto (ficha téc
 
 ## 1. Resumen ejecutivo
 
-Se construye un sistema distribuido, escrito íntegramente en Go y desplegado con Docker, que procesa de forma concurrente más de quince millones de mediciones horarias reales de calidad del aire de la red de monitoreo de Estados Unidos (EPA), entrena de manera distribuida un modelo de aprendizaje automático sobre un clúster de nodos trabajadores, y expone en tiempo real una predicción útil para la salud pública: en qué estaciones y en qué horas del día siguiente el aire alcanzará un nivel de contaminación que obliga a tomar precauciones.
+Se construye un sistema que procesa en paralelo los **16,97 millones** de mediciones horarias reales de calidad del aire de 2025 de la red de monitoreo de Estados Unidos (EPA). Con ellas entrena un modelo de aprendizaje automático y expone una predicción útil para la salud pública: en qué estaciones y en qué horas el aire alcanzará un nivel de contaminación que obliga a tomar precauciones.
 
-El proyecto combina las dos dimensiones que exige el curso:
+El sistema base está escrito en **Go** y se despliega con Docker. Desde el 13 de octubre de 2026 el proyecto también implementa **todas las tecnologías del sílabo** como núcleos de cómputo propios, escritos en C/C++:
 
-- **Paralelismo** — varias unidades de ejecución trabajando simultáneamente dentro de una misma máquina, mediante goroutines y channels.
-- **Distribución** — varios procesos en máquinas o contenedores distintos cooperando para entrenar un único modelo, mediante un esquema maestro-trabajador sobre TCP.
+| Tecnología del sílabo | Semanas del sílabo | Qué resuelve en SACA |
+|---|---|---|
+| **MPI** | 3-4 | Entrenamiento distribuido entre procesos: scatter de datos, broadcast de pesos y reduce de gradientes |
+| **Pthreads** | 5-6 | Cargador productor-consumidor con mutex, variables de condición y barreras |
+| **OpenMP** | 7, 9-10 | Gradiente con `reduction` y cálculo de variables por estación con `task`/`schedule` (balanceo de carga) |
+| **CUDA** | 11-13 | Gradiente en GPU (reducción en memoria compartida y warp shuffles) y ordenamiento/MapReduce en GPU |
+| Go: goroutines, channels, TCP | todo el curso | Sistema completo: cargador, maestro-trabajador, API y orquestación |
+
+Todos los núcleos resuelven **el mismo problema con exactamente los mismos datos** (un archivo binario que exporta Go, ver [docs/contrato_formato_binario.md](../docs/contrato_formato_binario.md)). Por eso pueden compararse de forma directa: misma pérdida final y distinto tiempo.
+
+El proyecto combina las tres dimensiones del curso:
+
+- **Paralelismo en memoria compartida**: goroutines, Pthreads y OpenMP dentro de una máquina.
+- **Distribución por paso de mensajes**: maestro-trabajador sobre TCP en Go, y MPI.
+- **Aceleración en GPU**: CUDA.
 
 ## 2. Fundamentos, para quien recién empieza en paralelismo
 
@@ -27,10 +40,11 @@ El proyecto combina las dos dimensiones que exige el curso:
 | **Paralelismo** | Varias tareas ejecutándose *realmente al mismo tiempo* en distintos núcleos. Es una propiedad del hardware. | Cuatro cocineros, cada uno en su propia hornilla. |
 | **Distribución** | Varias computadoras (o contenedores) distintas cooperando por red para resolver un solo problema. No comparten memoria, solo se mandan mensajes. | Cuatro cocinas en cuatro edificios distintos que se coordinan por teléfono. |
 
-El curso enseña dos modelos de paralelismo, y el proyecto usa uno de cada uno:
+El curso enseña tres modelos de paralelismo, y el proyecto implementa los tres, cada uno con las mismas herramientas del laboratorio y además con su equivalente en Go:
 
-- **Memoria compartida**: varios hilos en la misma máquina que ven las mismas variables. Es rápido, pero peligroso, porque dos hilos pueden pisarse al escribir en la misma variable. En el laboratorio se ve con Pthreads y OpenMP; en el proyecto, con goroutines de Go.
-- **Paso de mensajes**: varios procesos que no comparten nada y se comunican enviándose datos. Es más lento pero escala a muchas máquinas. En el laboratorio se ve con MPI; en el proyecto, con conexiones TCP entre contenedores Docker.
+- **Memoria compartida**: varios hilos en la misma máquina que ven las mismas variables. Es rápido, pero peligroso, porque dos hilos pueden pisarse al escribir en la misma variable. En el proyecto se hace con **Pthreads**, **OpenMP** y goroutines de Go.
+- **Paso de mensajes**: varios procesos que no comparten nada y se comunican enviándose datos. Es más lento pero escala a muchas máquinas. En el proyecto se hace con **MPI** y con conexiones TCP entre contenedores Docker (Go).
+- **GPU (SIMT)**: miles de hilos ligeros ejecutan la misma instrucción sobre datos distintos. Sirve para cálculos masivos y regulares, pero copiar los datos a la tarjeta tiene un costo fijo, así que solo conviene si hay suficiente trabajo. En el proyecto se hace con **CUDA**.
 
 **Condición de carrera.** Si dos hilos leen la variable `contador = 5`, cada uno le suma 1 y la guarda, lo esperado es 7. Pero si ambos leyeron el 5 antes de que el otro escribiera, ambos guardan 6: un incremento se perdió. Es el error más importante que el curso pide evitar. Las herramientas para evitarlo son el **mutex** (un candado que solo un hilo puede tener a la vez) y las **operaciones atómicas** (instrucciones del procesador que hacen leer-modificar-escribir sin que nadie pueda meterse en medio).
 
@@ -204,6 +218,34 @@ SPA (React) que presenta:
 - Panel de estado del clúster alimentado por WebSocket: nodos activos, consumo de CPU/RAM, época en curso y curva de pérdida.
 - Panel de rendimiento con las curvas de speedup y eficiencia obtenidas en los experimentos — la evidencia visual de la parte concurrente y paralela del trabajo.
 
+### Núcleos nativos (C/C++): Pthreads, OpenMP, MPI y CUDA
+
+Cada tecnología del sílabo tiene un programa propio en `nativo/`, y todos comparten el mismo flujo:
+
+1. Go exporta el conjunto de datos ya limpio a un **formato binario simple**, con encabezado y matrices `float64` en orden fila (`herramientas/cmd/exportar-muestra`). Hay dos variantes:
+   - la muestra de entrenamiento y prueba, ya normalizada;
+   - los registros horarios por estación, para el cálculo de variables.
+2. El núcleo nativo lee ese archivo, hace el cálculo con su tecnología y agrega una fila al **mismo CSV de resultados** que usan los programas en Go (`modo, goroutines, ..., t_total_s`). La columna `goroutines` significa "unidades de ejecución": hilos, procesos MPI o bloques de CUDA, según el caso.
+3. `experimentos/cmd/analisis` resume todos los CSV con el mismo método: mediana, speedup, eficiencia, Karp-Flatt y Amdahl.
+
+| Programa | Tecnología | Pieza del sistema que replica | Conceptos del sílabo |
+|---|---|---|---|
+| `nativo/pthreads/cargador` | Pthreads | Parte A: limpieza de los CSV de la EPA | Creación y unión de hilos, mutex, **productor-consumidor con buffer acotado y variables de condición**, barrera, thread-safety |
+| `nativo/openmp/entrenamiento` | OpenMP | Parte B: gradiente de la regresión logística | `parallel for`, variables privadas y compartidas, **`reduction`** sobre arreglos |
+| `nativo/openmp/variables` | OpenMP | Rezagos t-1..t-24 y medias/máximos móviles de 24 h por estación (variables pendientes del enunciado) | **`task`**, `schedule(static/dynamic/guided)`, **balanceo de carga**: las estaciones tienen tamaños muy distintos |
+| `nativo/mpi/entrenamiento` | MPI | Parte B distribuida | `MPI_Send/Recv` (versión punto a punto) frente a `MPI_Scatterv`, **`MPI_Bcast`** y **`MPI_Allreduce`** (versión colectiva) |
+| `nativo/cuda/gradiente` | CUDA | Gradiente de la Parte B en GPU | Kernels, memoria global y compartida, **reducción en árbol**, **warp shuffles**, `atomicAdd` |
+| `nativo/cuda/estaciones` | CUDA + Thrust | Ordenamiento por (estación, hora) y estadísticas por estación | **Sorting paralelo** y **MapReduce en GPU** (`sort_by_key`, `reduce_by_key`) |
+
+Reglas comunes:
+
+- **Misma respuesta.** Con los mismos datos y la misma cantidad de épocas, cada implementación debe dar la misma pérdida final que `entrenamiento/cmd/secuencial`, dentro de 1e-6. Es la prueba de corrección de cada núcleo.
+- **Mismas reglas de limpieza.** El cargador en Pthreads aplica las de [docs/contrato_registro_procesado.md](../docs/contrato_registro_procesado.md) y debe reportar los mismos conteos que el cargador en Go (16 972 287 filas leídas, 1625 excluidas por qualifier).
+- **Dónde corre cada uno:**
+  - Pthreads y OpenMP: gcc de MSYS2 en Windows, o gcc en Linux.
+  - MPI: MS-MPI en Windows, u OpenMPI en Linux o en contenedores Docker.
+  - CUDA: solo en GPU **NVIDIA**. El código se escribe en cualquier PC, pero se compila, valida y mide en **las computadoras del grupo que tienen GPU NVIDIA**. La PC de desarrollo principal tiene una AMD RX 580, que no ejecuta CUDA. Google Colab (GPU T4) queda como respaldo (ver §12).
+
 ### Persistencia
 
 - **MongoDB**: almacenamiento persistente del conjunto de datos ya procesado, del historial de entrenamientos (hiperparámetros y métricas) y del registro de predicciones emitidas.
@@ -217,16 +259,19 @@ Todo con **Docker Compose**, separando en dos grupos la infraestructura principa
 
 | Área | Tecnología |
 |---|---|
-| Lenguaje único del backend | Go |
-| Concurrencia interna | goroutines, channels, `sync.WaitGroup`, `sync.Mutex`, paquete `sync/atomic` |
-| Comunicación entre nodos | TCP interno (maestro-trabajador) |
+| Backend y orquestación | Go |
+| Concurrencia en Go | goroutines, channels, `sync.WaitGroup`, `sync.Mutex`, paquete `sync/atomic` |
+| Hilos POSIX | **Pthreads** (C, gcc) |
+| Paralelismo por directivas | **OpenMP** (C, `gcc -fopenmp`) |
+| Paso de mensajes | **MPI** (C; MS-MPI en Windows, OpenMPI en Linux/Docker) y TCP propio en Go |
+| GPU | **CUDA** (C++, `nvcc`, Thrust) en las PCs del grupo con GPU NVIDIA; Google Colab como respaldo |
 | Comunicación con el cliente | HTTP/REST y WebSocket |
 | Seguridad | JWT |
 | Base de datos persistente | MongoDB |
 | Cache en memoria | Redis |
 | Frontend | SPA en **React** |
 | Empaquetado y orquestación | Docker y Docker Compose |
-| Modelo de ML | Regresión logística por SGD, implementada desde cero en Go |
+| Modelo de ML | Regresión logística por descenso de gradiente, implementada desde cero en Go, C y CUDA |
 
 ## 8. Cómo se evalúa el proyecto
 
@@ -234,12 +279,21 @@ Tres planos, y los tres se reportan.
 
 **Plano 1 — Rendimiento paralelo y concurrente** (el central para el curso). Se establece primero una línea base estrictamente secuencial (T(1)), y contra ella se miden speedup, eficiencia y contraste con la ley de Amdahl (fracción secuencial irreducible: lectura del archivo, agregación final de gradientes, escrituras a base de datos). También escalabilidad fuerte (mismo volumen, más unidades) y débil (volumen creciente proporcional a las unidades), y balanceo de carga entre goroutines/nodos.
 
-Experimentos concretos:
+Experimentos concretos. Todos se miden con 3 repeticiones, se resumen con la mediana y se comparan contra su T(1) secuencial:
 
-1. **Cargador**: tiempo total de ingesta de los 15M+ registros con 1, 2, 4, 8 y 16 goroutines trabajadoras.
-2. **Entrenamiento**: tiempo por época con 1, 2, 4 y 8 nodos trabajadores.
-3. **Sincronización**: mutex frente a operaciones atómicas, comparando tiempo por época y estabilidad de convergencia.
-4. **Agregación**: modo síncrono frente a asíncrono.
+| # | Experimento | Tecnología | Variable que se cambia | Estado |
+|---|---|---|---|---|
+| 1 | Cargador | Go (goroutines) | 1, 2, 4, 8, 12, 16 goroutines; 1 agregadora frente a N agregadoras | ✅ |
+| 1b | Entrenamiento en memoria compartida | Go (goroutines) | 1-12 goroutines; reducción, mutex y CAS | ✅ |
+| 2 | Entrenamiento distribuido | Go (TCP) | 1, 2, 4, 8 nodos trabajadores | semana 12 |
+| 3 | Sincronización del vector de parámetros del maestro | Go | mutex frente a atómicos (CAS) | semana 12 |
+| 4 | Agregación | Go (TCP) | síncrono frente a asíncrono | semana 12 |
+| 5 | Productor-consumidor | **Pthreads** frente a goroutines | hilos productores y consumidores; tamaño del buffer | semana 8-9 |
+| 6 | Reducciones y balanceo de carga | **OpenMP** | hilos × `schedule(static/dynamic/guided)` × tamaño de bloque | semana 8-10 |
+| 7 | Paso de mensajes | **MPI** frente a TCP en Go | 1-8 procesos; punto a punto frente a colectivas | semana 9-10 |
+| 8 | GPU | **CUDA** frente a CPU (OpenMP) | tamaño del problema (10³ a 10⁷ ejemplos); kernel ingenuo, memoria compartida y warp shuffle | semana 11-13 |
+
+El experimento 8 está pensado para mostrar el **punto de cruce**. Con el problema actual (147 mil ejemplos y 12 variables) la GPU pierde contra la CPU, porque copiar los datos a la tarjeta cuesta más que el cálculo. Al crecer el número de ejemplos y de variables (rezagos), la GPU empieza a ganar. Medir dónde ocurre ese cruce es el resultado.
 
 **Plano 2 — Calidad del servicio.** Latencia p50/p95/p99 con y sin cache de Redis (objetivo <100ms), rendimiento bajo carga concurrente de clientes, comportamiento ante la caída de un nodo trabajador durante el entrenamiento.
 
@@ -249,66 +303,77 @@ Experimentos concretos:
 
 Diseño original: las cuatro partes están pensadas para avanzar simultáneamente entre 4 integrantes (uno por parte A/B/C/D), más trabajo transversal de Docker Compose, integración y ejecución de experimentos. Se acuerdan desde el inicio los contratos entre partes (esquema del registro procesado, protocolo TCP maestro-trabajador, contrato de la API REST) para que cada quien trabaje contra una versión simulada (mock) de las demás partes sin quedar bloqueado.
 
+Con los núcleos nativos, el trabajo se reparte mejor entre los 8 integrantes del grupo. Una propuesta: uno por cada parte A/B/C/D en Go, uno por cada tecnología nativa (Pthreads, OpenMP, MPI, CUDA), y los experimentos y la integración como trabajo transversal. El formato binario común es el contrato que permite avanzar los núcleos nativos sin esperar a la Parte B en Go.
+
 > Estado actual del proyecto: sin roles asignados todavía.
 
 > Avance real al 14 de octubre de 2026 (semanas 3-7 completas + entrenamiento paralelo + frontend con datos reales): ver [avance_parcial.md](avance_parcial.md).
 
-## 10. Cronograma del proyecto — semanas 3 a 15
+## 10. Cronograma del proyecto — semanas 3 a 16
 
-Semanas 1 y 2 (ya transcurridas): definición de la idea del proyecto. El trabajo de proyecto que sigue arranca en la semana 3, que es también cuando el sílabo marca la primera revisión de avances.
+Semanas 1 y 2 (ya transcurridas): definición de la idea del proyecto. El trabajo del proyecto arranca en la semana 3, que es también cuando el sílabo marca la primera revisión de avances.
 
-Hitos fijos del sílabo, no ligados al arranque del proyecto: revisión de avances desde la semana 3, exposiciones en la 13, 14 y 15.
+**Cambio de alcance (13 de octubre de 2026).** Se decidió implementar todas las tecnologías del sílabo (MPI, Pthreads, OpenMP, CUDA) y no solo su equivalente en Go. El cronograma se reorganizó para que cada tecnología se implemente en la semana en que el sílabo la enseña o, si esa semana ya pasó, lo antes posible. MPI, Pthreads y OpenMP son temas de las semanas 3-7, que son las que cubre el examen parcial.
 
-Convención: A = cargador, B = entrenamiento, C = API, D = frontend, T = transversal (Docker, integración, experimentos).
+Hitos fijos del sílabo: revisión de avances desde la semana 3, examen parcial en la 8, exposiciones en la 13, 14 y 15, y examen final en la 16.
 
-### Fase 1 · Semanas 3-4 · Datos, contratos y línea base secuencial
+Convención: A = cargador, B = entrenamiento, C = API, D = frontend, N = núcleos nativos (C/C++), T = transversal (Docker, integración, experimentos).
 
-| Sem. | Trabajo del proyecto | Entregable de la semana |
+### Fase 1 · Semanas 3-4 · Datos, contratos y línea base secuencial ✅
+
+| Sem. | Trabajo del proyecto | Estado |
 |---|---|---|
-| 3 | Descargar los cuatro `hourly_*.zip` de la EPA y confirmar el conteo real de registros (>15 M). Repartir las partes A/B/C/D. Acordar los tres contratos: esquema del registro procesado, protocolo TCP maestro-trabajador, contrato REST. Crear el repo con estructura Go y Docker Compose vacío. | Los cuatro CSV descargados con el conteo confirmado. Documento de contratos (un `.md` en el repo). Repo inicializado. |
-| 4 | A: explorar los CSV, definir limpieza (nulos, qualifiers, unidades) y escribir el cargador **secuencial** completo (una goroutine). B: escribir la regresión logística **secuencial** en Go y entrenarla sobre una muestra. C: esqueleto REST con un endpoint `/health`. D: maqueta de la SPA. T: script que mide el tiempo de ambos. | Features y etiqueta cerradas por escrito, umbrales AQI verificados contra la tabla de la EPA. **T(1) del cargador y T(1) del entrenamiento** — línea base de todo el proyecto. |
+| 3 | Descargar los 4 CSV horarios (16 972 287 filas) y acordar los contratos | ✅ Descarga reproducible con manifiesto SHA-256 (`herramientas/cmd/descargar`) |
+| 4 | Cargador secuencial y regresión logística secuencial: T(1) de ambos | ✅ Cargador: 128-164 s con Mongo (37 s sin Mongo). Entrenamiento: 2,4 s |
 
-### Fase 2 · Semanas 5-8 · Cargador concurrente y persistencia
+### Fase 2 · Semanas 5-8 · Paralelismo en memoria compartida y paso de mensajes (temas del parcial)
 
-| Sem. | Trabajo del proyecto | Entregable de la semana |
-|---|---|---|
-| 5 | A: partir el archivo en bloques ajustados al salto de línea; despachador + worker pool. C: MongoDB en Compose, modelo de documento del registro procesado. | Cargador concurrente que procesa un archivo completo con N goroutines configurable. |
-| 6 | A: agregadora que escribe por lotes en MongoDB; cierre ordenado de channels; correr con `go run -race`. B: partir el dataset en particiones por nodo. D: mapa de estaciones con los metadatos del `annual_conc_by_monitor`. | Los 15 M de registros en MongoDB sin fugas de goroutines ni carreras. |
-| 7 | T: **Experimento 1** con 1, 2, 4, 8 y 16 goroutines. Calcular speedup y eficiencia. B: protocolo TCP, maestro que acepta conexiones y registra nodos. | Tabla y gráfica de speedup del cargador. Primer análisis con Amdahl. |
-| 8 | Semana de consolidación: cerrar y documentar lo avanzado en la Fase 2. | Informe de avance de la Fase 2 (medio ciclo). |
+| Sem. | Sílabo | Trabajo del proyecto | Estado |
+|---|---|---|---|
+| 5-6 | Pthreads | A (Go): cargador concurrente con worker pool, fan-out/fan-in y agregadoras particionadas; escritura concurrente en Mongo; `-race` | ✅ |
+| 6 | — | B: partición de datos por hash de estación. D: mapa con metadatos reales | ✅ |
+| 7 | OpenMP | T: Experimento 1 (cargador) y 1b (entrenamiento con goroutines: reducción, mutex, CAS). B: maestro TCP que registra nodos | ✅ |
+| 8 | Examen parcial | **N: contrato del formato binario + `exportar-muestra`**. **N: Pthreads** (cargador productor-consumidor) y **OpenMP** (gradiente con `reduction`). Validación: misma pérdida que Go | pendiente, prioridad para el parcial |
+| 8 | Examen parcial | **N: MPI** (entrenamiento punto a punto y colectivo con `mpiexec -n 1..8`) | pendiente, prioridad para el parcial si MS-MPI queda instalado |
 
-### Fase 3 · Semanas 9-12 · Entrenamiento distribuido y API
+Si no hay tiempo de tener MPI, Pthreads y OpenMP para la entrega del parcial, se entregan en la semana 9 y el parcial se defiende con la tabla de equivalencias de [docs/conceptos_curso.md](../docs/conceptos_curso.md).
 
-| Sem. | Trabajo del proyecto | Entregable de la semana |
-|---|---|---|
-| 9 | B: trabajador que recibe partición y parámetros, calcula gradiente parcial y lo devuelve. Maestro que agrega en modo **síncrono**. C: endpoints de predicción y de lanzar/consultar entrenamiento. | Entrenamiento distribuido funcionando con 2 nodos en Compose. |
-| 10 | B: sección crítica protegida con **mutex**; luego versión con **atómicos** (CAS). C: JWT con dos roles. D: línea de tiempo observado vs predicho. | Las dos estrategias de sincronización implementadas y pasando `-race`. |
-| 11 | B: modo **asíncrono** de agregación. Manejo de caída de un nodo. C: WebSocket con pérdida por época y telemetría (CPU, RAM) de cada nodo. | Curva de pérdida visible en tiempo real desde el navegador. |
-| 12 | T: **Experimento 2** (1, 2, 4, 8 nodos), **Experimento 3** (mutex vs atómicos), **Experimento 4** (síncrono vs asíncrono). C: Redis como cache de predicciones. | Tablas y gráficas de los cuatro experimentos. Latencia p50/p95/p99 con y sin cache. |
+### Fase 3 · Semanas 9-12 · Distribución, API y GPU
 
-### Fase 4 · Semanas 13-15 · Integración, métricas del modelo y exposición
+| Sem. | Sílabo | Trabajo del proyecto | Entregable |
+|---|---|---|---|
+| 9 | OpenMP: tareas y balanceo de carga | **N: OpenMP `task` + `schedule`** para rezagos y medias móviles por estación (Experimento 6). B: entrenamiento distribuido síncrono en Go con 2 nodos. C: `/predicciones` y lanzar/consultar entrenamiento | Distribuido funcionando; variables de rezago calculadas |
+| 10 | Descomposición de datos y tareas; balanceo y eficiencia | **N: Experimento 7 (MPI frente a TCP en Go).** B: sección crítica del maestro con mutex y con atómicos. C: JWT con dos roles | Las dos estrategias pasando `-race`; tabla MPI frente a TCP |
+| 11 | CUDA: arquitectura, modelo y kernels | **N: kernel CUDA del gradiente** (versión ingenua con `atomicAdd`), compilado y validado contra la pérdida de Go en una PC del grupo con NVIDIA. B: modo asíncrono y caída de nodos. C: WebSocket con pérdida por época | Primer kernel correcto; curva de pérdida en el navegador |
+| 12 | CUDA: memoria compartida, reducción, warp shuffles | **N: reducción en memoria compartida y con warp shuffles (Experimento 8).** T: Experimentos 2, 3 y 4. C: Redis | Tablas de los experimentos 2-8; latencias p50/p95/p99 |
 
-| Sem. | Trabajo del proyecto | Entregable de la semana |
-|---|---|---|
-| 13 | D: panel de rendimiento con speedup y eficiencia. B: métricas del modelo (precisión, F1, AUC-ROC) con partición temporal. T: Compose completo, un solo `docker compose up`. **Exposiciones.** | Sistema integrado corriendo de punta a punta. Borrador del informe. |
-| 14 | T: prueba de carga sobre la API. Ensayo de la demo en vivo (levantar clúster, lanzar entrenamiento, ver telemetría). Corregir lo que falle. **Exposiciones.** | Informe final con los tres planos de evaluación. Diapositivas. |
-| 15 | Exposición y demo en vivo. | Proyecto entregado. |
+### Fase 4 · Semanas 13-16 · Algoritmos en GPU, integración y exposición
+
+| Sem. | Sílabo | Trabajo del proyecto | Entregable |
+|---|---|---|---|
+| 13 | GPU: sorting y MapReduce; buscar concurrencia; evaluación empírica de la aceleración | **N: `sort_by_key`/`reduce_by_key` (Thrust)** para ordenar por (estación, hora) y estadísticas por estación. D: panel de rendimiento con las 8 tecnologías. B: métricas del modelo. T: `docker compose up` levanta todo. **Exposiciones** | Sistema integrado; borrador del informe |
+| 14 | Estructura de un algoritmo paralelo; IA y deep learning en GPU | T: prueba de carga sobre la API; ensayo de la demo (clúster Go + `mpiexec` + CUDA en una PC con NVIDIA). **Exposiciones** | Informe final con los tres planos de evaluación |
+| 15 | Estructuras de soporte | Exposición y demo en vivo | Proyecto entregado |
+| 16 | Examen final | — | — |
 
 ### Hitos que no se pueden mover
 
 | Semana | Hito | Por qué es crítico |
 |---|---|---|
-| 3 | Contratos entre partes acordados | Sin esto, nadie puede trabajar sin bloquear a los demás. |
-| 4 | T(1) medido | Sin línea base secuencial no hay speedup que reportar. |
-| 7 | Experimento 1 terminado | Es el resultado más limpio del proyecto; conviene tenerlo listo con margen antes de la Fase 3. |
-| 9 | Entrenamiento distribuido con 2 nodos | Es el componente central; si se retrasa, todo lo demás se cae. |
-| 12 | Los cuatro experimentos corridos | Lo que se expone son estos resultados. Después de la semana 12 ya no hay margen para medir. |
+| 3 | Contratos entre partes acordados ✅ | Sin esto, nadie puede trabajar sin bloquear a los demás. |
+| 4 | T(1) medido ✅ | Sin línea base secuencial no hay speedup que reportar. |
+| 7 | Experimento 1 terminado ✅ | Es el resultado más limpio del proyecto. |
+| 8 | Formato binario común y primer núcleo nativo validado | Todos los núcleos nativos dependen de él. |
+| 9 | Entrenamiento distribuido en Go con 2 nodos | Es el componente central del sistema. |
+| 11 | CUDA Toolkit instalado y probado en al menos una PC del grupo con NVIDIA | Sin esto no hay CUDA. Respaldo: Colab. |
+| 12 | Los experimentos 2-8 corridos | Lo que se expone son estos resultados. |
 | 13 | `docker compose up` levanta todo | La demo en vivo depende de esto. |
 
 ### Reglas para no atrasarse
 
-- Cada parte se desarrolla contra una versión simulada (mock) de las otras. La Parte D no espera a que B esté lista para dibujar la curva de pérdida; usa datos falsos hasta la semana 11.
-- `go build -race` y `go test -race` desde la semana 5. Una condición de carrera detectada en la semana 14 no se arregla a tiempo.
+- Cada parte se desarrolla contra una versión simulada (mock) de las otras. Los núcleos nativos se desarrollan contra el archivo binario, sin depender de Mongo ni de la red.
+- `go test -race ./...` en cada commit de Go. En C: compilar con `-Wall -Wextra` y probar los programas de Pthreads y OpenMP con ThreadSanitizer (`-fsanitize=thread`) en Linux.
+- Cada núcleo nativo se valida primero contra la pérdida de Go (corrección) y después se mide (rendimiento). Un núcleo rápido pero con otra respuesta no cuenta.
 - El cargador nunca carga el archivo entero en memoria. Bloques de tamaño fijo, siempre.
 - Si el speedup se aplana antes de lo esperado, no es un fallo. Se explica con Amdahl y se reporta. Es justamente el análisis que el curso pide.
 
@@ -319,18 +384,46 @@ Se usa solo como referencia para verificar qué temas contempla el proyecto, no 
 - **Bibliografía principal:** Cutajar, *Learn Concurrent Programming with Go* (Manning, 2024); Pacheco & Malensek, *An Introduction to Parallel Programming* (2nd ed., Morgan Kaufmann, 2022) — disponible en biblioteca FISI; Herlihy et al., *The Art of Multiprocessor Programming*; Hwu, Kirk & El Hajj, *Programming Massively Parallel Processors*; entre otros (ver repo del curso).
 - **Repositorio del curso** (programas de MPI/Pthreads/OpenMP/CUDA de laboratorio): https://github.com/FISI-SM/parallelProgramming-repo/tree/main
 
-## 12. Fuera de alcance: MPI, Pthreads, OpenMP, CUDA
+## 12. Tecnologías del sílabo en el proyecto: MPI, Pthreads, OpenMP y CUDA
 
-Ninguna de estas cuatro tecnologías se implementa en el proyecto. El proyecto es íntegramente Go (goroutines, channels, TCP — ver §7). MPI, Pthreads, OpenMP y CUDA son temario de laboratorio del curso, no entregables del proyecto. La tabla siguiente documenta solo la correspondencia conceptual entre lo que enseña cada semana de laboratorio y la pieza equivalente que el proyecto construye en Go: es material de estudio para entender el paralelismo, no una lista de tecnologías a instalar o usar en el proyecto.
+Hasta el 13 de octubre de 2026 estas cuatro tecnologías estaban fuera de alcance y el proyecto solo implementaba sus equivalentes en Go. **Desde esa fecha se implementan todas**, como núcleos de cómputo en `nativo/` que resuelven partes reales del sistema (ver §6, "Núcleos nativos"). Las versiones en Go se mantienen, porque son el sistema que funciona de punta a punta. La comparación entre ambas es parte del análisis.
 
-| Tema de laboratorio (fuera de alcance del proyecto) | Equivalente que sí se implementa en Go |
-|---|---|
-| MPI (semanas 3-4 del sílabo): enviar y recibir mensajes, broadcast, reduce | Parte B. El maestro hace un *broadcast* de parámetros y un *reduce* (suma) de gradientes sobre TCP, sin usar MPI. |
-| Pthreads (semanas 5-6): hilos, mutex, productor-consumidor | Parte A. El cargador es un productor-consumidor con goroutines y channels. La sección crítica del maestro se protege con `sync.Mutex`, no con pthread_mutex. |
-| OpenMP (semanas 7, 9): reducciones, balanceo de carga | Parte A y B. Balanceo de carga entre goroutines y entre nodos, y reducción de gradientes, resuelto con channels y el paquete `sync/atomic`. |
-| CUDA (semanas 11-13) | No se implementa. Ver §15, punto 1: pendiente de confirmar con el docente si esperan una comparativa. |
+| Semana del sílabo | Tema | Implementación en SACA | Equivalente en Go (ya hecho) |
+|---|---|---|---|
+| 3 | MPI: envío y recepción | `nativo/mpi/entrenamiento --modo p2p`: el rank 0 envía particiones y pesos con `MPI_Send` y recibe gradientes con `MPI_Recv` | Maestro y trabajador TCP (`internal/protocolo`) |
+| 4 | MPI: broadcast, scatter, gather, reducciones | `--modo colectivo`: `MPI_Scatterv` de la muestra, `MPI_Bcast` de pesos y `MPI_Allreduce` de gradientes | Reducción de gradientes en el maestro |
+| 5 | Pthreads: hilos y mutex | `nativo/pthreads/cargador`: `pthread_create/join`; conteos protegidos con `pthread_mutex_t` | Cargador concurrente |
+| 6 | Pthreads: productor-consumidor, barreras, variables de condición | Buffer circular acotado con `pthread_cond_wait/signal` entre lectores y agregadores; `pthread_barrier_t` entre fases | Channels con buffer y `WaitGroup` |
+| 7 | OpenMP: directivas, variables privadas y compartidas, reducciones | `nativo/openmp/entrenamiento`: `#pragma omp parallel for reduction(+:grad[:d])` | `gradienteReduccion` (Experimento 1b) |
+| 9 | OpenMP: tareas, planificación y balanceo | `nativo/openmp/variables`: una `task` por estación; `schedule(static/dynamic/guided)` | — (nuevo) |
+| 10 | Descomposición de datos y tareas | Partición por estación (datos) frente a partición por fase (tareas), medida en los experimentos 6 y 7 | `internal/particion` |
+| 11 | CUDA: arquitectura, kernels | `nativo/cuda/gradiente`: un hilo por ejemplo, `atomicAdd` al gradiente | — |
+| 12 | CUDA: memoria compartida, reducción, warp shuffles | Reducción por bloques en `__shared__` y luego con `__shfl_down_sync` | — |
+| 13 | Sorting paralelo y MapReduce en GPU | `nativo/cuda/estaciones`: `thrust::sort_by_key` por (estación, hora) y `reduce_by_key` para estadísticas por estación | Agregación por estación en MongoDB (`exportar`) |
 
-Las métricas y la ley de Amdahl (semanas 1, 10, 13 del sílabo) sí son parte del proyecto: son la base de los cuatro experimentos y el panel de rendimiento (§8, §10).
+**Entorno de cada tecnología:**
+
+| Tecnología | Windows (PC de desarrollo) | Linux / Docker | Comprobado |
+|---|---|---|---|
+| Pthreads | gcc 13.2 de MSYS2 (`C:\msys64\ucrt64`), `-pthread` | gcc | ✅ `pthread.h` disponible |
+| OpenMP | gcc 13.2 de MSYS2, `-fopenmp` | gcc | ✅ `omp.h` disponible |
+| MPI | Instalar **MS-MPI** (runtime + SDK, necesita administrador) y `pacman -S mingw-w64-ucrt-x86_64-msmpi` | `apt install openmpi-bin libopenmpi-dev`; o contenedores con OpenMPI en Docker Compose | ❌ falta instalar |
+| CUDA | Solo en las **PCs del grupo con GPU NVIDIA**, con CUDA Toolkit (`nvcc`) y Visual Studio Build Tools (compilador `cl.exe` que usa `nvcc` en Windows). La PC de desarrollo principal tiene una AMD Radeon RX 580, que no ejecuta CUDA: ahí el código se escribe pero no se compila | En Linux con NVIDIA: `nvcc` del CUDA Toolkit. Respaldo: Google Colab (GPU T4) con `nativo/cuda/SACA_CUDA.ipynb` | ⏳ código escribible aquí; pruebas en las PCs con NVIDIA |
+
+**Flujo de trabajo de CUDA:**
+
+1. El código se escribe y se revisa en cualquier PC. El build no forma parte de `go build`, así que no rompe nada en las máquinas sin NVIDIA.
+2. En una PC con NVIDIA:
+   - `git pull`;
+   - copiar `data/muestra.bin` (o regenerarlo con `go run ./herramientas/cmd/exportar-muestra`, que necesita los datos y Mongo);
+   - `nvcc -O3 -o gradiente nativo/cuda/gradiente.cu`;
+   - correr.
+3. Validar primero que la pérdida final coincida con la de Go (corrección) y después medir.
+4. Subir el CSV de resultados al repositorio. El análisis y el frontend lo toman igual que los demás.
+
+Los tiempos de la GPU se comparan con los de OpenMP **medidos en la misma PC con NVIDIA**, no en la PC de desarrollo, para que la comparación CPU frente a GPU sea justa. En el CSV se anotan el modelo de GPU y de CPU de esa máquina.
+
+Las métricas y la ley de Amdahl (semanas 1, 10 y 13 del sílabo) son la base común de los 8 experimentos y del panel de rendimiento (§8).
 
 ## 13. Riesgos y cómo se mitigan
 
@@ -338,6 +431,11 @@ Las métricas y la ley de Amdahl (semanas 1, 10, 13 del sílabo) sí son parte d
 - **Clases muy desbalanceadas** (el modelo aprende a decir siempre que no habrá alerta) → umbral de AQI 51 en lugar de 101, ponderación de la clase minoritaria en la función de pérdida, evaluación por F1 y AUC-ROC en lugar de exactitud.
 - **El speedup se aplana antes de lo esperado** → es un resultado válido y esperable, no un fallo. Se analiza con la ley de Amdahl identificando la fracción secuencial y el costo de comunicación entre nodos.
 - **Nodos trabajadores con velocidades distintas que retrasan cada época** → particionado por bloques más pequeños y reparto dinámico, más la opción de agregación asíncrona.
+- **La PC de desarrollo principal no tiene GPU NVIDIA** (es una AMD RX 580) → el código CUDA se escribe en cualquier PC y se compila y mide en las computadoras del grupo que tienen NVIDIA. Las comparaciones CPU/GPU se hacen en esa misma máquina. Antes de la semana 11 se instala y prueba el CUDA Toolkit en al menos una de ellas; Colab queda como respaldo.
+- **MPI no está instalado en Windows y requiere permisos de administrador** → instalar MS-MPI una vez. Si no es posible, se usa OpenMPI en la PC Linux del grupo o en contenedores Docker.
+- **Las implementaciones en distintos lenguajes dan resultados distintos** → todas leen el mismo archivo binario y se validan contra la pérdida final de Go (tolerancia 1e-6) antes de medir tiempos.
+- **Demasiadas tecnologías para el tiempo disponible** → cada núcleo nativo es pequeño (un archivo de C de unos cientos de líneas) y no reemplaza al sistema en Go. Si uno se atrasa, el sistema sigue funcionando y la comparación de ese núcleo se reporta en la siguiente entrega.
+- **Errores de concurrencia en C** (carreras, deadlocks con variables de condición, olvidar `pthread_join`) → ThreadSanitizer en Linux, y la regla de siempre esperar la condición dentro de un `while`.
 - **Errores clásicos de concurrencia en Go** (goroutines filtradas, channels sin cerrar, accesos concurrentes al modelo) → uso sistemático del detector de carreras de Go (`-race`) durante el desarrollo, y revisión del catálogo de errores documentado en la literatura de concurrencia en Go (ver GoBench, §16).
 
 ## 14. Qué hace distinto a este proyecto
@@ -350,8 +448,8 @@ Las métricas y la ley de Amdahl (semanas 1, 10, 13 del sílabo) sí son parte d
 
 ## 15. Puntos a consultar con el docente
 
-1. Si esperan una implementación comparativa de alguno de los núcleos de cómputo en OpenMP, MPI o CUDA, además de la versión en Go con goroutines/channels/TCP.
-2. Confirmar el tamaño de equipo esperado, dado que la arquitectura está dividida en cuatro partes paralelizables entre integrantes.
+1. ~~Si esperan una implementación comparativa en OpenMP, MPI o CUDA además de la versión en Go~~ → **decidido por el grupo (13 de octubre de 2026): se implementan las cuatro**. Queda por confirmar si el docente prefiere ver los núcleos nativos ya en el avance del parcial o en la entrega final.
+2. Para CUDA se usarán las PCs del grupo con GPU NVIDIA. Consultar si el docente quiere que la demo de CUDA sea en vivo (llevando una de esas PCs) o si basta con los resultados medidos.
 3. Confirmar si la exposición debe incluir una demostración en vivo del clúster en ejecución o si basta con la presentación de resultados y mediciones.
 
 ## 16. Referencias IEEE
@@ -396,14 +494,15 @@ La versión de §10 es la técnica, para trabajar. Esta es la misma idea semana 
 - **Semana 4.** Construimos la primera versión, la más simple posible, de las dos piezas centrales: un programa que limpia y ordena esos 16 millones de datos, y un programa que aprende a predecir si el aire se va a poner malo. Las dos funcionan de principio a fin con datos reales, pero de la forma más lenta posible a propósito — esa lentitud es la referencia contra la que se compara todo lo que viene después.
 - **Semanas 5-6.** Hacemos que el programa que limpia los datos use varios procesos a la vez en lugar de uno solo, para que sea más rápido. Los datos ya limpios quedan guardados en una base de datos.
 - **Semana 7.** Medimos cuánto más rápido es usar 1, 2, 4, 8 o 16 procesos a la vez frente a uno solo, y armamos la primera gráfica de resultados.
-- **Semana 8.** Semana de poner en orden todo lo avanzado y entregar un informe de medio ciclo.
-- **Semana 9.** Empieza la parte más avanzada: en lugar de que una sola computadora aprenda con todos los datos, se reparte el aprendizaje entre varias computadoras que colaboran entre sí.
-- **Semana 10.** Se prueban dos formas distintas de evitar que esas computadoras se pisen entre sí cuando actualizan lo que van aprendiendo juntas, y se compara cuál funciona mejor.
-- **Semana 11.** Se agrega la posibilidad de ver, desde un navegador y en tiempo real, cómo va aprendiendo el sistema.
-- **Semana 12.** Se corren todos los experimentos de rendimiento y se mide qué tan rápido responde el sistema cuando muchas personas lo consultan a la vez.
-- **Semana 13.** Se juntan todas las piezas en un solo sistema que funciona de principio a fin, y se mide qué tan buenas son realmente las predicciones — no solo qué tan rápido corre.
+- **Semana 8.** Se entrega el avance del parcial. Además, se escriben las mismas piezas de cálculo con las herramientas "clásicas" que enseña el curso en C: hilos (Pthreads), directivas (OpenMP) y mensajes entre procesos (MPI), y se comprueba que dan exactamente la misma respuesta que la versión en Go.
+- **Semana 9.** En lugar de que una sola computadora aprenda con todos los datos, se reparte el aprendizaje entre varias computadoras que colaboran entre sí. Con OpenMP se calculan los datos del pasado de cada estación (las últimas 24 horas), repartiendo bien el trabajo, porque algunas estaciones tienen muchos más datos que otras.
+- **Semana 10.** Se prueban dos formas de evitar que las computadoras se pisen entre sí al actualizar lo que aprenden juntas, y se compara la versión en Go con la de MPI.
+- **Semana 11.** Se usa por primera vez la tarjeta gráfica (GPU) con CUDA, en las computadoras del grupo que tienen una tarjeta NVIDIA, y se puede ver desde el navegador cómo va aprendiendo el sistema en tiempo real.
+- **Semana 12.** Se optimiza el programa de la GPU y se corren todos los experimentos de rendimiento: cuántas veces más rápido es cada tecnología y por qué.
+- **Semana 13.** Se ordenan y resumen millones de datos directamente en la GPU, se juntan todas las piezas en un sistema que funciona de principio a fin, y se mide qué tan buenas son las predicciones.
 - **Semana 14.** Se prueba que el sistema aguante muchas consultas a la vez y se ensaya la demostración en vivo.
 - **Semana 15.** Exposición final con demostración en vivo.
+- **Semana 16.** Examen final.
 
 ---
 
