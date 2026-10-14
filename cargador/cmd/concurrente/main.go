@@ -122,10 +122,12 @@ func main() {
 	// es el camino crítico de la fase serial.
 	var tiempoIndexado time.Duration
 	var registros int
+	var duplicados int64
 	mapas := make([]map[string]*registro.RegistroProcesado, len(indices))
 	for k, ix := range indices {
 		tiempoIndexado = max(tiempoIndexado, tiemposIndexado[k])
 		registros += len(ix.Registros)
+		duplicados += ix.Duplicados
 		mapas[k] = ix.Registros
 	}
 
@@ -139,7 +141,7 @@ func main() {
 		MemoriaMB:     medicion.MemoriaMB(),
 	}
 	log.Printf("total: %s", &total)
-	log.Printf("registros unicos (estacion, hora): %d", corrida.Registros)
+	log.Printf("registros unicos (estacion, hora): %d (%d valores de monitores repetidos resueltos por POC)", corrida.Registros, duplicados)
 
 	if !*sinMongo {
 		inicioMongo := time.Now()

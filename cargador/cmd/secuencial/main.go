@@ -49,7 +49,7 @@ func main() {
 		MemoriaMB:     medicion.MemoriaMB(),
 	}
 	log.Printf("total: %s", &total)
-	log.Printf("registros unicos (estacion, hora): %d", corrida.Registros)
+	log.Printf("registros unicos (estacion, hora): %d (%d valores de monitores repetidos resueltos por POC)", corrida.Registros, indice.Duplicados)
 
 	if !*sinMongo {
 		inicioMongo := time.Now()
