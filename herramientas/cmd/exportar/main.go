@@ -174,7 +174,14 @@ func main() {
 	for _, e := range estaciones {
 		lista = append(lista, e)
 	}
-	sort.Slice(lista, func(i, j int) bool { return lista[i].Indice > lista[j].Indice })
+	// Mayor riesgo primero; a igual índice, por id, para que la salida sea
+	// idéntica entre corridas (el orden de un map de Go es aleatorio).
+	sort.Slice(lista, func(i, j int) bool {
+		if lista[i].Indice != lista[j].Indice {
+			return lista[i].Indice > lista[j].Indice
+		}
+		return lista[i].ID < lista[j].ID
+	})
 
 	for nombre, v := range map[string]any{"estaciones.json": lista, "series.json": series, "resumen.json": resumen} {
 		if err := escribirJSON(filepath.Join(*salida, nombre), v); err != nil {
