@@ -36,10 +36,55 @@
   fill: var(--serie-2);
 }
 
-.panel-linea-tiempo .etiqueta-final {
-  font-size: 11px;
+.panel-linea-tiempo .tick-x,
+.panel-linea-tiempo .tick-y,
+.panel-linea-tiempo .etiqueta-umbral {
+  font-size: 10px;
+  fill: var(--text-muted);
+}
+
+.panel-linea-tiempo .tick-x {
+  text-anchor: middle;
+}
+
+.panel-linea-tiempo .tick-y {
+  text-anchor: end;
   dominant-baseline: middle;
-  fill: var(--text-secondary);
+}
+
+.panel-linea-tiempo .etiqueta-umbral {
+  text-anchor: end;
+}
+
+.panel-linea-tiempo .umbral {
+  stroke: var(--status-critical);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.panel-linea-tiempo .cruz {
+  stroke: var(--baseline);
+  stroke-width: 1;
+}
+
+.lectura {
+  min-height: 36px;
+  margin: 8px 0 4px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.subtitulo {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.panel-linea-tiempo .nota {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .leyenda-series {

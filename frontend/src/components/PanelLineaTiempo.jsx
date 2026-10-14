@@ -1,69 +1,125 @@
-import { lineaTiempoMock } from '../data/mock'
+import { useState } from 'react'
 import './PanelLineaTiempo.css'
 
 const ANCHO = 480
-const ALTO = 220
-const PAD = { top: 16, right: 44, bottom: 24, left: 32 }
+const ALTO = 170
+const ALTO_PROB = 90
+const PAD = { top: 12, right: 16, bottom: 22, left: 40 }
+const HORAS = Array.from({ length: 24 }, (_, h) => h)
 
-function construirRuta(puntos, accesor, escalaX, escalaY) {
-  return puntos.map((p, i) => `${i === 0 ? 'M' : 'L'} ${escalaX(p.hora)} ${escalaY(accesor(p))}`).join(' ')
+const escalaX = (hora) => PAD.left + (hora / 23) * (ANCHO - PAD.left - PAD.right)
+
+// Ruta que se corta donde falta el dato (la estación no midió esa hora).
+function ruta(valores, escalaY) {
+  let d = ''
+  let abierta = false
+  valores.forEach((v, h) => {
+    if (v == null) {
+      abierta = false
+      return
+    }
+    d += `${abierta ? 'L' : 'M'} ${escalaX(h)} ${escalaY(v)} `
+    abierta = true
+  })
+  return d
 }
 
-export default function PanelLineaTiempo({ estacion }) {
-  const datos = lineaTiempoMock(estacion.id)
-  const valores = datos.flatMap((d) => [d.observado, d.predicho])
-  const yMin = Math.min(...valores) - 2
-  const yMax = Math.max(...valores) + 2
+function formatear(v, unidad) {
+  if (v == null) return 'sin dato'
+  return `${v < 1 ? v.toFixed(3) : v.toFixed(1)} ${unidad}`
+}
 
-  const escalaX = (hora) => PAD.left + (hora / 23) * (ANCHO - PAD.left - PAD.right)
-  const escalaY = (v) => ALTO - PAD.bottom - ((v - yMin) / (yMax - yMin)) * (ALTO - PAD.top - PAD.bottom)
+export default function PanelLineaTiempo({ estacion, serie }) {
+  const [hora, setHora] = useState(null)
+  const observados = serie.observado.filter((v) => v != null)
+  const yMax = Math.max(serie.umbral * 1.15, ...observados) || 1
+  const escalaY = (v) => ALTO - PAD.bottom - (v / yMax) * (ALTO - PAD.top - PAD.bottom)
+  const escalaP = (p) => ALTO_PROB - PAD.bottom - p * (ALTO_PROB - PAD.top - PAD.bottom)
+  const conProbabilidad = Array.isArray(serie.probabilidad)
 
-  const rutaObservado = construirRuta(datos, (d) => d.observado, escalaX, escalaY)
-  const rutaPredicho = construirRuta(datos, (d) => d.predicho, escalaX, escalaY)
+  const zonaHover = (alto) =>
+    HORAS.map((h) => (
+      <rect
+        key={h}
+        x={escalaX(h) - (ANCHO - PAD.left - PAD.right) / 46}
+        width={(ANCHO - PAD.left - PAD.right) / 23}
+        y={0}
+        height={alto}
+        fill="transparent"
+        onMouseEnter={() => setHora(h)}
+      />
+    ))
 
-  const ultimo = datos[datos.length - 1]
+  const cruz = (alto) =>
+    hora != null && <line x1={escalaX(hora)} x2={escalaX(hora)} y1={PAD.top} y2={alto - PAD.bottom} className="cruz" />
 
   return (
-    <figure className="panel panel-linea-tiempo">
+    <figure className="panel panel-linea-tiempo" onMouseLeave={() => setHora(null)}>
       <figcaption>
-        <h3>Concentración observada vs. predicha</h3>
-        <p>{estacion.nombre} · {estacion.contaminante} · últimas 24 horas</p>
+        <h3>{serie.contaminante} observado {conProbabilidad && 'y alerta del modelo'}</h3>
+        <p>
+          {estacion.nombre} · {serie.real ? `${serie.fecha} (UTC)` : 'datos de ejemplo'}
+          {serie.real && serie.fecha && ' · día con más horas de NO2 sobre el umbral en la red'}
+        </p>
       </figcaption>
 
-      <svg viewBox={`0 0 ${ANCHO} ${ALTO}`} role="img" aria-label={`Concentración observada y predicha de ${estacion.contaminante} en ${estacion.nombre}`}>
-        {[0, 0.25, 0.5, 0.75, 1].map((f) => {
-          const y = PAD.top + f * (ALTO - PAD.top - PAD.bottom)
-          return <line key={f} x1={PAD.left} x2={ANCHO - PAD.right} y1={y} y2={y} className="gridline" />
-        })}
+      <p className="lectura" aria-live="polite">
+        {hora == null
+          ? 'Pasa el cursor sobre la gráfica para ver cada hora.'
+          : `${String(hora).padStart(2, '0')}:00 UTC · ${serie.contaminante} ${formatear(serie.observado[hora], serie.unidad)}` +
+            (conProbabilidad
+              ? ` · probabilidad de superar ${serie.umbral} ${serie.unidad} a la hora siguiente: ${
+                  serie.probabilidad[hora] == null ? 'sin dato' : `${Math.round(serie.probabilidad[hora] * 100)}%`
+                }`
+              : '')}
+      </p>
 
-        <path d={rutaObservado} className="linea linea-observado" />
-        <path d={rutaPredicho} className="linea linea-predicho" />
-
-        {datos.map((d) => (
-          <g key={`o-${d.hora}`}>
-            <title>{`Hora ${d.hora}: ${d.observado} observado`}</title>
-            <circle cx={escalaX(d.hora)} cy={escalaY(d.observado)} r="3" className="punto punto-observado" />
+      <svg viewBox={`0 0 ${ANCHO} ${ALTO}`} role="img" aria-label={`${serie.contaminante} observado por hora en ${estacion.nombre}`}>
+        {[0, 0.5, 1].map((f) => (
+          <g key={f}>
+            <line x1={PAD.left} x2={ANCHO - PAD.right} y1={escalaY(f * yMax)} y2={escalaY(f * yMax)} className="gridline" />
+            <text x={PAD.left - 6} y={escalaY(f * yMax)} className="tick-y">
+              {(f * yMax).toFixed(yMax < 1 ? 3 : 0)}
+            </text>
           </g>
         ))}
-        {datos.map((d) => (
-          <g key={`p-${d.hora}`}>
-            <title>{`Hora ${d.hora}: ${d.predicho} predicho`}</title>
-            <circle cx={escalaX(d.hora)} cy={escalaY(d.predicho)} r="3" className="punto punto-predicho" />
-          </g>
+        <line x1={PAD.left} x2={ANCHO - PAD.right} y1={escalaY(serie.umbral)} y2={escalaY(serie.umbral)} className="umbral" />
+        <text x={ANCHO - PAD.right} y={escalaY(serie.umbral) - 4} className="etiqueta-umbral">
+          umbral AQI 51 ({serie.umbral} {serie.unidad})
+        </text>
+        <path d={ruta(serie.observado, escalaY)} className="linea linea-observado" />
+        {cruz(ALTO)}
+        {hora != null && serie.observado[hora] != null && (
+          <circle cx={escalaX(hora)} cy={escalaY(serie.observado[hora])} r="4" className="punto punto-observado" />
+        )}
+        {[0, 6, 12, 18, 23].map((h) => (
+          <text key={h} x={escalaX(h)} y={ALTO - 6} className="tick-x">{`${h}h`}</text>
         ))}
-
-        <text x={escalaX(ultimo.hora) + 4} y={escalaY(ultimo.observado)} className="etiqueta-final etiqueta-observado">
-          {ultimo.observado}
-        </text>
-        <text x={escalaX(ultimo.hora) + 4} y={escalaY(ultimo.predicho)} className="etiqueta-final etiqueta-predicho">
-          {ultimo.predicho}
-        </text>
+        {zonaHover(ALTO)}
       </svg>
 
-      <ul className="leyenda-series">
-        <li><span className="linea-key" style={{ background: 'var(--serie-1)' }} />Observado</li>
-        <li><span className="linea-key" style={{ background: 'var(--serie-2)' }} />Predicho</li>
-      </ul>
+      {conProbabilidad && (
+        <>
+          <h4 className="subtitulo">Probabilidad de cruzar el umbral en la hora siguiente (modelo entrenado)</h4>
+          <svg viewBox={`0 0 ${ANCHO} ${ALTO_PROB}`} role="img" aria-label="Probabilidad predicha por hora">
+            {[0, 0.5, 1].map((f) => (
+              <g key={f}>
+                <line x1={PAD.left} x2={ANCHO - PAD.right} y1={escalaP(f)} y2={escalaP(f)} className="gridline" />
+                <text x={PAD.left - 6} y={escalaP(f)} className="tick-y">{`${f * 100}%`}</text>
+              </g>
+            ))}
+            <path d={ruta(serie.probabilidad, escalaP)} className="linea linea-predicho" />
+            {cruz(ALTO_PROB)}
+            {hora != null && serie.probabilidad[hora] != null && (
+              <circle cx={escalaX(hora)} cy={escalaP(serie.probabilidad[hora])} r="4" className="punto punto-predicho" />
+            )}
+            {zonaHover(ALTO_PROB)}
+          </svg>
+        </>
+      )}
+      {!conProbabilidad && serie.real && (
+        <p className="nota">Esta estación no mide NO2; el modelo actual solo predice NO2.</p>
+      )}
     </figure>
   )
 }
