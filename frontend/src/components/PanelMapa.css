@@ -36,3 +36,36 @@
   border-radius: 50%;
   display: inline-block;
 }
+
+.panel-mapa .area-toque {
+  fill: transparent;
+}
+
+.detalle-estacion {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 40px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.detalle-estacion strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.leyenda-estado {
+  flex-wrap: wrap;
+}
+
+.leyenda-detalle,
+.nota {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.nota {
+  margin-top: 6px;
+}
