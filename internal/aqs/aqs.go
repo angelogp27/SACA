@@ -353,14 +353,15 @@ func finDeLinea(f *os.File, offset int64) (int64, error) {
 	return offset + int64(len(linea)), nil
 }
 
-// ProcesarRango valida las filas del bloque [inicio, fin) de ruta y envía
-// cada valor válido a salida a medida que lo encuentra, sin acumular el
+// ProcesarRango valida las filas del bloque [inicio, fin) de ruta y pasa
+// cada valor válido a emitir a medida que lo encuentra (en el cargador
+// concurrente, emitir lo envía por el channel de la agregadora dueña), sin acumular el
 // bloque entero en memoria — el mismo principio de "nunca cargar el
 // archivo completo en memoria" que ya sigue el cargador secuencial, ahora
 // por bloque. La llama cada goroutine trabajadora sobre su propio bloque;
 // no toca estado compartido, así que varias corren en paralelo sin
 // necesidad de sincronización.
-func ProcesarRango(ruta, contaminante string, inicio, fin int64, salida chan<- ValorLeido) (c Conteo, err error) {
+func ProcesarRango(ruta, contaminante string, inicio, fin int64, emitir func(ValorLeido)) (c Conteo, err error) {
 	f, err := os.Open(ruta)
 	if err != nil {
 		return c, err
@@ -388,7 +389,7 @@ func ProcesarRango(ruta, contaminante string, inicio, fin int64, salida chan<- V
 		if convertida {
 			c.Convertidas++
 		}
-		salida <- valor
+		emitir(valor)
 	}
 
 	return c, nil

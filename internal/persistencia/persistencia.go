@@ -18,9 +18,10 @@ import (
 const Coleccion = "registros_procesados"
 
 // Reemplazar se conecta a MongoDB, vacía la colección de registros
-// procesados y la vuelve a llenar con indice. Es el paso final común de
-// los dos cargadores.
-func Reemplazar(ctx context.Context, uri, baseDatos string, indice map[string]*registro.RegistroProcesado, tamanoLote int) (int64, error) {
+// procesados y la vuelve a llenar con los índices dados (uno por
+// agregadora en el cargador concurrente; sus claves son disjuntas). Es el
+// paso final común de los dos cargadores.
+func Reemplazar(ctx context.Context, uri, baseDatos string, tamanoLote int, indices ...map[string]*registro.RegistroProcesado) (int64, error) {
 	cliente, err := mongo.Connect(options.Client().ApplyURI(uri))
 	if err != nil {
 		return 0, fmt.Errorf("conectando a mongo: %w", err)
@@ -31,7 +32,15 @@ func Reemplazar(ctx context.Context, uri, baseDatos string, indice map[string]*r
 	if err := coleccion.Drop(ctx); err != nil {
 		return 0, fmt.Errorf("limpiando la coleccion: %w", err)
 	}
-	return EscribirLotes(ctx, coleccion, indice, tamanoLote)
+	var total int64
+	for _, indice := range indices {
+		n, err := EscribirLotes(ctx, coleccion, indice, tamanoLote)
+		total += n
+		if err != nil {
+			return total, err
+		}
+	}
+	return total, nil
 }
 
 // EscribirLotes inserta el índice en coleccion en lotes de tamanoLote

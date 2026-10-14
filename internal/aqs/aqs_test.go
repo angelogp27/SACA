@@ -174,7 +174,7 @@ func TestConcurrenteIgualASecuencial(t *testing.T) {
 			wg.Add(1)
 			go func(inicio, fin int64) {
 				defer wg.Done()
-				c, err := ProcesarRango(ruta, "no2", inicio, fin, salida)
+				c, err := ProcesarRango(ruta, "no2", inicio, fin, func(v ValorLeido) { salida <- v })
 				if err != nil {
 					t.Error(err)
 				}

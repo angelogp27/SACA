@@ -55,7 +55,7 @@ func main() {
 		inicioMongo := time.Now()
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
-		escritos, err := persistencia.Reemplazar(ctx, *mongoURI, *baseDatos, indice.Registros, 5000)
+		escritos, err := persistencia.Reemplazar(ctx, *mongoURI, *baseDatos, 5000, indice.Registros)
 		if err != nil {
 			log.Fatalf("error escribiendo en mongo: %v", err)
 		}
