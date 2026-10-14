@@ -4,8 +4,11 @@
 // frontend/public/datos:
 //
 //   - estaciones.json: cada estación con su ubicación, nombre local y un
-//     índice de riesgo histórico (percentil 98 horario de cada gas dividido
-//     por su umbral de AQI 51; el mayor manda).
+//     índice de riesgo histórico: la fracción de horas de 2025 en que cada
+//     gas superó su umbral de AQI 51 (el gas con mayor fracción manda).
+//     Se eligió sobre el percentil 98 / umbral porque con O3 (estándar de
+//     8 h comparado con valores horarios) casi todas las estaciones daban
+//     "alto" y el mapa no distinguía nada.
 //   - series.json: las 24 horas de un día real por estación (el día con más
 //     horas de NO2 sobre el umbral en toda la red), con la probabilidad que
 //     da el modelo entrenado de cruzar el umbral una hora después.
@@ -50,9 +53,11 @@ var gases = []struct {
 }
 
 type Gas struct {
-	Horas  int     `json:"horas"`
-	P98    float64 `json:"p98"`
-	Maximo float64 `json:"maximo"`
+	Horas      int     `json:"horas"`
+	HorasSobre int     `json:"horas_sobre_umbral"`
+	P98        float64 `json:"p98"`
+	Maximo     float64 `json:"maximo"`
+	// Indice es la fracción de horas medidas sobre el umbral de AQI 51.
 	Indice float64 `json:"indice"`
 }
 
@@ -149,7 +154,7 @@ func main() {
 		"estaciones":       len(estaciones),
 		"dia_series":       dia,
 		"umbrales_aqi_51":  gases,
-		"nota_umbrales":    "O3 y CO tienen estándar de 8 horas; el índice usa el percentil 98 horario como aproximación.",
+		"nota_umbrales":    "Índice = fracción de horas sobre el umbral AQI 51. O3 y CO tienen estándar de 8 horas; aquí se comparan valores horarios como aproximación.",
 		"registros_unicos": totalRegistros(estaciones),
 	}
 	if m, err := os.ReadFile(*rutaManifiesto); err == nil {
@@ -195,6 +200,7 @@ func resumirEstaciones(ctx context.Context, col *mongo.Collection) (map[string]*
 		grupo = append(grupo,
 			bson.E{Key: g.Campo + "_horas", Value: bson.D{{Key: "$sum", Value: bson.D{{Key: "$cond", Value: bson.A{bson.D{{Key: "$eq", Value: bson.A{bson.D{{Key: "$type", Value: campo}}, "double"}}}, 1, 0}}}}}},
 			bson.E{Key: g.Campo + "_max", Value: bson.D{{Key: "$max", Value: campo}}},
+			bson.E{Key: g.Campo + "_sobre", Value: bson.D{{Key: "$sum", Value: bson.D{{Key: "$cond", Value: bson.A{bson.D{{Key: "$gt", Value: bson.A{campo, g.Umbral}}}, 1, 0}}}}}},
 			bson.E{Key: g.Campo + "_p98", Value: bson.D{{Key: "$percentile", Value: bson.D{
 				{Key: "input", Value: campo}, {Key: "p", Value: bson.A{0.98}}, {Key: "method", Value: "approximate"},
 			}}}},
@@ -231,7 +237,8 @@ func resumirEstaciones(ctx context.Context, col *mongo.Collection) (map[string]*
 			if arr, ok := d[g.Campo+"_p98"].(bson.A); ok && len(arr) > 0 {
 				p98 = numero(arr[0])
 			}
-			gas := &Gas{Horas: horas, P98: redondear(p98, 4), Maximo: redondear(numero(d[g.Campo+"_max"]), 4), Indice: redondear(p98/g.Umbral, 3)}
+			sobre := int(numero(d[g.Campo+"_sobre"]))
+			gas := &Gas{Horas: horas, HorasSobre: sobre, P98: redondear(p98, 4), Maximo: redondear(numero(d[g.Campo+"_max"]), 4), Indice: redondear(float64(sobre)/float64(horas), 4)}
 			e.Gases[g.Nombre] = gas
 			if gas.Indice > e.Indice {
 				e.Indice, e.Contaminante = gas.Indice, g.Nombre
