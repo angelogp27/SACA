@@ -58,14 +58,43 @@ Cumplir todo lo que el cronograma pide hasta la semana 7, más dos valores agreg
 
 Ver [docs/experimento1.md](../docs/experimento1.md) y [resultados/experimento1.md](../resultados/experimento1.md) (tabla generada por `analisis`).
 
-## Pendientes inmediatos (Fase 3, semanas 9-12)
+## Cambio de alcance: todas las tecnologías del sílabo (13 de octubre de 2026)
 
-- Semana 9: pasos 3-6 del protocolo (difundir `parametros`, `gradiente_parcial`, agregación síncrona). El trabajador debe cargar su partición con `particion.Pertenece` y llamar a `logistica.GradienteParcial`, que ya está probada.
-- Semana 9-10: endpoints de la API (`/predicciones` puede usar `dataset.ModeloGuardado.Probabilidad`), JWT con dos roles, Redis como caché.
-- Semana 10: Experimento 3 formal (mutex frente a atómicos) sobre el **vector de parámetros del maestro**, que es la sección crítica que pide el enunciado. `gradienteMutex` y `gradienteAtomico` ya sirven de base.
-- Features faltantes del enunciado: rezagos t-1..t-24, medias y máximos móviles de 24 h, y tipo de zona.
-- Dockerfiles para maestro y trabajadores, y servicios en `docker-compose.yml` para escalar trabajadores.
-- Instalar WSL 2 en la PC de desarrollo (Windows) para usar Docker Desktop.
+El grupo decidió implementar MPI, Pthreads, OpenMP y CUDA dentro del proyecto, y no solo sus equivalentes en Go. Se reescribieron las guías:
+
+- [proyecto9.md](proyecto9.md): §1, §6 "Núcleos nativos", §7, §8 (8 experimentos), §10 (cronograma de las semanas 3-16), §12, §13, §15 y §17;
+- [plan_aprendizaje.md](plan_aprendizaje.md);
+- [docs/conceptos_curso.md](../docs/conceptos_curso.md);
+- el nuevo [docs/contrato_formato_binario.md](../docs/contrato_formato_binario.md).
+
+Entorno comprobado en la PC de desarrollo (Ryzen 5 3600, Windows 11):
+
+| Tecnología | Estado |
+|---|---|
+| gcc 13.2 de MSYS2 con `omp.h` y `pthread.h` | ✅ Pthreads y OpenMP se pueden compilar ya |
+| MPI | ❌ No instalado. Requiere MS-MPI (administrador) u OpenMPI en Linux/Docker |
+| CUDA | ❌ La GPU es una **AMD Radeon RX 580**. El código CUDA se escribe aquí y se compila y mide en **las PCs del grupo con NVIDIA**; Colab queda como respaldo |
+
+## Pendientes inmediatos
+
+Semana 8, para el parcial si alcanza el tiempo (temas de las semanas 3-7 del sílabo):
+
+1. `herramientas/cmd/exportar-muestra`: escribe `data/muestra.bin`, `data/series.bin` y `data/muestra_referencia.json` según el contrato.
+2. `nativo/comun`: lectura del binario y escritura del CSV de resultados.
+3. `nativo/openmp/entrenamiento`: `reduction` sobre el gradiente; validar la pérdida contra Go.
+4. `nativo/pthreads/cargador`: productor-consumidor con buffer acotado y variables de condición; validar los conteos contra Go (16 972 287 leídas, 1625 excluidas).
+5. `nativo/mpi/entrenamiento`, versiones punto a punto y colectiva: instalar antes MS-MPI.
+
+Fase 3 (semanas 9-12):
+
+- Semana 9:
+  - pasos 3-6 del protocolo TCP en Go (difundir `parametros`, `gradiente_parcial`, agregación síncrona). El trabajador carga su partición con `particion.Pertenece` y llama a `logistica.GradienteParcial`;
+  - OpenMP `task`/`schedule` para rezagos y medias móviles por estación (Experimento 6).
+- Semanas 9-10: endpoints de la API (`/predicciones` con `dataset.ModeloGuardado.Probabilidad`), JWT, Redis. Experimento 7 (MPI frente a TCP).
+- Semana 10: Experimento 3 sobre el vector de parámetros del maestro (mutex frente a CAS).
+- Semanas 11-13: CUDA (kernels atomic, shared y shuffle; luego Thrust sort/MapReduce) en las PCs con NVIDIA. Experimento 8.
+- Dockerfiles para maestro y trabajadores; servicio OpenMPI opcional en `docker-compose.yml`.
+- Instalar WSL 2 en la PC de desarrollo para usar Docker Desktop.
 
 ## Cómo retomar
 
