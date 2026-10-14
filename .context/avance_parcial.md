@@ -56,7 +56,19 @@ Cumplir todo lo que el cronograma pide hasta la semana 7, más dos valores agreg
 
 ## Resultados del Experimento 1
 
-Ver [docs/experimento1.md](../docs/experimento1.md) y [resultados/experimento1.md](../resultados/experimento1.md) (tabla generada por `analisis`).
+39 corridas: 3 repeticiones del secuencial y de 6 valores de p × 2 diseños, con MongoDB y caché de 2 GB.
+
+- **T(1) = 132,4 s** (secuencial: 39 s de procesamiento y 94 s de escritura en Mongo).
+- **1 agregadora:** S(p) entre 1,03 y 1,13. La fracción serial medida es f = 0,797, así que Amdahl da un techo de 1,25×: lo predijo bien. Karp-Flatt ≈ f.
+- **Agregadoras particionadas:** S(2) = 1,54, S(4) = 2,30, S(8) = 3,21, **S(16) = 3,77** (35,1 s), con Karp-Flatt estable en ~0,21. Supera el techo de Amdahl del diseño original porque paraleliza lo que antes era serial.
+
+Análisis completo en [docs/experimento1.md](../docs/experimento1.md); tablas en [resultados/experimento1.md](../resultados/experimento1.md).
+
+### Cierre de esta entrega (14 de octubre de 2026)
+
+- Modelo guardado en `data/modelo.json` y datos reales del frontend exportados (`frontend/public/datos/`, versionados).
+- El riesgo del mapa pasó de "p98 / umbral" a **% de horas sobre el umbral AQI 51**. Con la métrica anterior, 1075 de 1447 estaciones salían en "alto" y el mapa no distinguía nada.
+- Verificación final: `go build`, `go vet` y `go test -race ./...` en verde; `npm run lint` y `npm run build` en verde; el frontend sirve todos los JSON.
 
 ## Cambio de alcance: todas las tecnologías del sílabo (13 de octubre de 2026)
 

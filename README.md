@@ -121,8 +121,9 @@ Medidos en un AMD Ryzen 5 3600 (6 núcleos y 12 hilos), con 16 GB de RAM y SSD. 
 |---|---|
 | Datos | 16 972 287 filas crudas → 10 838 667 registros (estación, hora); 1625 filas excluidas por qualifier de evento excepcional |
 | Memoria del cargador | 8,7 GB → 4,4 GB al dejar de retener las líneas del CSV |
-| Cargador, 8 goroutines | Procesamiento de 27,0 s con 1 agregadora frente a 11,5 s con 8 agregadoras particionadas |
+| Cargador, Experimento 1 (ingesta completa con MongoDB) | T(1) = 132,4 s. Con 1 agregadora, S(p) ≤ 1,13 (Amdahl con f medida = 0,80 da un techo de 1,25). Con agregadoras particionadas, **S(16) = 3,77** (35,1 s) |
 | Entrenamiento, Experimento 1b | Con reducción, S(8) = 6,11 (E = 76 %); con mutex y CAS por ejemplo, más lento que el secuencial |
+| Mapa de riesgo histórico | 1447 estaciones: 434 bajo (< 2 % de horas sobre el umbral AQI 51), 843 moderado, 170 alto (≥ 10 %), casi todas por O3 |
 | Modelo (NO2 > 53 ppb a 1 h) | AUC 0,995 y exhaustividad 0,97 evaluando en oct-dic. La precisión es baja (0,011) porque solo el 0,02 % de las horas cruza el umbral |
 
 Las tablas completas se generan en [resultados/experimento1.md](resultados/experimento1.md) y [resultados/experimento1b.md](resultados/experimento1b.md).
