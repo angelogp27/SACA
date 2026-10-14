@@ -54,6 +54,13 @@ Cumplir todo lo que el cronograma pide hasta la semana 7, más dos valores agreg
 
 7. **Mongo se trabó a mitad del primer intento del Experimento 1.** En la repetición 2, una escritura quedó 35 min bloqueada hasta el timeout, con avisos `WTEVICT` de WiredTiger en el log. La causa: la caché de WiredTiger usa por defecto ~50 % de la RAM (~7,5 GB), el cargador ocupa 4-6 GB y la PC tiene 16 GB. Al escribir con varios escritores a la vez, el desalojo de caché se atascó. La solución fue `--wiredTigerCacheSizeGB 2`, ya incluida en `docker-compose.yml`. El experimento se repitió completo con esa configuración, para no mezclar corridas de configuraciones distintas. Las 17 corridas del intento fallido se descartaron.
 
+8. **Una condición de carrera lógica en el cargador** (14 de octubre de 2026). Al recargar los datos para verificar la reproducibilidad, unas pocas estaciones tenían valores distintos a los de la carga anterior.
+   - **Causa:** 53 sitios miden el mismo gas con varios monitores (columna POC), y 335 331 filas (1,98 %) repiten (estación, hora, gas). El índice guardaba "el último valor que llegaba", y con goroutines ese orden cambia en cada corrida.
+   - **Por qué `-race` no la detectó:** no hay accesos simultáneos a memoria, porque cada índice tiene una sola goroutine dueña; el problema era la regla.
+   - **Solución:** gana el monitor de POC más bajo, en cualquier orden. Se agregó un test de independencia del orden, y la prueba end-to-end ahora compara una huella de los **valores** (cantidad y suma por gas), no solo la cantidad de registros.
+   - **Verificación:** dos cargas completas seguidas producen exportaciones idénticas.
+   - **Efecto sobre los experimentos ya medidos:** la cantidad de registros no cambia y el costo de la regla es una comparación por valor, así que los tiempos del Experimento 1 siguen siendo válidos.
+
 ## Resultados del Experimento 1
 
 39 corridas: 3 repeticiones del secuencial y de 6 valores de p × 2 diseños, con MongoDB y caché de 2 GB.
@@ -115,11 +122,21 @@ Fase 3 (semanas 9-12):
 - Dockerfiles para maestro y trabajadores; servicio OpenMPI opcional en `docker-compose.yml`.
 - Instalar WSL 2 en la PC de desarrollo para usar Docker Desktop.
 
+## Verificación y documentación para el grupo (14 de octubre de 2026)
+
+- `go run ./herramientas/cmd/e2e`: prueba end-to-end de 15 pasos (~1-2 min) con un subconjunto de los datos reales y una base temporal. No toca `data/` ni `resultados/`. Resultado: **TODO OK**.
+- `scripts/mongo-local.ps1`: MongoDB portable para Windows sin Docker. El pipeline lo usa con `-MongoLocal`.
+- Pipeline probado de punta a punta con `-MongoLocal`: 2,8 min sin la descarga, y el modelo resultó idéntico al versionado (se reutiliza la caché de la muestra).
+- Documentación para ejecutar el proyecto:
+  - [docs/guia_ejecucion.md](../docs/guia_ejecucion.md): instalación, 5 tutoriales, problemas frecuentes;
+  - [docs/arquitectura.md](../docs/arquitectura.md): diagramas de componentes, datos y flujos;
+  - [docs/funcionalidades.md](../docs/funcionalidades.md): catálogo de programas y opciones.
+
 ## Cómo retomar
 
 ```powershell
 go run ./herramientas/cmd/descargar -verificar     # ¿tengo los datos correctos?
-powershell -ExecutionPolicy Bypass -File scripts/pipeline.ps1 -SinDocker   # o sin -SinDocker si Docker funciona
-go test -race ./...
+powershell -ExecutionPolicy Bypass -File scripts/pipeline.ps1 -MongoLocal   # o sin -MongoLocal si Docker funciona
+go run ./herramientas/cmd/e2e                       # ¿funciona todo?
 cd frontend; npm install; npm run dev
 ```
