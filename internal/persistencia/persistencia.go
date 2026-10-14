@@ -5,7 +5,9 @@ package persistencia
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -19,8 +21,9 @@ const Coleccion = "registros_procesados"
 
 // Reemplazar se conecta a MongoDB, vacía la colección de registros
 // procesados y la vuelve a llenar con los índices dados (uno por
-// agregadora en el cargador concurrente; sus claves son disjuntas). Es el
-// paso final común de los dos cargadores.
+// agregadora en el cargador concurrente; sus claves son disjuntas), un
+// escritor concurrente por índice. Es el paso final común de los dos
+// cargadores.
 func Reemplazar(ctx context.Context, uri, baseDatos string, tamanoLote int, indices ...map[string]*registro.RegistroProcesado) (int64, error) {
 	cliente, err := mongo.Connect(options.Client().ApplyURI(uri))
 	if err != nil {
@@ -32,15 +35,28 @@ func Reemplazar(ctx context.Context, uri, baseDatos string, tamanoLote int, indi
 	if err := coleccion.Drop(ctx); err != nil {
 		return 0, fmt.Errorf("limpiando la coleccion: %w", err)
 	}
-	var total int64
-	for _, indice := range indices {
-		n, err := EscribirLotes(ctx, coleccion, indice, tamanoLote)
-		total += n
-		if err != nil {
-			return total, err
-		}
+
+	// Un escritor por índice: los índices tienen claves disjuntas, así que
+	// cada goroutine inserta lo suyo sin coordinarse con las demás (el
+	// cliente de Mongo es seguro para uso concurrente). Con un solo índice
+	// esto se reduce a la escritura serial original.
+	escritos := make([]int64, len(indices))
+	errores := make([]error, len(indices))
+	var wg sync.WaitGroup
+	for k, indice := range indices {
+		wg.Add(1)
+		go func(k int, indice map[string]*registro.RegistroProcesado) {
+			defer wg.Done()
+			escritos[k], errores[k] = EscribirLotes(ctx, coleccion, indice, tamanoLote)
+		}(k, indice)
 	}
-	return total, nil
+	wg.Wait()
+
+	var total int64
+	for _, n := range escritos {
+		total += n
+	}
+	return total, errors.Join(errores...)
 }
 
 // EscribirLotes inserta el índice en coleccion en lotes de tamanoLote
