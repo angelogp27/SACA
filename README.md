@@ -4,7 +4,7 @@ Proyecto del curso **Programación Concurrente y Paralela (202W0805)**, UNMSM-FI
 
 SACA procesa en paralelo los **16,97 millones** de mediciones horarias de 2025 de la red de monitoreo de la EPA (EE. UU.). Con ellas entrena una regresión logística escrita desde cero que predice si el NO2 de una estación cruzará el umbral AQI 51 en la hora siguiente, y muestra los resultados en una SPA.
 
-Está escrito en Go (backend) y React (frontend), con MongoDB como almacenamiento. Las especificaciones están en [docs/](docs/) y el contexto completo del proyecto en [.context/proyecto9.md](.context/proyecto9.md).
+El sistema está escrito en Go (backend) y React (frontend), con MongoDB como almacenamiento. Además, cada tecnología del sílabo (**Pthreads, OpenMP, MPI y CUDA**) tiene un núcleo de cómputo en C/C++ en `nativo/` que resuelve la misma parte del sistema con los mismos datos, para compararla con la versión en Go. Los núcleos nativos están en desarrollo desde la semana 8; ver [docs/contrato_formato_binario.md](docs/contrato_formato_binario.md). Las especificaciones están en [docs/](docs/) y el contexto completo del proyecto en [.context/proyecto9.md](.context/proyecto9.md).
 
 ## Arquitectura
 
@@ -35,6 +35,7 @@ CSV EPA (16.9 M filas) ──► [A] Cargador concurrente ──► MongoDB (10.
 | [herramientas/cmd/exportar](herramientas/cmd/exportar/main.go) | Genera los JSON reales para el frontend |
 | [experimentos/cmd/analisis](experimentos/cmd/analisis/main.go) | Speedup, eficiencia, Karp-Flatt y Amdahl a partir de las corridas |
 | `internal/` | Paquetes compartidos: `aqs` (limpieza), `persistencia`, `particion`, `dataset`, `logistica`, `metricas`, `entrenador`, `protocolo`, `cluster`, `medicion`, `registro` |
+| `nativo/` (en desarrollo) | Núcleos en C/C++: `pthreads/cargador`, `openmp/entrenamiento`, `openmp/variables`, `mpi/entrenamiento`, `cuda/gradiente`, `cuda/estaciones` |
 | [frontend/](frontend/) | SPA React + Vite |
 | [scripts/](scripts/) | Pipeline y experimentos, en PowerShell (`.ps1`) y sh (`.sh`) |
 | [resultados/](resultados/) | CSV y tablas de los experimentos |
@@ -46,6 +47,10 @@ CSV EPA (16.9 M filas) ──► [A] Cargador concurrente ──► MongoDB (10.
 - Docker con Docker Compose para MongoDB. En Windows, Docker Desktop necesita WSL 2.
   - Alternativa sin Docker: cualquier MongoDB 7 escuchando en `localhost:27017`, usando el flag `-SinDocker` del pipeline.
 - Node.js 20 o superior para el frontend
+- Para los núcleos nativos:
+  - gcc con OpenMP y Pthreads (en Windows, MSYS2 UCRT64);
+  - MPI: MS-MPI en Windows u OpenMPI en Linux;
+  - CUDA: CUDA Toolkit y una **GPU NVIDIA** (las PCs del grupo que la tienen; Colab como respaldo).
 - Unos 5 GB libres para los CSV y unos 8 GB de RAM para la carga completa
 
 ## Puesta en marcha (un comando)
@@ -128,5 +133,6 @@ Las tablas completas se generan en [resultados/experimento1.md](resultados/exper
 - [docs/contrato_protocolo_tcp.md](docs/contrato_protocolo_tcp.md): protocolo maestro-trabajador
 - [docs/contrato_api_rest.md](docs/contrato_api_rest.md): API REST y WebSocket
 - [docs/experimento1.md](docs/experimento1.md): diseño, resultados y análisis de los experimentos 1 y 1b
+- [docs/contrato_formato_binario.md](docs/contrato_formato_binario.md): cómo Go entrega los datos a los núcleos en C/C++ y cómo estos reportan sus mediciones
 - [docs/conceptos_curso.md](docs/conceptos_curso.md): qué concepto del sílabo se aplica en cada parte del código
 - [.context/avance_parcial.md](.context/avance_parcial.md): bitácora del avance del parcial (decisiones, hallazgos, pendientes)
