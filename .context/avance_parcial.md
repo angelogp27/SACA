@@ -52,6 +52,8 @@ Cumplir todo lo que el cronograma pide hasta la semana 7, más dos valores agreg
 5. **El problema está muy desbalanceado.** Solo el 0,02 % de las horas de entrenamiento cruza NO2 > 53 ppb (0,08 % en oct-dic). El modelo logra AUC 0,995 y exhaustividad 0,97, pero precisión 0,011. Es esperable, y se reporta así. Opciones para la Fase 4: usar O3 en 8 h como objetivo, el umbral AQI 101, o los rezagos de la serie, que hoy no están.
 6. **Docker en la PC de desarrollo.** Docker Desktop está instalado pero no arranca porque falta **WSL 2**, que requiere permisos de administrador y reiniciar. Para medir se usó un MongoDB 7.0.14 portable (zip oficial, sin instalar) en `localhost:27017`. El pipeline admite `-SinDocker` para ese caso. En la PC Linux del grupo, `docker compose up -d mongo` funciona tal cual.
 
+7. **Mongo se trabó a mitad del primer intento del Experimento 1.** En la repetición 2, una escritura quedó 35 min bloqueada hasta el timeout, con avisos `WTEVICT` de WiredTiger en el log. La causa: la caché de WiredTiger usa por defecto ~50 % de la RAM (~7,5 GB), el cargador ocupa 4-6 GB y la PC tiene 16 GB. Al escribir con varios escritores a la vez, el desalojo de caché se atascó. La solución fue `--wiredTigerCacheSizeGB 2`, ya incluida en `docker-compose.yml`. El experimento se repitió completo con esa configuración, para no mezclar corridas de configuraciones distintas. Las 17 corridas del intento fallido se descartaron.
+
 ## Resultados del Experimento 1
 
 Ver [docs/experimento1.md](../docs/experimento1.md) y [resultados/experimento1.md](../resultados/experimento1.md) (tabla generada por `analisis`).
