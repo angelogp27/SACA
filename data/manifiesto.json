@@ -1,0 +1,42 @@
+{
+  "anio": "2025",
+  "generado": "2026-10-14T02:12:58Z",
+  "archivos": [
+    {
+      "nombre": "annual_conc_by_monitor_2025.csv",
+      "url": "https://aqs.epa.gov/aqsweb/airdata/annual_conc_by_monitor_2025.zip",
+      "bytes": 36049441,
+      "sha256": "4ab9dc5135f81cf781f68837a0cf04d3e0223086d46a10eff550d85dcbb433d6",
+      "filas": 65709
+    },
+    {
+      "nombre": "hourly_42101_2025.csv",
+      "url": "https://aqs.epa.gov/aqsweb/airdata/hourly_42101_2025.zip",
+      "bytes": 430308604,
+      "sha256": "be65609e26581e057e11fb57dbf58b0317ca8d229f47ec750919ad6a8e5e5387",
+      "filas": 1674907
+    },
+    {
+      "nombre": "hourly_42401_2025.csv",
+      "url": "https://aqs.epa.gov/aqsweb/airdata/hourly_42401_2025.zip",
+      "bytes": 700002823,
+      "sha256": "64b7e7884ed4c06d829d478f3a8201868261e989cf89e098d55e648db570f862",
+      "filas": 2940386
+    },
+    {
+      "nombre": "hourly_42602_2025.csv",
+      "url": "https://aqs.epa.gov/aqsweb/airdata/hourly_42602_2025.zip",
+      "bytes": 903058776,
+      "sha256": "133819e5713697f96179277e425e7a15666edcd4a082a4a66c9a33af4a1a13e0",
+      "filas": 3489728
+    },
+    {
+      "nombre": "hourly_44201_2025.csv",
+      "url": "https://aqs.epa.gov/aqsweb/airdata/hourly_44201_2025.zip",
+      "bytes": 2033197125,
+      "sha256": "fc996bef97871d7e8aac1d22382ac1fcd4f84305b0995d4df243175e6d4cf4e3",
+      "filas": 8867266
+    }
+  ],
+  "total_filas_horarias": 16972287
+}
