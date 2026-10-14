@@ -251,6 +251,8 @@ Diseño original: las cuatro partes están pensadas para avanzar simultáneament
 
 > Estado actual del proyecto: sin roles asignados todavía.
 
+> Avance real al 14 de octubre de 2026 (semanas 3-7 completas + entrenamiento paralelo + frontend con datos reales): ver [avance_parcial.md](avance_parcial.md).
+
 ## 10. Cronograma del proyecto — semanas 3 a 15
 
 Semanas 1 y 2 (ya transcurridas): definición de la idea del proyecto. El trabajo de proyecto que sigue arranca en la semana 3, que es también cuando el sílabo marca la primera revisión de avances.
