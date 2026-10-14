@@ -35,8 +35,8 @@ export function useDatosReales() {
 }
 
 // Estaciones con la forma que usan los paneles. Con datos reales, el
-// riesgo es el índice histórico (p98 horario / umbral AQI 51); con el
-// mock, la probabilidad de ejemplo.
+// riesgo es la fracción de horas sobre el umbral AQI 51; con el mock, se
+// deriva de la probabilidad de ejemplo.
 export function estacionesParaPaneles(estaciones) {
   if (estaciones?.length) {
     return {
@@ -55,7 +55,7 @@ export function estacionesParaPaneles(estaciones) {
   }
   return {
     real: false,
-    lista: estacionesMock.map((e) => ({ ...e, detalle: '', indice: e.probabilidad / 0.6 })),
+    lista: estacionesMock.map((e) => ({ ...e, detalle: '', indice: e.probabilidad * 0.15 })),
   }
 }
 

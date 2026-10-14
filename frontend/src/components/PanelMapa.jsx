@@ -21,17 +21,18 @@ function dentroDelMapa(e) {
   return e.lat >= LAT_MIN && e.lat <= LAT_MAX && e.lon >= LON_MIN && e.lon <= LON_MAX
 }
 
-// Índice = percentil 98 horario / umbral de AQI 51 del gas dominante.
+// Índice = fracción de horas del año sobre el umbral de AQI 51 del gas
+// dominante (el de mayor fracción).
 function nivelRiesgo(indice) {
-  if (indice >= 1) return 'critical'
-  if (indice >= 0.5) return 'warning'
+  if (indice >= 0.1) return 'critical'
+  if (indice >= 0.02) return 'warning'
   return 'good'
 }
 
 const NIVELES = {
-  good: { etiqueta: 'Bajo', icono: '●', color: 'var(--status-good)', detalle: 'p98 < 50% del umbral' },
-  warning: { etiqueta: 'Moderado', icono: '▲', color: 'var(--status-warning)', detalle: '50-100% del umbral' },
-  critical: { etiqueta: 'Alto', icono: '◆', color: 'var(--status-critical)', detalle: 'p98 ≥ umbral AQI 51' },
+  good: { etiqueta: 'Bajo', icono: '●', color: 'var(--status-good)', detalle: '< 2% de horas' },
+  warning: { etiqueta: 'Moderado', icono: '▲', color: 'var(--status-warning)', detalle: '2-10% de horas' },
+  critical: { etiqueta: 'Alto', icono: '◆', color: 'var(--status-critical)', detalle: '≥ 10% de horas' },
 }
 
 export default function PanelMapa({ estaciones, seleccionada, onSeleccionar }) {
@@ -51,7 +52,7 @@ export default function PanelMapa({ estaciones, seleccionada, onSeleccionar }) {
         <h3>Mapa de estaciones</h3>
         <p>
           {estaciones.real
-            ? `${estaciones.lista.length} estaciones · riesgo histórico 2025 (percentil 98 horario frente al umbral AQI 51)`
+            ? `${estaciones.lista.length} estaciones · riesgo histórico 2025: % de horas sobre el umbral AQI 51 del gas dominante`
             : 'Riesgo previsto (datos de ejemplo)'}
         </p>
       </figcaption>
@@ -90,7 +91,7 @@ export default function PanelMapa({ estaciones, seleccionada, onSeleccionar }) {
             <span>
               {enfocada.detalle && `${enfocada.detalle} · `}
               {enfocada.id} · {NIVELES[nivelRiesgo(enfocada.indice)].icono} {NIVELES[nivelRiesgo(enfocada.indice)].etiqueta}
-              {` (índice ${enfocada.indice.toFixed(2)}${enfocada.contaminante ? `, ${enfocada.contaminante}` : ''})`}
+              {` (${(enfocada.indice * 100).toFixed(1)}% de horas sobre el umbral${enfocada.contaminante ? ` de ${enfocada.contaminante}` : ''})`}
             </span>
           </>
         ) : (
