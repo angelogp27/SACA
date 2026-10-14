@@ -6,6 +6,17 @@ SACA procesa en paralelo los **16,97 millones** de mediciones horarias de 2025 d
 
 El sistema está escrito en Go (backend) y React (frontend), con MongoDB como almacenamiento. Además, cada tecnología del sílabo (**Pthreads, OpenMP, MPI y CUDA**) tiene un núcleo de cómputo en C/C++ en `nativo/` que resuelve la misma parte del sistema con los mismos datos, para compararla con la versión en Go. Los núcleos nativos están en desarrollo desde la semana 8; ver [docs/contrato_formato_binario.md](docs/contrato_formato_binario.md). Las especificaciones están en [docs/](docs/) y el contexto completo del proyecto en [.context/proyecto9.md](.context/proyecto9.md).
 
+## Empieza aquí
+
+| Si quieres… | Lee / ejecuta |
+|---|---|
+| Ver el frontend con datos reales en 2 minutos | `cd frontend; npm install; npm run dev` |
+| Instalar y ejecutar todo paso a paso, con tutoriales | **[docs/guia_ejecucion.md](docs/guia_ejecucion.md)** |
+| Comprobar que todo funciona en tu PC | `go run ./herramientas/cmd/e2e` (prueba end-to-end, ~2 min) |
+| Entender el diseño (diagramas y flujos) | [docs/arquitectura.md](docs/arquitectura.md) |
+| Ver qué hace cada programa y sus opciones | [docs/funcionalidades.md](docs/funcionalidades.md) |
+| Defender el proyecto (conceptos del curso y resultados) | [docs/conceptos_curso.md](docs/conceptos_curso.md), [docs/experimento1.md](docs/experimento1.md) |
+
 ## Arquitectura
 
 ```
@@ -45,7 +56,7 @@ CSV EPA (16.9 M filas) ──► [A] Cargador concurrente ──► MongoDB (10.
 
 - Go 1.25 o superior (el `go.mod` declara 1.27.1)
 - Docker con Docker Compose para MongoDB. En Windows, Docker Desktop necesita WSL 2.
-  - Alternativa sin Docker: cualquier MongoDB 7 escuchando en `localhost:27017`, usando el flag `-SinDocker` del pipeline.
+  - Alternativa sin Docker en Windows: `scripts/mongo-local.ps1` descarga y levanta MongoDB portable (el pipeline lo hace con `-MongoLocal`). También sirve cualquier MongoDB 7 en `localhost:27017` con el flag `-SinDocker`.
 - Node.js 20 o superior para el frontend
 - Para los núcleos nativos:
   - gcc con OpenMP y Pthreads (en Windows, MSYS2 UCRT64);
@@ -57,7 +68,8 @@ CSV EPA (16.9 M filas) ──► [A] Cargador concurrente ──► MongoDB (10.
 
 ```powershell
 # Windows
-powershell -ExecutionPolicy Bypass -File scripts/pipeline.ps1                # sin experimentos
+powershell -ExecutionPolicy Bypass -File scripts/pipeline.ps1 -MongoLocal    # sin Docker: MongoDB portable
+powershell -ExecutionPolicy Bypass -File scripts/pipeline.ps1                # con Docker
 powershell -ExecutionPolicy Bypass -File scripts/pipeline.ps1 -Experimentos  # + experimentos (~1 h)
 ```
 
@@ -109,6 +121,9 @@ powershell -ExecutionPolicy Bypass -File scripts/experimento1b.ps1   # o: sh scr
 
 # Pruebas (incluye detector de carreras)
 go test -race ./...
+
+# Prueba end-to-end de todo el sistema (subconjunto de datos, base temporal; no repite los experimentos)
+go run ./herramientas/cmd/e2e
 ```
 
 `go test -race` necesita CGO, y en Windows un compilador de C (por ejemplo MSYS2/MinGW).
@@ -130,6 +145,9 @@ Las tablas completas se generan en [resultados/experimento1.md](resultados/exper
 
 ## Documentación
 
+- [docs/guia_ejecucion.md](docs/guia_ejecucion.md): instalación, tutoriales y problemas frecuentes
+- [docs/arquitectura.md](docs/arquitectura.md): diagramas de componentes, datos y flujos
+- [docs/funcionalidades.md](docs/funcionalidades.md): catálogo de programas, opciones y ejemplos
 - [docs/contrato_registro_procesado.md](docs/contrato_registro_procesado.md): esquema del documento en MongoDB y reglas de limpieza
 - [docs/contrato_protocolo_tcp.md](docs/contrato_protocolo_tcp.md): protocolo maestro-trabajador
 - [docs/contrato_api_rest.md](docs/contrato_api_rest.md): API REST y WebSocket
