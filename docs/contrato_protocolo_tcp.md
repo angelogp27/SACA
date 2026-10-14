@@ -50,7 +50,8 @@ Se fija por configuración del maestro al lanzar el entrenamiento, no por mensaj
 {
   "tipo": "parametros",
   "epoca": 7,
-  "pesos": [0.12, -0.03, 0.44, "..."]
+  "pesos": [0.12, -0.03, 0.44, "..."],
+  "sesgo": -2.003
 }
 ```
 
@@ -62,11 +63,12 @@ Se fija por configuración del maestro al lanzar el entrenamiento, no por mensaj
   "worker_id": "w1",
   "epoca": 7,
   "gradiente": [0.001, -0.0004, 0.002, "..."],
+  "gradiente_sesgo": 0.0123,
   "n_muestras": 214300
 }
 ```
 
-`gradiente` es la suma (no el promedio) del gradiente parcial sobre `n_muestras` filas; el maestro combina sumando y dividiendo entre el total de muestras de todos los trabajadores.
+`gradiente` y `gradiente_sesgo` son la suma (no el promedio) del gradiente parcial sobre `n_muestras` filas; el maestro combina sumando y dividiendo entre el total de muestras de todos los trabajadores.
 
 ### `entrenamiento_finalizado` (maestro → trabajador)
 
@@ -86,3 +88,8 @@ Si un trabajador se desconecta a mitad de una época, el maestro lo da de baja d
 
 - En modo síncrono, deja de esperar su `gradiente_parcial` para esa época y reparte de nuevo su partición entre los trabajadores restantes en la siguiente.
 - En modo asíncrono, simplemente ya no llegan más gradientes de ese `worker_id`; no bloquea a los demás.
+
+## Estado de implementación
+
+- Semana 7: `internal/protocolo` (mensajes), `internal/cluster` (registro de nodos con mutex), `entrenamiento/cmd/maestro` y `entrenamiento/cmd/trabajador` implementan los pasos 1, 2 y 7: registro, asignación de partición por `internal/particion` (hash FNV-32a de `estacion_id`), rechazo de nodos sobrantes con `baja` (`motivo: registro_rechazado`) y detección de bajas y caídas.
+- Semana 9: pasos 3 a 6 (difusión de `parametros`, `gradiente_parcial`, agregación síncrona).
