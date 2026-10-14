@@ -20,6 +20,7 @@ func filaCSV(estado, condado, sitio, fecha, hora, valor, unidad, qualifier strin
 	f[idxStateCode] = estado
 	f[idxCountyCode] = condado
 	f[idxSiteNum] = sitio
+	f[idxPOC] = "1"
 	f[idxLatitude] = "34.0669"
 	f[idxLongitude] = "-118.2273"
 	f[idxDateGMT] = fecha
@@ -229,5 +230,29 @@ func TestIndiceInternaTextos(t *testing.T) {
 	}
 	if ix.Registros["a|t"].Estado != "California" || ix.Registros["b|t"].Estado != "California" {
 		t.Fatal("estado mal copiado")
+	}
+}
+
+// Con varios monitores del mismo gas en el mismo sitio y hora, el valor
+// guardado no debe depender del orden de llegada: gana el POC más bajo.
+func TestMonitoresRepetidosNoDependenDelOrden(t *testing.T) {
+	valores := []ValorLeido{
+		{EstacionID: "06-037-0002", TimestampUTC: "t", Contaminante: "co", Valor: 1.03, POC: 2},
+		{EstacionID: "06-037-0002", TimestampUTC: "t", Contaminante: "co", Valor: 1.038, POC: 1},
+		{EstacionID: "06-037-0002", TimestampUTC: "t", Contaminante: "co", Valor: 0.9, POC: 3},
+	}
+	ordenes := [][]int{{0, 1, 2}, {2, 1, 0}, {1, 0, 2}, {2, 0, 1}}
+	for _, orden := range ordenes {
+		ix := NuevoIndice()
+		for _, i := range orden {
+			ix.Agregar(valores[i])
+		}
+		reg := ix.Registros["06-037-0002|t"]
+		if reg.COPpm == nil || *reg.COPpm != 1.038 {
+			t.Fatalf("orden %v: CO = %v, se esperaba 1.038 (POC 1)", orden, reg.COPpm)
+		}
+		if ix.Duplicados != 2 {
+			t.Fatalf("orden %v: %d duplicados, se esperaban 2", orden, ix.Duplicados)
+		}
 	}
 }

@@ -17,4 +17,10 @@ type RegistroProcesado struct {
 	COPpm        *float64 `bson:"co_ppm" json:"co_ppm"`
 	Estado       string   `bson:"estado" json:"estado"`
 	Condado      string   `bson:"condado" json:"condado"`
+
+	// POC es el número de monitor (Parameter Occurrence Code de AQS) del
+	// que salió cada gas, en el orden O3, NO2, SO2, CO. Solo lo usa el
+	// cargador para elegir entre monitores repetidos; no se guarda en
+	// MongoDB.
+	POC [4]uint8 `bson:"-" json:"-"`
 }

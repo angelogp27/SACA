@@ -26,6 +26,7 @@ const (
 	idxStateCode         = 0
 	idxCountyCode        = 1
 	idxSiteNum           = 2
+	idxPOC               = 4
 	idxLatitude          = 5
 	idxLongitude         = 6
 	idxDateGMT           = 11
@@ -125,6 +126,9 @@ type ValorLeido struct {
 	Condado      string
 	Contaminante string
 	Valor        float64
+	// POC identifica el monitor dentro del sitio: algunos sitios miden el
+	// mismo gas con varios monitores a la vez.
+	POC int
 }
 
 // procesarFila valida y transforma una fila cruda; no toca el índice
@@ -151,7 +155,8 @@ func procesarFila(fila []string, contaminante string) (ValorLeido, Motivo, bool)
 	}
 
 	marcaUTC, errFecha := timestampUTC(fila[idxDateGMT], fila[idxTimeGMT])
-	if errFecha != nil {
+	poc, errPOC := strconv.Atoi(fila[idxPOC])
+	if errFecha != nil || errPOC != nil || poc < 0 {
 		return ValorLeido{}, MotivoFormato, false
 	}
 
@@ -164,6 +169,7 @@ func procesarFila(fila []string, contaminante string) (ValorLeido, Motivo, bool)
 		Condado:      fila[idxCountyName],
 		Contaminante: contaminante,
 		Valor:        valor,
+		POC:          min(poc, 255),
 	}, Aceptada, convertida
 }
 
@@ -202,6 +208,9 @@ type Indice struct {
 	// para millones de registros, así que cada registro comparte la misma
 	// cadena en vez de tener la suya.
 	textos map[string]string
+	// Duplicados cuenta los valores que coincidieron en (estación, hora,
+	// gas) con el de otro monitor del mismo sitio (ver Agregar).
+	Duplicados int64
 }
 
 func NuevoIndice() *Indice {
@@ -228,6 +237,14 @@ func (ix *Indice) internar(s string) string {
 // mientras viva el índice: unos 4 GB extra para 16 M de filas, que era la
 // causa de que el cargador se quedara sin memoria. Por eso se internan las
 // cadenas y solo se reserva el float64.
+//
+// Monitores repetidos: en 2025 hay 53 sitios que miden el mismo gas con
+// más de un monitor (POC), y ~2 % de las filas repiten (estación, hora,
+// gas). Quedarse con "el último que llega" haría que el resultado
+// dependiera del orden de las goroutines: una condición de carrera lógica
+// que -race no detecta, porque no hay accesos simultáneos a memoria. La
+// regla es determinista: gana el monitor de POC más bajo (normalmente el
+// principal del sitio), llegue en el orden que llegue.
 func (ix *Indice) Agregar(v ValorLeido) {
 	clave := v.EstacionID + "|" + v.TimestampUTC
 
@@ -244,18 +261,31 @@ func (ix *Indice) Agregar(v ValorLeido) {
 		ix.Registros[clave] = reg
 	}
 
-	valor := new(float64)
-	*valor = v.Valor
+	var campo **float64
+	var g int
 	switch v.Contaminante {
 	case "o3":
-		reg.O3Ppm = valor
+		campo, g = &reg.O3Ppm, 0
 	case "no2":
-		reg.NO2Ppb = valor
+		campo, g = &reg.NO2Ppb, 1
 	case "so2":
-		reg.SO2Ppb = valor
+		campo, g = &reg.SO2Ppb, 2
 	case "co":
-		reg.COPpm = valor
+		campo, g = &reg.COPpm, 3
+	default:
+		return
 	}
+
+	if *campo != nil {
+		ix.Duplicados++
+		if v.POC >= int(reg.POC[g]) {
+			return
+		}
+	}
+	valor := new(float64)
+	*valor = v.Valor
+	*campo = valor
+	reg.POC[g] = uint8(v.POC)
 }
 
 // Procesar lee secuencialmente el CSV horario de un contaminante y agrega
