@@ -30,6 +30,8 @@ El proyecto combina las tres dimensiones del curso:
 - **Distribución por paso de mensajes**: maestro-trabajador sobre TCP en Go, y MPI.
 - **Aceleración en GPU**: CUDA.
 
+Todo se ejecuta también en un **clúster físico heterogéneo** formado por las computadoras del grupo: **2 PCs con GPU NVIDIA** y las demás aportando su procesador, conectadas por la red local. Se usa un modelo híbrido, como en HPC: MPI (o TCP en Go) entre PCs, OpenMP (o goroutines) dentro de cada PC y CUDA en las GPUs. Ver [docs/guia_cluster.md](../docs/guia_cluster.md).
+
 ## 2. Fundamentos, para quien recién empieza en paralelismo
 
 **Secuencial vs. concurrente vs. paralelo vs. distribuido.** Un programa secuencial hace una cosa a la vez: si tiene que recorrer 15 millones de líneas, las procesa una por una y el tiempo total es la suma de todos esos pasos. Una computadora moderna tiene varios núcleos (4, 8, 16); con un programa secuencial, uno solo trabaja y el resto está ocioso.
@@ -246,6 +248,24 @@ Reglas comunes:
   - MPI: MS-MPI en Windows, u OpenMPI en Linux o en contenedores Docker.
   - CUDA: solo en GPU **NVIDIA**. El código se escribe en cualquier PC, pero se compila, valida y mide en **las computadoras del grupo que tienen GPU NVIDIA**. La PC de desarrollo principal tiene una AMD RX 580, que no ejecuta CUDA. Google Colab (GPU T4) queda como respaldo (ver §12).
 
+### Clúster físico del grupo
+
+Las computadoras de los integrantes forman un **multicomputador MIMD de memoria distribuida y heterogéneo**:
+
+| Nodo | Cantidad | Qué corre |
+|---|---|---|
+| Principal | 1 | MongoDB, maestro Go, API, frontend, rank 0 de MPI |
+| GPU | 2 (NVIDIA) | Un proceso MPI que calcula su parte del gradiente con CUDA; trabajador Go |
+| CPU | el resto | Un proceso MPI con hilos OpenMP; trabajador Go |
+
+El mismo entrenamiento se lanza de tres formas, de menor a mayor complejidad. Los pasos de instalación, firewall, `smpd`/`hostfile` y la lista de verificación están en [docs/guia_cluster.md](../docs/guia_cluster.md).
+
+1. **Go por TCP**: el maestro en la PC principal y un `trabajador.exe` en cada PC. Ya funciona y no requiere instalar nada en los nodos.
+2. **MPI entre PCs**: MS-MPI con `smpd -d` y `mpiexec -hosts` si todas usan Windows; OpenMPI con SSH sin contraseña y `hostfile` si todas usan Linux. No se mezclan sistemas operativos en un mismo trabajo MPI.
+3. **Híbrido MPI + OpenMP + CUDA**: un proceso por PC. `MPI_Scatterv` reparte la muestra **en proporción al rendimiento medido de cada nodo** (balanceo de carga heterogéneo), cada nodo calcula su gradiente con OpenMP o CUDA, y `MPI_Allreduce` los suma. No hace falta MPI "CUDA-aware": por época solo se intercambian 13 números.
+
+**Lección central que se mide:** con la muestra actual, una época dura ~12 ms de cálculo, mientras que la red agrega ~0,2-1 ms por mensaje en cable y bastante más por WiFi. El clúster solo gana cuando el trabajo por época crece (todos los registros, rezagos). Encontrar ese punto es parte de los resultados, junto con el ping-pong MPI que mide la latencia y el ancho de banda reales.
+
 ### Persistencia
 
 - **MongoDB**: almacenamiento persistente del conjunto de datos ya procesado, del historial de entrenamientos (hiperparámetros y métricas) y del registro de predicciones emitidas.
@@ -292,6 +312,10 @@ Experimentos concretos. Todos se miden con 3 repeticiones, se resumen con la med
 | 6 | Reducciones y balanceo de carga | **OpenMP** | hilos × `schedule(static/dynamic/guided)` × tamaño de bloque | semana 8-10 |
 | 7 | Paso de mensajes | **MPI** frente a TCP en Go | 1-8 procesos; punto a punto frente a colectivas | semana 9-10 |
 | 8 | GPU | **CUDA** frente a CPU (OpenMP) | tamaño del problema (10³ a 10⁷ ejemplos); kernel ingenuo, memoria compartida y warp shuffle | semana 11-13 |
+| 7a | Red del clúster | **MPI ping-pong** entre PCs | tamaño del mensaje (8 B a 1 MB) → latencia y ancho de banda | semana 10 |
+| 9 | Clúster heterogéneo | **MPI + OpenMP + CUDA** en las PCs del grupo | reparto igual frente a proporcional al rendimiento; con y sin los 2 nodos GPU; escalabilidad débil | semana 12-13 |
+
+Los experimentos 2 y 7 se corren primero en una sola PC (procesos o contenedores) y después en el **clúster físico** (ver §6, "Clúster físico del grupo"). La diferencia entre ambos es el costo real de la red.
 
 El experimento 8 está pensado para mostrar el **punto de cruce**. Con el problema actual (147 mil ejemplos y 12 variables) la GPU pierde contra la CPU, porque copiar los datos a la tarjeta cuesta más que el cálculo. Al crecer el número de ejemplos y de variables (rezagos), la GPU empieza a ganar. Medir dónde ocurre ese cruce es el resultado.
 
@@ -335,6 +359,7 @@ Convención: A = cargador, B = entrenamiento, C = API, D = frontend, N = núcleo
 | 7 | OpenMP | T: Experimento 1 (cargador) y 1b (entrenamiento con goroutines: reducción, mutex, CAS). B: maestro TCP que registra nodos | ✅ |
 | 8 | Examen parcial | **N: contrato del formato binario + `exportar-muestra`**. **N: Pthreads** (cargador productor-consumidor) y **OpenMP** (gradiente con `reduction`). Validación: misma pérdida que Go | pendiente, prioridad para el parcial |
 | 8 | Examen parcial | **N: MPI** (entrenamiento punto a punto y colectivo con `mpiexec -n 1..8`) | pendiente, prioridad para el parcial si MS-MPI queda instalado |
+| 8 | Arquitecturas paralelas (sílabo sem. 2) | **T: inventario del clúster** (CPU, núcleos, RAM, GPU, sistema operativo e IP de cada PC) y elegir el sistema operativo común para MPI | pendiente |
 
 Si no hay tiempo de tener MPI, Pthreads y OpenMP para la entrega del parcial, se entregan en la semana 9 y el parcial se defiende con la tabla de equivalencias de [docs/conceptos_curso.md](../docs/conceptos_curso.md).
 
@@ -342,16 +367,16 @@ Si no hay tiempo de tener MPI, Pthreads y OpenMP para la entrega del parcial, se
 
 | Sem. | Sílabo | Trabajo del proyecto | Entregable |
 |---|---|---|---|
-| 9 | OpenMP: tareas y balanceo de carga | **N: OpenMP `task` + `schedule`** para rezagos y medias móviles por estación (Experimento 6). B: entrenamiento distribuido síncrono en Go con 2 nodos. C: `/predicciones` y lanzar/consultar entrenamiento | Distribuido funcionando; variables de rezago calculadas |
-| 10 | Descomposición de datos y tareas; balanceo y eficiencia | **N: Experimento 7 (MPI frente a TCP en Go).** B: sección crítica del maestro con mutex y con atómicos. C: JWT con dos roles | Las dos estrategias pasando `-race`; tabla MPI frente a TCP |
+| 9 | OpenMP: tareas y balanceo de carga | **N: OpenMP `task` + `schedule`** para rezagos y medias móviles por estación (Experimento 6). B: entrenamiento distribuido síncrono en Go con 2 nodos, primero locales y luego **2 PCs reales del clúster**. C: `/predicciones` y lanzar/consultar entrenamiento | Distribuido funcionando; variables de rezago calculadas |
+| 10 | Descomposición de datos y tareas; balanceo y eficiencia | **T: clúster MPI armado** (MS-MPI con `smpd` u OpenMPI con `hostfile`) y **ping-pong** (Experimento 7a). **N: Experimento 7 (MPI frente a TCP en Go)** en una PC y en el clúster. B: sección crítica del maestro con mutex y con atómicos. C: JWT con dos roles | Las dos estrategias pasando `-race`; tabla MPI frente a TCP |
 | 11 | CUDA: arquitectura, modelo y kernels | **N: kernel CUDA del gradiente** (versión ingenua con `atomicAdd`), compilado y validado contra la pérdida de Go en una PC del grupo con NVIDIA. B: modo asíncrono y caída de nodos. C: WebSocket con pérdida por época | Primer kernel correcto; curva de pérdida en el navegador |
-| 12 | CUDA: memoria compartida, reducción, warp shuffles | **N: reducción en memoria compartida y con warp shuffles (Experimento 8).** T: Experimentos 2, 3 y 4. C: Redis | Tablas de los experimentos 2-8; latencias p50/p95/p99 |
+| 12 | CUDA: memoria compartida, reducción, warp shuffles | **N: reducción en memoria compartida y con warp shuffles (Experimento 8).** T: Experimentos 2, 3 y 4; Experimento 2 en el clúster físico. **N: híbrido MPI + OpenMP + CUDA** con reparto proporcional (Experimento 9). C: Redis | Tablas de los experimentos 2-8; latencias p50/p95/p99 |
 
 ### Fase 4 · Semanas 13-16 · Algoritmos en GPU, integración y exposición
 
 | Sem. | Sílabo | Trabajo del proyecto | Entregable |
 |---|---|---|---|
-| 13 | GPU: sorting y MapReduce; buscar concurrencia; evaluación empírica de la aceleración | **N: `sort_by_key`/`reduce_by_key` (Thrust)** para ordenar por (estación, hora) y estadísticas por estación. D: panel de rendimiento con las 8 tecnologías. B: métricas del modelo. T: `docker compose up` levanta todo. **Exposiciones** | Sistema integrado; borrador del informe |
+| 13 | GPU: sorting y MapReduce; buscar concurrencia; evaluación empírica de la aceleración | **N: `sort_by_key`/`reduce_by_key` (Thrust)** para ordenar por (estación, hora) y estadísticas por estación. D: panel de rendimiento con todas las tecnologías y el clúster. B: métricas del modelo. T: `docker compose up` levanta todo. **Exposiciones** | Sistema integrado; borrador del informe |
 | 14 | Estructura de un algoritmo paralelo; IA y deep learning en GPU | T: prueba de carga sobre la API; ensayo de la demo (clúster Go + `mpiexec` + CUDA en una PC con NVIDIA). **Exposiciones** | Informe final con los tres planos de evaluación |
 | 15 | Estructuras de soporte | Exposición y demo en vivo | Proyecto entregado |
 | 16 | Examen final | — | — |
@@ -365,8 +390,9 @@ Si no hay tiempo de tener MPI, Pthreads y OpenMP para la entrega del parcial, se
 | 7 | Experimento 1 terminado ✅ | Es el resultado más limpio del proyecto. |
 | 8 | Formato binario común y primer núcleo nativo validado | Todos los núcleos nativos dependen de él. |
 | 9 | Entrenamiento distribuido en Go con 2 nodos | Es el componente central del sistema. |
-| 11 | CUDA Toolkit instalado y probado en al menos una PC del grupo con NVIDIA | Sin esto no hay CUDA. Respaldo: Colab. |
-| 12 | Los experimentos 2-8 corridos | Lo que se expone son estos resultados. |
+| 10 | Clúster MPI funcionando entre al menos 3 PCs (ping-pong medido) | Los experimentos 7, 7a y 9 dependen de él. |
+| 11 | CUDA Toolkit instalado y probado en las 2 PCs del grupo con NVIDIA | Sin esto no hay CUDA. Respaldo: Colab. |
+| 12 | Los experimentos 2-9 corridos | Lo que se expone son estos resultados. |
 | 13 | `docker compose up` levanta todo | La demo en vivo depende de esto. |
 
 ### Reglas para no atrasarse
@@ -410,6 +436,16 @@ Hasta el 13 de octubre de 2026 estas cuatro tecnologías estaban fuera de alcanc
 | MPI | Instalar **MS-MPI** (runtime + SDK, necesita administrador) y `pacman -S mingw-w64-ucrt-x86_64-msmpi` | `apt install openmpi-bin libopenmpi-dev`; o contenedores con OpenMPI en Docker Compose | ❌ falta instalar |
 | CUDA | Solo en las **PCs del grupo con GPU NVIDIA**, con CUDA Toolkit (`nvcc`) y Visual Studio Build Tools (compilador `cl.exe` que usa `nvcc` en Windows). La PC de desarrollo principal tiene una AMD Radeon RX 580, que no ejecuta CUDA: ahí el código se escribe pero no se compila | En Linux con NVIDIA: `nvcc` del CUDA Toolkit. Respaldo: Google Colab (GPU T4) con `nativo/cuda/SACA_CUDA.ipynb` | ⏳ código escribible aquí; pruebas en las PCs con NVIDIA |
 
+**Clúster (varias PCs):**
+
+| Forma | Windows | Linux |
+|---|---|---|
+| Go por TCP | `trabajador.exe -maestro IP:9000`; abrir el puerto 9000 | ídem (compilado con `GOOS=linux`) |
+| MPI entre PCs | MS-MPI, la misma versión en todas; `smpd -d` en cada PC; `mpiexec -hosts N ip1 1 ip2 1 ...`; ejecutable en la misma ruta; reglas de firewall | OpenMPI; SSH sin contraseña entre todas; `mpirun --hostfile` |
+| Híbrido + CUDA | `nvcc` (con `cl.exe`) + `msmpi.lib` en los 2 nodos GPU | `nvcc -ccbin mpicxx` |
+
+Detalle completo en [docs/guia_cluster.md](../docs/guia_cluster.md).
+
 **Flujo de trabajo de CUDA:**
 
 1. El código se escribe y se revisa en cualquier PC. El build no forma parte de `go build`, así que no rompe nada en las máquinas sin NVIDIA.
@@ -435,6 +471,9 @@ Las métricas y la ley de Amdahl (semanas 1, 10 y 13 del sílabo) son la base co
 - **MPI no está instalado en Windows y requiere permisos de administrador** → instalar MS-MPI una vez. Si no es posible, se usa OpenMPI en la PC Linux del grupo o en contenedores Docker.
 - **Las implementaciones en distintos lenguajes dan resultados distintos** → todas leen el mismo archivo binario y se validan contra la pérdida final de Go (tolerancia 1e-6) antes de medir tiempos.
 - **Demasiadas tecnologías para el tiempo disponible** → cada núcleo nativo es pequeño (un archivo de C de unos cientos de líneas) y no reemplaza al sistema en Go. Si uno se atrasa, el sistema sigue funcionando y la comparación de ese núcleo se reporta en la siguiente entrega.
+- **El clúster da speedup bajo o negativo** → es esperable con la muestra actual, porque la latencia de red pesa frente a ~12 ms de cálculo por época. Se mide con el ping-pong, se explica con un modelo de costo (cálculo/p + latencia × mensajes) y se repite con un problema más grande. Se usa cable y no WiFi para las mediciones finales.
+- **PCs con sistemas operativos o versiones de MPI distintos** → un trabajo MPI requiere el mismo sistema operativo y la misma versión de MPI en todas. Se elige uno al hacer el inventario (semana 8). La forma Go por TCP sí funciona con cualquier mezcla.
+- **Firewalls y redes de la universidad que bloquean puertos** → probar en una red propia (router del grupo). Abrir solo los puertos necesarios y solo en el perfil de red privada.
 - **Errores de concurrencia en C** (carreras, deadlocks con variables de condición, olvidar `pthread_join`) → ThreadSanitizer en Linux, y la regla de siempre esperar la condición dentro de un `while`.
 - **Errores clásicos de concurrencia en Go** (goroutines filtradas, channels sin cerrar, accesos concurrentes al modelo) → uso sistemático del detector de carreras de Go (`-race`) durante el desarrollo, y revisión del catálogo de errores documentado en la literatura de concurrencia en Go (ver GoBench, §16).
 
@@ -496,9 +535,9 @@ La versión de §10 es la técnica, para trabajar. Esta es la misma idea semana 
 - **Semana 7.** Medimos cuánto más rápido es usar 1, 2, 4, 8 o 16 procesos a la vez frente a uno solo, y armamos la primera gráfica de resultados.
 - **Semana 8.** Se entrega el avance del parcial. Además, se escriben las mismas piezas de cálculo con las herramientas "clásicas" que enseña el curso en C: hilos (Pthreads), directivas (OpenMP) y mensajes entre procesos (MPI), y se comprueba que dan exactamente la misma respuesta que la versión en Go.
 - **Semana 9.** En lugar de que una sola computadora aprenda con todos los datos, se reparte el aprendizaje entre varias computadoras que colaboran entre sí. Con OpenMP se calculan los datos del pasado de cada estación (las últimas 24 horas), repartiendo bien el trabajo, porque algunas estaciones tienen muchos más datos que otras.
-- **Semana 10.** Se prueban dos formas de evitar que las computadoras se pisen entre sí al actualizar lo que aprenden juntas, y se compara la versión en Go con la de MPI.
+- **Semana 10.** Se conectan las computadoras del grupo en red para formar un pequeño "superordenador" (clúster), y se mide qué tan rápido se pueden enviar datos entre ellas. Se prueban dos formas de evitar que las computadoras se pisen entre sí al actualizar lo que aprenden juntas, y se compara la versión en Go con la de MPI.
 - **Semana 11.** Se usa por primera vez la tarjeta gráfica (GPU) con CUDA, en las computadoras del grupo que tienen una tarjeta NVIDIA, y se puede ver desde el navegador cómo va aprendiendo el sistema en tiempo real.
-- **Semana 12.** Se optimiza el programa de la GPU y se corren todos los experimentos de rendimiento: cuántas veces más rápido es cada tecnología y por qué.
+- **Semana 12.** Se optimiza el programa de la GPU y se corren todos los experimentos de rendimiento: cuántas veces más rápido es cada tecnología y por qué. El entrenamiento se reparte entre todas las computadoras del grupo a la vez: las 2 con tarjeta gráfica NVIDIA usan la GPU y las demás, su procesador. A cada una se le da trabajo según qué tan rápida es.
 - **Semana 13.** Se ordenan y resumen millones de datos directamente en la GPU, se juntan todas las piezas en un sistema que funciona de principio a fin, y se mide qué tan buenas son las predicciones.
 - **Semana 14.** Se prueba que el sistema aguante muchas consultas a la vez y se ensaya la demostración en vivo.
 - **Semana 15.** Exposición final con demostración en vivo.
