@@ -22,7 +22,7 @@ export default function PanelCluster() {
     <figure className="panel panel-cluster">
       <figcaption>
         <h3>Estado del clúster</h3>
-        <p>Telemetría de entrenamiento en vivo</p>
+        <p>Maqueta con datos de ejemplo: la telemetría en vivo por WebSocket llega en la semana 11. El maestro TCP y el registro de nodos ya existen (entrenamiento/cmd/maestro).</p>
       </figcaption>
 
       <div className="cluster-resumen">
