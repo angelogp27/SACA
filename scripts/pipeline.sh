@@ -35,7 +35,9 @@ paso "3/6 Carga concurrente ($GOROUTINES goroutines y agregadoras)"
 go run ./cargador/cmd/concurrente -goroutines "$GOROUTINES" -agregadoras 0
 
 paso "4/6 Entrenamiento y modelo"
-rm -f data/muestra.gob
+# Se reutiliza data/muestra.gob si existe (los CSV son siempre los mismos,
+# verificados por SHA-256): el modelo es reproducible. Bórrala a mano para
+# sortear una muestra nueva.
 go run ./entrenamiento/cmd/secuencial -modelo data/modelo.json
 
 if [ -n "${EXPERIMENTOS:-}" ]; then

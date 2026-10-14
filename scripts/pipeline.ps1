@@ -9,9 +9,11 @@
 #   powershell -ExecutionPolicy Bypass -File scripts/pipeline.ps1
 #   powershell -ExecutionPolicy Bypass -File scripts/pipeline.ps1 -Experimentos
 #   powershell -ExecutionPolicy Bypass -File scripts/pipeline.ps1 -SinDocker   # Mongo ya corre en localhost:27017
+#   powershell -ExecutionPolicy Bypass -File scripts/pipeline.ps1 -MongoLocal  # Windows sin Docker: levanta MongoDB portable
 param(
     [switch]$Experimentos,
     [switch]$SinDocker,
+    [switch]$MongoLocal,
     [int]$Goroutines = 8
 )
 $ErrorActionPreference = "Stop"
@@ -24,7 +26,11 @@ Paso "1/6 Datos de la EPA"
 go run ./herramientas/cmd/descargar
 Revisar "descarga de datos"
 
-if (-not $SinDocker) {
+if ($MongoLocal) {
+    Paso "2/6 MongoDB portable (scripts/mongo-local.ps1)"
+    & powershell -ExecutionPolicy Bypass -File scripts/mongo-local.ps1
+    Revisar "mongo-local"
+} elseif (-not $SinDocker) {
     Paso "2/6 MongoDB (docker compose)"
     docker compose up -d mongo
     Revisar "docker compose"
@@ -45,7 +51,9 @@ go run ./cargador/cmd/concurrente -goroutines $Goroutines -agregadoras 0
 Revisar "cargador concurrente"
 
 Paso "4/6 Entrenamiento y modelo"
-if (Test-Path data/muestra.gob) { Remove-Item data/muestra.gob }
+# Se reutiliza data/muestra.gob si existe: los CSV son siempre los mismos
+# (verificados por SHA-256), así el modelo es reproducible. Bórrala a mano
+# para sortear una muestra nueva.
 go run ./entrenamiento/cmd/secuencial -modelo data/modelo.json
 Revisar "entrenamiento"
 
