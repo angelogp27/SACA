@@ -29,8 +29,11 @@ for ($r = 1; $r -le $Repeticiones; $r++) {
         Write-Host "== repeticion $r/$Repeticiones: concurrente con $n goroutines"
         & ./bin/cargador-concurrente.exe -goroutines $n @extra
         if ($LASTEXITCODE -ne 0) { throw "fallo el cargador concurrente con $n goroutines" }
+        Write-Host "== repeticion $r/$Repeticiones: concurrente particionado con $n goroutines y $n agregadoras"
+        & ./bin/cargador-concurrente.exe -goroutines $n -agregadoras 0 @extra
+        if ($LASTEXITCODE -ne 0) { throw "fallo el cargador particionado con $n goroutines" }
     }
 }
 
 $serial = if ($SinMongo) { "t_indexado_s" } else { "t_indexado_s,t_mongo_s" }
-& ./bin/analisis.exe -entrada $csv -serial $serial
+& ./bin/analisis.exe -entrada $csv -serial $serial -paralelo "concurrente,concurrente_particionado"

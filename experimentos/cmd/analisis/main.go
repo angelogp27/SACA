@@ -46,9 +46,13 @@ type Resultado struct {
 	T1             float64            `json:"t1_s"`
 	FasesBase      map[string]float64 `json:"fases_base"`
 	FraccionSerial float64            `json:"fraccion_serial"`
-	ColumnasSerial []string           `json:"columnas_serial"`
+	OrigenFraccion string             `json:"origen_fraccion_serial"`
+	ColumnasSerial []string           `json:"columnas_serial,omitempty"`
 	SpeedupMaximo  float64            `json:"speedup_maximo_amdahl"`
 	Puntos         []Punto            `json:"puntos"`
+	// Todas las series del experimento (la principal y, p. ej., otras
+	// estrategias de sincronización), comparadas contra el mismo T(1).
+	Series map[string][]Punto `json:"series"`
 }
 
 func main() {
@@ -58,8 +62,8 @@ func main() {
 	nombre := flag.String("nombre", "Experimento 1", "nombre del experimento")
 	descripcion := flag.String("descripcion", "Cargador: ingesta de los 4 CSV horarios de la EPA", "descripción corta")
 	modoBase := flag.String("base", "secuencial", "modo que da T(1)")
-	modoParalelo := flag.String("paralelo", "concurrente", "modo cuyas corridas se comparan contra T(1)")
-	columnasSerial := flag.String("serial", "t_indexado_s,t_mongo_s", "columnas que suman la parte serial del T(1), para Amdahl")
+	modosParalelos := flag.String("paralelo", "concurrente", "modos (separados por coma) que se comparan contra T(1); el primero es la serie principal")
+	columnasSerial := flag.String("serial", "t_indexado_s,t_mongo_s", "columnas que suman la parte serial del T(1), para Amdahl; vacío para estimarla con Karp-Flatt")
 	flag.Parse()
 
 	corridas, err := leer(*entrada)
@@ -74,15 +78,43 @@ func main() {
 	fasesBase := medianas(base)
 	t1 := fasesBase["t_total_s"]
 
-	// Fracción serial de Amdahl, estimada con las fases que por diseño
-	// solo puede hacer una goroutine (indexado y escritura en Mongo en el
-	// cargador). Ver docs/experimento1.md.
-	var serial float64
-	columnas := strings.Split(*columnasSerial, ",")
-	for _, c := range columnas {
-		serial += fasesBase[strings.TrimSpace(c)]
+	modos := strings.Split(*modosParalelos, ",")
+	series := map[string][]Punto{}
+	for _, modo := range modos {
+		if ps := puntos(corridas, modo, t1); len(ps) > 0 {
+			series[modo] = ps
+		}
 	}
-	f := serial / t1
+	principal := series[modos[0]]
+	if len(principal) == 0 {
+		log.Fatalf("no hay corridas del modo %q en %s", modos[0], *entrada)
+	}
+
+	// Fracción serial de Amdahl. Si se indican columnas, se mide con las
+	// fases que por diseño hace una sola goroutine (indexado y escritura en
+	// Mongo en el cargador original). Si no, se estima con Karp-Flatt en el
+	// mayor p medido de la serie principal.
+	var f float64
+	var columnas []string
+	origen := "fases_medidas"
+	if strings.TrimSpace(*columnasSerial) != "" {
+		var serial float64
+		for _, c := range strings.Split(*columnasSerial, ",") {
+			c = strings.TrimSpace(c)
+			columnas = append(columnas, c)
+			serial += fasesBase[c]
+		}
+		f = serial / t1
+	} else {
+		origen = "karp_flatt"
+		f = principal[len(principal)-1].KarpFlatt
+	}
+	f = min(max(f, 1e-6), 1)
+	for _, ps := range series {
+		for i := range ps {
+			ps[i].Amdahl = 1 / (f + (1-f)/float64(ps[i].Unidades))
+		}
+	}
 
 	r := Resultado{
 		Experimento:    *nombre,
@@ -90,16 +122,33 @@ func main() {
 		Generado:       time.Now().Format(time.RFC3339),
 		CPUsLogicas:    runtime.NumCPU(),
 		ModoBase:       *modoBase,
-		ModoParalelo:   *modoParalelo,
+		ModoParalelo:   modos[0],
 		T1:             t1,
 		FasesBase:      fasesBase,
 		FraccionSerial: f,
+		OrigenFraccion: origen,
 		ColumnasSerial: columnas,
 		SpeedupMaximo:  1 / f,
+		Puntos:         principal,
+		Series:         series,
 	}
 
+	if err := escribirJSON(*salidaJSON, r); err != nil {
+		log.Fatal(err)
+	}
+	md := tablaMarkdown(r, modos)
+	if err := os.WriteFile(*salidaMD, []byte(md), 0o644); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Print(md)
+}
+
+// puntos resume las corridas de un modo: mediana por número de
+// goroutines, speedup y eficiencia contra t1, y Karp-Flatt.
+func puntos(corridas map[clave][]map[string]float64, modo string, t1 float64) []Punto {
+	var res []Punto
 	for k, filas := range corridas {
-		if k.modo != *modoParalelo {
+		if k.modo != modo {
 			continue
 		}
 		fases := medianas(filas)
@@ -113,19 +162,10 @@ func main() {
 			// parte serial sino sobrecarga de sincronización.
 			p.KarpFlatt = (1/p.Speedup - 1/n) / (1 - 1/n)
 		}
-		p.Amdahl = 1 / (f + (1-f)/n)
-		r.Puntos = append(r.Puntos, p)
+		res = append(res, p)
 	}
-	sort.Slice(r.Puntos, func(i, j int) bool { return r.Puntos[i].Unidades < r.Puntos[j].Unidades })
-
-	if err := escribirJSON(*salidaJSON, r); err != nil {
-		log.Fatal(err)
-	}
-	md := tablaMarkdown(r)
-	if err := os.WriteFile(*salidaMD, []byte(md), 0o644); err != nil {
-		log.Fatal(err)
-	}
-	fmt.Print(md)
+	sort.Slice(res, func(i, j int) bool { return res[i].Unidades < res[j].Unidades })
+	return res
 }
 
 type clave struct {
@@ -190,18 +230,29 @@ func medianas(filas []map[string]float64) map[string]float64 {
 	return res
 }
 
-func tablaMarkdown(r Resultado) string {
+func tablaMarkdown(r Resultado, modos []string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "## %s — %s\n\n", r.Experimento, r.Descripcion)
-	fmt.Fprintf(&b, "Máquina: %d CPUs lógicas. T(1) = %.2f s (modo %s, mediana).\n", r.CPUsLogicas, r.T1, r.ModoBase)
-	fmt.Fprintf(&b, "Fracción serial medida (%s): f = %.3f → speedup máximo de Amdahl = %.2f.\n\n", strings.Join(r.ColumnasSerial, " + "), r.FraccionSerial, r.SpeedupMaximo)
-	b.WriteString("| p | reps | T(p) [s] | S(p) | E(p) | Karp-Flatt | S Amdahl |\n|---:|---:|---:|---:|---:|---:|---:|\n")
-	for _, p := range r.Puntos {
-		kf := "—"
-		if p.Unidades > 1 {
-			kf = fmt.Sprintf("%.3f", p.KarpFlatt)
+	fmt.Fprintf(&b, "Máquina: %d CPUs lógicas. T(1) = %.3f s (modo %s, mediana).\n", r.CPUsLogicas, r.T1, r.ModoBase)
+	if r.OrigenFraccion == "karp_flatt" {
+		fmt.Fprintf(&b, "Fracción serial estimada con Karp-Flatt en el mayor p: f = %.3f → speedup máximo de Amdahl = %.2f.\n", r.FraccionSerial, r.SpeedupMaximo)
+	} else {
+		fmt.Fprintf(&b, "Fracción serial medida en T(1) (%s): f = %.3f → speedup máximo de Amdahl = %.2f.\n", strings.Join(r.ColumnasSerial, " + "), r.FraccionSerial, r.SpeedupMaximo)
+	}
+	for _, modo := range modos {
+		ps, ok := r.Series[modo]
+		if !ok {
+			continue
 		}
-		fmt.Fprintf(&b, "| %d | %d | %.2f | %.2f | %.0f%% | %s | %.2f |\n", p.Unidades, p.Repeticiones, p.TTotal, p.Speedup, 100*p.Eficiencia, kf, p.Amdahl)
+		fmt.Fprintf(&b, "\n### %s\n\n", modo)
+		b.WriteString("| p | reps | T(p) [s] | S(p) | E(p) | Karp-Flatt | S Amdahl |\n|---:|---:|---:|---:|---:|---:|---:|\n")
+		for _, p := range ps {
+			kf := "—"
+			if p.Unidades > 1 {
+				kf = fmt.Sprintf("%.3f", p.KarpFlatt)
+			}
+			fmt.Fprintf(&b, "| %d | %d | %.3f | %.2f | %.0f%% | %s | %.2f |\n", p.Unidades, p.Repeticiones, p.TTotal, p.Speedup, 100*p.Eficiencia, kf, p.Amdahl)
+		}
 	}
 	return b.String()
 }

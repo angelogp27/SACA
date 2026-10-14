@@ -41,13 +41,17 @@ func main() {
 	baseDatos := flag.String("db", "proyecto9", "nombre de la base de datos")
 	goroutines := flag.Int("goroutines", 4, "numero de goroutines trabajadoras (parametro del Experimento 1)")
 	bloquesPorGoroutine := flag.Int("bloques-por-goroutine", 4, "bloques por archivo y goroutine; más de 1 reparte mejor la carga entre archivos de distinto tamaño")
-	agregadoras := flag.Int("agregadoras", 1, "goroutines agregadoras; cada una indexa las estaciones de su partición")
+	agregadoras := flag.Int("agregadoras", 1, "goroutines agregadoras, cada una indexa las estaciones de su partición (0 = tantas como trabajadoras)")
 	sinMongo := flag.Bool("sin-mongo", false, "no escribir en MongoDB (mide solo el procesamiento)")
 	rutaResultado := flag.String("resultado", "", "CSV al que se agrega una fila con los tiempos de esta corrida")
 	flag.Parse()
 
-	if *goroutines < 1 || *bloquesPorGoroutine < 1 || *agregadoras < 1 {
-		log.Fatal("-goroutines, -bloques-por-goroutine y -agregadoras deben ser >= 1")
+	if *goroutines < 1 || *bloquesPorGoroutine < 1 || *agregadoras < 0 {
+		log.Fatal("-goroutines y -bloques-por-goroutine deben ser >= 1, y -agregadoras >= 0")
+	}
+	nombreModo := modo(*agregadoras)
+	if *agregadoras == 0 {
+		*agregadoras = *goroutines
 	}
 
 	inicio := time.Now()
@@ -126,7 +130,7 @@ func main() {
 	}
 
 	corrida := medicion.Corrida{
-		Modo:          modo(*agregadoras),
+		Modo:          nombreModo,
 		Goroutines:    *goroutines,
 		Procesamiento: time.Since(inicio),
 		Indexado:      tiempoIndexado,
@@ -195,7 +199,10 @@ func trabajador(entrada <-chan bloque, salidas []chan aqs.ValorLeido, total *aqs
 // modo distingue en los resultados del experimento el diseño original
 // (una agregadora) del de agregadoras particionadas.
 func modo(agregadoras int) string {
-	if agregadoras == 1 {
+	switch agregadoras {
+	case 0:
+		return "concurrente_particionado"
+	case 1:
 		return "concurrente"
 	}
 	return fmt.Sprintf("concurrente_agreg%d", agregadoras)

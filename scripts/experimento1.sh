@@ -31,8 +31,10 @@ while [ "$r" -le "$REPETICIONES" ]; do
   for n in $GOROUTINES; do
     echo "== repeticion $r/$REPETICIONES: concurrente con $n goroutines"
     ./bin/cargador-concurrente -goroutines "$n" $EXTRA
+    echo "== repeticion $r/$REPETICIONES: concurrente particionado con $n goroutines y $n agregadoras"
+    ./bin/cargador-concurrente -goroutines "$n" -agregadoras 0 $EXTRA
   done
   r=$((r + 1))
 done
 
-./bin/analisis -entrada "$CSV" -serial "$SERIAL"
+./bin/analisis -entrada "$CSV" -serial "$SERIAL" -paralelo "concurrente,concurrente_particionado"
