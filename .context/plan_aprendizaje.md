@@ -52,12 +52,20 @@ Cada integrante necesita los temas 1-3, la base común. Después basta con profu
 
     Solo corre en GPU **NVIDIA**: se practica en las PCs del grupo que la tienen (con CUDA Toolkit) o en Google Colab. La PC de desarrollo principal tiene una AMD RX 580, que no sirve para CUDA. Referencia: Hwu, Kirk y El Hajj, *Programming Massively Parallel Processors*, caps. 2-6 y 10.
 
+11. **Clústeres** (sílabo semanas 2, 3-4 y 10; Experimentos 2, 7, 7a y 9).
+    - Redes locales: IP fija, `ping`, `iperf3`, firewall de Windows.
+    - Ejecutar MPI en varias PCs: MS-MPI con `smpd -d` y `mpiexec -hosts`, u OpenMPI con SSH sin contraseña y `hostfile`.
+    - Modelo híbrido MPI + OpenMP + CUDA y balanceo de carga en un clúster heterogéneo.
+    - Modelo de costo de la comunicación (latencia + tamaño/ancho de banda).
+
+    Guía paso a paso: [docs/guia_cluster.md](../docs/guia_cluster.md). Referencia: Pacheco y Malensek, cap. 2 (hardware paralelo y redes de interconexión).
+
 ## Sistema e infraestructura
 
-11. **`net` y TCP en Go.** `net.Listen`, `net.Dial`, un JSON por línea. Ver `internal/protocolo` y `entrenamiento/cmd/maestro`.
-12. **MongoDB desde Go.** `mongo-driver` (`InsertMany` por lotes, agregaciones con `$group`/`$percentile`). Redis (`go-redis`, GET/SET/TTL) desde la semana 12.
-13. **Docker y Docker Compose.** `Dockerfile`, `docker-compose.yml`, redes entre contenedores, réplicas. En Windows, Docker Desktop necesita WSL 2. Se usa para Mongo y Redis, para los trabajadores de Go y opcionalmente para un clúster con OpenMPI.
-14. **JWT y WebSocket en Go.** `golang-jwt/jwt`, `gorilla/websocket`. Para la Parte C, semanas 9-11.
+12. **`net` y TCP en Go.** `net.Listen`, `net.Dial`, un JSON por línea. Ver `internal/protocolo` y `entrenamiento/cmd/maestro`.
+13. **MongoDB desde Go.** `mongo-driver` (`InsertMany` por lotes, agregaciones con `$group`/`$percentile`). Redis (`go-redis`, GET/SET/TTL) desde la semana 12.
+14. **Docker y Docker Compose.** `Dockerfile`, `docker-compose.yml`, redes entre contenedores, réplicas. En Windows, Docker Desktop necesita WSL 2. Se usa para Mongo y Redis, para los trabajadores de Go y opcionalmente para un clúster con OpenMPI.
+15. **JWT y WebSocket en Go.** `golang-jwt/jwt`, `gorilla/websocket`. Para la Parte C, semanas 9-11.
 
 ## Bibliografía
 

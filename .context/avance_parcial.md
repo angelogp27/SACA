@@ -85,6 +85,13 @@ Semana 8, para el parcial si alcanza el tiempo (temas de las semanas 3-7 del sí
 4. `nativo/pthreads/cargador`: productor-consumidor con buffer acotado y variables de condición; validar los conteos contra Go (16 972 287 leídas, 1625 excluidas).
 5. `nativo/mpi/entrenamiento`, versiones punto a punto y colectiva: instalar antes MS-MPI.
 
+Clúster físico ([docs/guia_cluster.md](../docs/guia_cluster.md)). El grupo tiene **2 PCs con NVIDIA** y las demás aportan CPU:
+
+- Semana 8: inventario de las PCs y elección del sistema operativo común para MPI.
+- Semana 9: maestro Go con trabajadores en PCs reales.
+- Semana 10: clúster MPI + ping-pong (Experimento 7a).
+- Semanas 12-13: híbrido MPI + OpenMP + CUDA con reparto proporcional (Experimento 9).
+
 Fase 3 (semanas 9-12):
 
 - Semana 9:

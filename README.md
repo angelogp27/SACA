@@ -134,5 +134,6 @@ Las tablas completas se generan en [resultados/experimento1.md](resultados/exper
 - [docs/contrato_api_rest.md](docs/contrato_api_rest.md): API REST y WebSocket
 - [docs/experimento1.md](docs/experimento1.md): diseño, resultados y análisis de los experimentos 1 y 1b
 - [docs/contrato_formato_binario.md](docs/contrato_formato_binario.md): cómo Go entrega los datos a los núcleos en C/C++ y cómo estos reportan sus mediciones
+- [docs/guia_cluster.md](docs/guia_cluster.md): cómo armar el clúster heterogéneo con las PCs del grupo (2 con NVIDIA y el resto con CPU) usando Go TCP, MPI y el híbrido MPI + OpenMP + CUDA
 - [docs/conceptos_curso.md](docs/conceptos_curso.md): qué concepto del sílabo se aplica en cada parte del código
 - [.context/avance_parcial.md](.context/avance_parcial.md): bitácora del avance del parcial (decisiones, hallazgos, pendientes)

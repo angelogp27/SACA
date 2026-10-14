@@ -26,6 +26,7 @@ Cada tema se ve de dos formas:
 | Paralelismo ideal y sus límites | [resultados/experimento1.md](../resultados/experimento1.md) | El speedup se compara con el ideal S(p)=p y con la ley de Amdahl usando la fracción serial **medida**. |
 | Métricas de rendimiento | [experimentos/cmd/analisis](../experimentos/cmd/analisis/main.go) | Speedup, eficiencia, Karp-Flatt y predicción de Amdahl calculados con la mediana de 3 repeticiones. |
 | Memoria compartida vs. distribuida | Parte A frente a Parte B | El cargador y el entrenamiento paralelo comparten memoria (goroutines). El maestro y los trabajadores no comparten nada y solo se envían mensajes TCP. |
+| Hardware paralelo: arquitecturas y modelos de memoria (sem. 2); clasificación física de computadores paralelos (sumilla) | [guia_cluster.md](guia_cluster.md) | El clúster del grupo es un multicomputador MIMD de memoria distribuida y heterogéneo: varias PCs con memoria compartida (multinúcleo) y 2 con GPU SIMT. Se programa como en HPC: MPI entre nodos, OpenMP dentro de cada nodo y CUDA en la GPU. |
 | Divide y vencerás | [internal/aqs/aqs.go](../internal/aqs/aqs.go) `LimitesBloques` | Cada archivo se divide en bloques de bytes ajustados al salto de línea, se procesan por separado y los resultados se combinan. |
 
 ## Unidad II: memoria compartida y paso de mensajes
@@ -60,6 +61,7 @@ Cada tema se ve de dos formas:
 | MPI | 3-4 | ✅ maestro TCP con registro de nodos | pendiente (semana 8): `nativo/mpi/entrenamiento` | 7 |
 | Pthreads | 5-6 | ✅ cargador concurrente | pendiente (semana 8): `nativo/pthreads/cargador` | 5 |
 | OpenMP | 7, 9-10 | ✅ `gradienteReduccion` | pendiente (semanas 8-9): `nativo/openmp/entrenamiento` y `variables` | 6 |
+| Clúster (MPI + OpenMP + CUDA entre PCs) | 2, 3-4, 10 | ✅ el maestro Go acepta nodos remotos | pendiente (semanas 8-13): inventario, ping-pong, híbrido con reparto proporcional; ver [guia_cluster.md](guia_cluster.md) | 2, 7, 7a, 9 |
 | CUDA | 11-13 | — | pendiente (semanas 11-13); se compila y mide en las PCs del grupo con NVIDIA | 8 |
 
 ## Hallazgos para defender oralmente
