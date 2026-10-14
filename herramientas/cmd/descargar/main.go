@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -128,15 +129,24 @@ func main() {
 			m.TotalHora += a.Filas
 		}
 	}
-	if err := escribirManifiesto(*rutaManifiesto, &m); err != nil {
-		log.Fatal(err)
+	// Si los archivos no cambiaron, se conserva el manifiesto tal cual
+	// (incluida su fecha), para no dejar cambios falsos en git.
+	sinCambios := previo != nil && previo.Anio == m.Anio && reflect.DeepEqual(previo.Archivos, m.Archivos)
+	if !sinCambios {
+		if err := escribirManifiesto(*rutaManifiesto, &m); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	for _, a := range resultado {
 		log.Printf("%-36s %12d filas  %6.1f MB", a.Nombre, a.Filas, float64(a.Bytes)/1e6)
 	}
 	log.Printf("total de filas horarias (4 gases): %d", m.TotalHora)
-	log.Printf("manifiesto escrito en %s", *rutaManifiesto)
+	if sinCambios {
+		log.Printf("manifiesto %s sin cambios", *rutaManifiesto)
+	} else {
+		log.Printf("manifiesto escrito en %s", *rutaManifiesto)
+	}
 }
 
 // obtener deja en destino el CSV de prefijo_anio y devuelve su entrada de
