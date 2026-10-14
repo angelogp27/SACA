@@ -154,11 +154,16 @@ flowchart LR
     P -->|válida| V["ValorLeido<br/>(estación, hora UTC, gas, valor)"]
     CONV --> V
     V --> IX["Indice.Agregar<br/>clave = estación + hora"]
+    IX -->|"ese gas ya tiene valor<br/>de otro monitor"| POC{"¿POC menor?"}
+    POC -->|sí| R
+    POC -->|no| IGN[se conserva el del POC menor]
     IX --> R["RegistroProcesado<br/>(une los 4 gases)"]
     R --> M[("InsertMany por lotes de 5000")]
 ```
 
-En 2025: 16 972 287 filas leídas → 1625 descartadas por qualifier → 10 838 667 registros únicos.
+En 2025: 16 972 287 filas leídas → 1625 descartadas por qualifier → 335 331 valores de monitores repetidos resueltos por POC → 10 838 667 registros únicos.
+
+La regla del POC más bajo hace que el resultado **no dependa del orden** en que lleguen las filas. Sin ella, el cargador concurrente guardaba en esos 53 sitios un valor distinto en cada corrida. Esta condición de carrera *lógica* no la detecta `-race`, porque no hay accesos simultáneos a memoria; la descubrió la prueba end-to-end al comparar dos cargas.
 
 ## 5. Cargador concurrente: worker pool, fan-out y fan-in
 

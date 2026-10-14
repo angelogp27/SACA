@@ -29,6 +29,10 @@ Unidades fijas por contaminante según la tabla de umbrales AQI del proyecto (`.
 - Se descarta la fila si `Qualifier` es un código de **solicitud de exclusión por evento excepcional**: los que empiezan por `R` seguida de una letra en el catálogo de qualifiers de AQS (p. ej. `RS`, `RT` = incendio forestal). Los informativos (`I*`, p. ej. `IT`), los de validación/QA (`V`, `QX`, `MD`, `SX`) y los numéricos (`1`, `6`, …) se conservan: la medición es válida, solo viene anotada. En los datos de 2025 esto descarta 1625 filas de 16 972 287.
 - Si la unidad no es ppm ni ppb (no convertible con seguridad) o algún campo numérico/fecha no se puede leer, la fila se descarta y se cuenta por motivo (`sin_medicion`, `qualifier_excluido`, `unidad_desconocida`, `formato_invalido`); los cargadores imprimen ese conteo.
 - No se descarta una fila completa por falta de alguno de los otros 3 gases en esa hora — el join es un outer join por `(estacion_id, timestamp_utc)`.
+- **Monitores repetidos.** Algunos sitios miden el mismo gas con más de un monitor, que se distinguen por la columna `POC`. En 2025 son 53 sitios y 335 331 filas (1,98 %) que repiten `(estacion_id, timestamp_utc, gas)`. Se guarda el valor del monitor de **POC más bajo**, que normalmente es el principal del sitio.
+  - La regla es determinista: el resultado no depende del orden en que se procesen las filas.
+  - Es imprescindible con el cargador concurrente: antes, "el último valor que llegaba" variaba entre corridas.
+  - El POC no se guarda en MongoDB. Los cargadores informan cuántos valores resolvieron así.
 
 ## Ejemplo
 
