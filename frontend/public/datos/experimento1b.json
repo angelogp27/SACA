@@ -1,0 +1,366 @@
+{
+  "experimento": "Experimento 1b",
+  "descripcion": "Entrenamiento: gradiente de la regresión logística en paralelo",
+  "generado": "2026-10-13T21:31:22-05:00",
+  "cpus_logicas": 12,
+  "modo_base": "secuencial",
+  "modo_paralelo": "paralelo_reduccion",
+  "t1_s": 2.3961,
+  "fases_base": {
+    "auc": 0.9953,
+    "epocas": 200,
+    "f1": 0.0221,
+    "perdida_final": 0.12572,
+    "t_epoca_ms": 11.9806,
+    "t_total_s": 2.3961
+  },
+  "fraccion_serial": 0.1128310777741102,
+  "origen_fraccion_serial": "karp_flatt",
+  "speedup_maximo_amdahl": 8.862806415817614,
+  "puntos": [
+    {
+      "unidades": 1,
+      "repeticiones": 3,
+      "t_total_s": 2.3926,
+      "speedup": 1.0014628437682858,
+      "eficiencia": 1.0014628437682858,
+      "speedup_amdahl": 1,
+      "fases": {
+        "auc": 0.9953,
+        "epocas": 200,
+        "f1": 0.0221,
+        "perdida_final": 0.12572,
+        "t_epoca_ms": 11.9628,
+        "t_total_s": 2.3926
+      }
+    },
+    {
+      "unidades": 2,
+      "repeticiones": 3,
+      "t_total_s": 1.2045,
+      "speedup": 1.989290161892902,
+      "eficiencia": 0.994645080946451,
+      "karp_flatt": 0.005383748591460957,
+      "speedup_amdahl": 1.7972179605195868,
+      "fases": {
+        "auc": 0.9953,
+        "epocas": 200,
+        "f1": 0.0221,
+        "perdida_final": 0.12572,
+        "t_epoca_ms": 6.0224,
+        "t_total_s": 1.2045
+      }
+    },
+    {
+      "unidades": 4,
+      "repeticiones": 3,
+      "t_total_s": 0.6624,
+      "speedup": 3.6173007246376816,
+      "eficiencia": 0.9043251811594204,
+      "karp_flatt": 0.03526563999833058,
+      "speedup_amdahl": 2.9884349807816593,
+      "fases": {
+        "auc": 0.9953,
+        "epocas": 200,
+        "f1": 0.0221,
+        "perdida_final": 0.12572,
+        "t_epoca_ms": 3.3122,
+        "t_total_s": 0.6624
+      }
+    },
+    {
+      "unidades": 8,
+      "repeticiones": 3,
+      "t_total_s": 0.3923,
+      "speedup": 6.107825643640072,
+      "eficiencia": 0.763478205455009,
+      "karp_flatt": 0.04425644052537752,
+      "speedup_amdahl": 4.469729344729345,
+      "fases": {
+        "auc": 0.9953,
+        "epocas": 200,
+        "f1": 0.0221,
+        "perdida_final": 0.12572,
+        "t_epoca_ms": 1.9615,
+        "t_total_s": 0.3923
+      }
+    },
+    {
+      "unidades": 12,
+      "repeticiones": 3,
+      "t_total_s": 0.4475,
+      "speedup": 5.354413407821229,
+      "eficiencia": 0.44620111731843576,
+      "karp_flatt": 0.1128310777741102,
+      "speedup_amdahl": 5.354413407821229,
+      "fases": {
+        "auc": 0.9953,
+        "epocas": 200,
+        "f1": 0.0221,
+        "perdida_final": 0.12572,
+        "t_epoca_ms": 2.2377,
+        "t_total_s": 0.4475
+      }
+    }
+  ],
+  "series": {
+    "paralelo_atomico": [
+      {
+        "unidades": 1,
+        "repeticiones": 3,
+        "t_total_s": 2.4062,
+        "speedup": 0.9958025101820298,
+        "eficiencia": 0.9958025101820298,
+        "speedup_amdahl": 1,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_epoca_ms": 12.0308,
+          "t_total_s": 2.4062
+        }
+      },
+      {
+        "unidades": 2,
+        "repeticiones": 3,
+        "t_total_s": 3.4141,
+        "speedup": 0.701824785448581,
+        "eficiencia": 0.3509123927242905,
+        "karp_flatt": 1.8497141187763444,
+        "speedup_amdahl": 1.7972179605195868,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_epoca_ms": 17.0707,
+          "t_total_s": 3.4141
+        }
+      },
+      {
+        "unidades": 4,
+        "repeticiones": 3,
+        "t_total_s": 3.8832,
+        "speedup": 0.6170426452410384,
+        "eficiencia": 0.1542606613102596,
+        "karp_flatt": 1.8275113726472183,
+        "speedup_amdahl": 2.9884349807816593,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_epoca_ms": 19.4162,
+          "t_total_s": 3.8832
+        }
+      },
+      {
+        "unidades": 8,
+        "repeticiones": 3,
+        "t_total_s": 4.1923,
+        "speedup": 0.5715478377024544,
+        "eficiencia": 0.0714434797128068,
+        "karp_flatt": 1.8567255122908062,
+        "speedup_amdahl": 4.469729344729345,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_epoca_ms": 20.9614,
+          "t_total_s": 4.1923
+        }
+      },
+      {
+        "unidades": 12,
+        "repeticiones": 3,
+        "t_total_s": 4.1007,
+        "speedup": 0.5843148730704515,
+        "eficiencia": 0.04869290608920429,
+        "karp_flatt": 1.776079310698066,
+        "speedup_amdahl": 5.354413407821229,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_epoca_ms": 20.5037,
+          "t_total_s": 4.1007
+        }
+      }
+    ],
+    "paralelo_mutex": [
+      {
+        "unidades": 1,
+        "repeticiones": 3,
+        "t_total_s": 2.3763,
+        "speedup": 1.0083322812776165,
+        "eficiencia": 1.0083322812776165,
+        "speedup_amdahl": 1,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_epoca_ms": 11.8814,
+          "t_total_s": 2.3763
+        }
+      },
+      {
+        "unidades": 2,
+        "repeticiones": 3,
+        "t_total_s": 2.0578,
+        "speedup": 1.1643988725823697,
+        "eficiencia": 0.5821994362911849,
+        "karp_flatt": 0.717624473102124,
+        "speedup_amdahl": 1.7972179605195868,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_epoca_ms": 10.2891,
+          "t_total_s": 2.0578
+        }
+      },
+      {
+        "unidades": 4,
+        "repeticiones": 3,
+        "t_total_s": 3.799,
+        "speedup": 0.6307186101605686,
+        "eficiencia": 0.15767965254014216,
+        "karp_flatt": 1.7806574572569314,
+        "speedup_amdahl": 2.9884349807816593,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_epoca_ms": 18.9952,
+          "t_total_s": 3.799
+        }
+      },
+      {
+        "unidades": 8,
+        "repeticiones": 3,
+        "t_total_s": 5.2141,
+        "speedup": 0.45954239466063174,
+        "eficiencia": 0.05744279933257897,
+        "karp_flatt": 2.3440889063776256,
+        "speedup_amdahl": 4.469729344729345,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_epoca_ms": 26.0705,
+          "t_total_s": 5.2141
+        }
+      },
+      {
+        "unidades": 12,
+        "repeticiones": 3,
+        "t_total_s": 5.2538,
+        "speedup": 0.45606989226845335,
+        "eficiencia": 0.038005824355704446,
+        "karp_flatt": 2.301068782225662,
+        "speedup_amdahl": 5.354413407821229,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_epoca_ms": 26.2691,
+          "t_total_s": 5.2538
+        }
+      }
+    ],
+    "paralelo_reduccion": [
+      {
+        "unidades": 1,
+        "repeticiones": 3,
+        "t_total_s": 2.3926,
+        "speedup": 1.0014628437682858,
+        "eficiencia": 1.0014628437682858,
+        "speedup_amdahl": 1,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_epoca_ms": 11.9628,
+          "t_total_s": 2.3926
+        }
+      },
+      {
+        "unidades": 2,
+        "repeticiones": 3,
+        "t_total_s": 1.2045,
+        "speedup": 1.989290161892902,
+        "eficiencia": 0.994645080946451,
+        "karp_flatt": 0.005383748591460957,
+        "speedup_amdahl": 1.7972179605195868,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_epoca_ms": 6.0224,
+          "t_total_s": 1.2045
+        }
+      },
+      {
+        "unidades": 4,
+        "repeticiones": 3,
+        "t_total_s": 0.6624,
+        "speedup": 3.6173007246376816,
+        "eficiencia": 0.9043251811594204,
+        "karp_flatt": 0.03526563999833058,
+        "speedup_amdahl": 2.9884349807816593,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_epoca_ms": 3.3122,
+          "t_total_s": 0.6624
+        }
+      },
+      {
+        "unidades": 8,
+        "repeticiones": 3,
+        "t_total_s": 0.3923,
+        "speedup": 6.107825643640072,
+        "eficiencia": 0.763478205455009,
+        "karp_flatt": 0.04425644052537752,
+        "speedup_amdahl": 4.469729344729345,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_epoca_ms": 1.9615,
+          "t_total_s": 0.3923
+        }
+      },
+      {
+        "unidades": 12,
+        "repeticiones": 3,
+        "t_total_s": 0.4475,
+        "speedup": 5.354413407821229,
+        "eficiencia": 0.44620111731843576,
+        "karp_flatt": 0.1128310777741102,
+        "speedup_amdahl": 5.354413407821229,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_epoca_ms": 2.2377,
+          "t_total_s": 0.4475
+        }
+      }
+    ]
+  }
+}
