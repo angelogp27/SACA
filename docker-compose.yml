@@ -1,6 +1,10 @@
 services:
   mongo:
     image: mongo:7
+    # Caché de WiredTiger acotada: por defecto usa ~50% de la RAM y, junto
+    # con los ~5 GB que ocupa el cargador, en una máquina de 16 GB la
+    # escritura concurrente se trababa (desalojo de caché atascado).
+    command: ["--wiredTigerCacheSizeGB", "2"]
     ports:
       - "27017:27017"
     volumes:
