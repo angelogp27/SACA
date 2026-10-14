@@ -9,6 +9,7 @@ package dataset
 import (
 	"context"
 	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -215,8 +216,8 @@ func etiquetarLote(ctx context.Context, coleccion *mongo.Collection, lote []regi
 // conjunto de entrenamiento; las mismas constantes se aplican después al
 // de prueba para no filtrar información del futuro.
 type Normalizador struct {
-	Medias       []float64
-	Desviaciones []float64
+	Medias       []float64 `json:"medias"`
+	Desviaciones []float64 `json:"desviaciones"`
 }
 
 func AjustarNormalizador(X [][]float64) Normalizador {
@@ -312,4 +313,56 @@ func CargarOConstruir(ctx context.Context, coleccion func() (*mongo.Collection, 
 		}
 	}
 	return m, false, nil
+}
+
+// ModeloGuardado es el modelo entrenado listo para predecir fuera del
+// proceso que lo entrenó (exportador de datos del frontend y, más
+// adelante, la API): pesos, sesgo y las constantes de normalización.
+type ModeloGuardado struct {
+	Features       []string     `json:"features"`
+	Pesos          []float64    `json:"pesos"`
+	Sesgo          float64      `json:"sesgo"`
+	Normalizador   Normalizador `json:"normalizador"`
+	HorizonteHoras int          `json:"horizonte_horas"`
+	UmbralNO2      float64      `json:"umbral_no2_ppb"`
+	Modo           string       `json:"modo"`
+	Epocas         int          `json:"epocas"`
+	F1             float64      `json:"f1_prueba"`
+	AUC            float64      `json:"auc_prueba"`
+	Precision      float64      `json:"precision_prueba"`
+	Exhaustividad  float64      `json:"exhaustividad_prueba"`
+}
+
+func (m *ModeloGuardado) Guardar(ruta string) error {
+	if err := os.MkdirAll(filepath.Dir(ruta), 0o755); err != nil {
+		return err
+	}
+	datos, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(ruta, append(datos, '\n'), 0o644)
+}
+
+func CargarModelo(ruta string) (*ModeloGuardado, error) {
+	datos, err := os.ReadFile(ruta)
+	if err != nil {
+		return nil, err
+	}
+	var m ModeloGuardado
+	if err := json.Unmarshal(datos, &m); err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+// Probabilidad de que el NO2 de la estación supere el umbral
+// HorizonteHoras después de la lectura r.
+func (m *ModeloGuardado) Probabilidad(r *registro.RegistroProcesado) float64 {
+	x := VectorFeatures(r)
+	z := m.Sesgo
+	for j, v := range x {
+		z += m.Pesos[j] * (v - m.Normalizador.Medias[j]) / m.Normalizador.Desviaciones[j]
+	}
+	return 1 / (1 + math.Exp(-z))
 }

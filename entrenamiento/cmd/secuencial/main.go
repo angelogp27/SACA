@@ -41,7 +41,7 @@ func main() {
 		Epocas:     cfg.Epocas,
 		Perdidas:   perdidas,
 		Evaluacion: entrenador.Evaluar(modelo, datos.Prueba),
-	}, modelo)
+	}, modelo, datos.Normalizador)
 	if err != nil {
 		log.Fatalf("no se pudo guardar el resultado: %v", err)
 	}

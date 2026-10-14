@@ -37,6 +37,7 @@ type Config struct {
 	MesCorte        int
 	Cache           string
 	Resultado       string
+	RutaModelo      string
 }
 
 // RegistrarFlags declara los flags comunes; el llamador hace flag.Parse.
@@ -50,6 +51,7 @@ func RegistrarFlags() *Config {
 	flag.IntVar(&c.MesCorte, "mes-corte", 10, "los meses >= mes-corte se reservan para evaluar (partición temporal)")
 	flag.StringVar(&c.Cache, "cache", "data/muestra.gob", "caché de la muestra en disco (vacío para no usarla)")
 	flag.StringVar(&c.Resultado, "resultado", "", "CSV al que se agrega una fila con los tiempos y métricas de esta corrida")
+	flag.StringVar(&c.RutaModelo, "modelo", "", "JSON donde guardar el modelo entrenado (pesos y normalización), p. ej. data/modelo.json")
 	return c
 }
 
@@ -59,6 +61,7 @@ type Datos struct {
 	Entrenamiento *dataset.Muestra
 	Prueba        *dataset.Muestra
 	PesosClase    logistica.PesosClase
+	Normalizador  dataset.Normalizador
 }
 
 func Preparar(ctx context.Context, c *Config) (*Datos, error) {
@@ -91,7 +94,7 @@ func Preparar(ctx context.Context, c *Config) (*Datos, error) {
 	normalizador.Aplicar(entrenamiento.X)
 	normalizador.Aplicar(prueba.X)
 
-	d := &Datos{Entrenamiento: entrenamiento, Prueba: prueba, PesosClase: logistica.CalcularPesosClase(entrenamiento.Y)}
+	d := &Datos{Entrenamiento: entrenamiento, Prueba: prueba, PesosClase: logistica.CalcularPesosClase(entrenamiento.Y), Normalizador: normalizador}
 	log.Printf("entrenamiento (meses 1-%d): %d ejemplos, %.2f%% positivos | prueba (meses %d-12): %d ejemplos, %.2f%% positivos",
 		c.MesCorte-1, entrenamiento.Len(), 100*float64(entrenamiento.Positivos())/float64(entrenamiento.Len()),
 		c.MesCorte, prueba.Len(), 100*float64(prueba.Positivos())/float64(prueba.Len()))
@@ -118,7 +121,7 @@ func Evaluar(m *logistica.Modelo, prueba *dataset.Muestra) metricas.Clasificacio
 	return metricas.Evaluar(prueba.Y, probabilidades, 0.5)
 }
 
-func Reportar(c *Config, r Corrida, m *logistica.Modelo) error {
+func Reportar(c *Config, r Corrida, m *logistica.Modelo, n dataset.Normalizador) error {
 	paso := max(len(r.Perdidas)/10, 1)
 	for e := 0; e < len(r.Perdidas); e += paso {
 		log.Printf("epoca %d: perdida=%.4f", e, r.Perdidas[e])
@@ -130,6 +133,26 @@ func Reportar(c *Config, r Corrida, m *logistica.Modelo) error {
 	log.Printf("T(%d) entrenamiento %s (%d epocas): %s (%.3f ms por epoca)", r.Goroutines, r.Modo, r.Epocas,
 		r.Duracion.Round(time.Millisecond), float64(r.Duracion.Microseconds())/1000/float64(r.Epocas))
 
+	if c.RutaModelo != "" {
+		guardado := dataset.ModeloGuardado{
+			Features:       dataset.NombresFeatures,
+			Pesos:          m.Pesos,
+			Sesgo:          m.Sesgo,
+			Normalizador:   n,
+			HorizonteHoras: HorizonteHoras,
+			UmbralNO2:      dataset.UmbralNO2,
+			Modo:           r.Modo,
+			Epocas:         r.Epocas,
+			F1:             r.Evaluacion.F1,
+			AUC:            r.Evaluacion.AUC,
+			Precision:      r.Evaluacion.Precision,
+			Exhaustividad:  r.Evaluacion.Exhaustividad,
+		}
+		if err := guardado.Guardar(c.RutaModelo); err != nil {
+			return err
+		}
+		log.Printf("modelo guardado en %s", c.RutaModelo)
+	}
 	if c.Resultado == "" {
 		return nil
 	}
