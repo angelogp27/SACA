@@ -1,4 +1,4 @@
-# Experimento 1 (semana 7): tiempo de ingesta del cargador con 1, 2, 4, 8,
+﻿# Experimento 1 (semana 7): tiempo de ingesta del cargador con 1, 2, 4, 8,
 # 12 y 16 goroutines contra la línea base secuencial T(1).
 # Uso (desde la raíz del repo):
 #   powershell -ExecutionPolicy Bypass -File scripts/experimento1.ps1
@@ -22,14 +22,14 @@ $extra = @("-resultado", $csv)
 if ($SinMongo) { $extra += "-sin-mongo" }
 
 for ($r = 1; $r -le $Repeticiones; $r++) {
-    Write-Host "== repeticion $r/$Repeticiones: secuencial"
+    Write-Host "== repeticion ${r}/${Repeticiones}: secuencial"
     & ./bin/cargador-secuencial.exe @extra
     if ($LASTEXITCODE -ne 0) { throw "fallo el cargador secuencial" }
     foreach ($n in $Goroutines) {
-        Write-Host "== repeticion $r/$Repeticiones: concurrente con $n goroutines"
+        Write-Host "== repeticion ${r}/${Repeticiones}: concurrente con $n goroutines"
         & ./bin/cargador-concurrente.exe -goroutines $n @extra
         if ($LASTEXITCODE -ne 0) { throw "fallo el cargador concurrente con $n goroutines" }
-        Write-Host "== repeticion $r/$Repeticiones: concurrente particionado con $n goroutines y $n agregadoras"
+        Write-Host "== repeticion ${r}/${Repeticiones}: concurrente particionado con $n goroutines y $n agregadoras"
         & ./bin/cargador-concurrente.exe -goroutines $n -agregadoras 0 @extra
         if ($LASTEXITCODE -ne 0) { throw "fallo el cargador particionado con $n goroutines" }
     }
