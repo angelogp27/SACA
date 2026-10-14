@@ -59,6 +59,7 @@ type estado struct {
 	tmp, bin, subconjunto string
 	ext                   string
 	registros             int64
+	huella                huella
 	perdidaSecuencial     float64
 }
 
@@ -97,7 +98,7 @@ func main() {
 		{"Subconjunto de datos reales", pasoSubconjunto},
 		{"Conexión a MongoDB", pasoMongo},
 		{"Cargador secuencial → MongoDB", pasoCargadorSecuencial},
-		{"Cargador concurrente = secuencial", pasoCargadorConcurrente},
+		{"Cargador concurrente = secuencial (registros y valores)", pasoCargadorConcurrente},
 		{"Entrenamiento secuencial + modelo", pasoEntrenamiento},
 		{"Entrenamiento paralelo (3 estrategias) = secuencial", pasoEntrenamientoParalelo},
 		{"Clúster TCP: maestro + 3 trabajadores", pasoCluster},
@@ -110,7 +111,7 @@ func main() {
 	inicio := time.Now()
 	fallo := false
 	for i, p := range pasos {
-		fmt.Printf("[%2d/%d] %-52s ", i+1, len(pasos), p.nombre)
+		fmt.Printf("[%2d/%d] %-58s ", i+1, len(pasos), p.nombre)
 		t := time.Now()
 		detalle, err := p.correr(e)
 		dur := time.Since(t).Round(100 * time.Millisecond)
@@ -299,6 +300,9 @@ func pasoCargadorSecuencial(e *estado) (string, error) {
 	if e.registros == 0 || enMongo != e.registros {
 		return "", fmt.Errorf("el cargador reportó %d registros pero MongoDB tiene %d", e.registros, enMongo)
 	}
+	if e.huella, err = calcularHuella(); err != nil {
+		return "", err
+	}
 	return fmt.Sprintf("%s filas → %d registros en MongoDB", filas[0]["filas_leidas"], e.registros), nil
 }
 
@@ -329,9 +333,16 @@ func pasoCargadorConcurrente(e *estado) (string, error) {
 		if enMongo != e.registros {
 			return "", fmt.Errorf("%s dejó %d documentos en MongoDB; se esperaban %d", ultima["modo"], enMongo, e.registros)
 		}
+		h, err := calcularHuella()
+		if err != nil {
+			return "", err
+		}
+		if dif := e.huella.diferencia(h); dif != "" {
+			return "", fmt.Errorf("%s guardó valores distintos al secuencial (%s): el resultado depende del orden de las goroutines", ultima["modo"], dif)
+		}
 		modos = append(modos, ultima["modo"])
 	}
-	return strings.Join(modos, " y ") + ": mismos registros que el secuencial", nil
+	return strings.Join(modos, " y ") + ": mismos registros y mismos valores", nil
 }
 
 func (e *estado) argsEntrenamiento(csvRes string) []string {
@@ -564,6 +575,73 @@ func limpiar(e *estado) {
 		cliente.Disconnect(ctx)
 	}
 	os.RemoveAll(e.tmp)
+}
+
+// huella resume los valores guardados: cantidad y suma de cada gas. Dos
+// cargas de los mismos datos deben dar la misma huella, no solo la misma
+// cantidad de documentos; así se detecta que un valor dependa del orden en
+// que llegan los datos (por ejemplo, con monitores repetidos en un sitio).
+type huella struct {
+	cantidad [4]int64
+	suma     [4]float64
+}
+
+var camposGases = [4]string{"o3_ppm", "no2_ppb", "so2_ppb", "co_ppm"}
+
+func (a huella) diferencia(b huella) string {
+	for i, campo := range camposGases {
+		if a.cantidad[i] != b.cantidad[i] {
+			return fmt.Sprintf("%s: %d valores frente a %d", campo, a.cantidad[i], b.cantidad[i])
+		}
+		if math.Abs(a.suma[i]-b.suma[i]) > 1e-9*math.Max(1, math.Abs(a.suma[i])) {
+			return fmt.Sprintf("%s: suma %.6f frente a %.6f", campo, a.suma[i], b.suma[i])
+		}
+	}
+	return ""
+}
+
+func calcularHuella() (huella, error) {
+	var h huella
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cliente, err := mongo.Connect(options.Client().ApplyURI(*mongoURI))
+	if err != nil {
+		return h, err
+	}
+	defer cliente.Disconnect(ctx)
+
+	grupo := bson.D{{Key: "_id", Value: nil}}
+	for _, c := range camposGases {
+		grupo = append(grupo,
+			bson.E{Key: c + "_n", Value: bson.D{{Key: "$sum", Value: bson.D{{Key: "$cond", Value: bson.A{bson.D{{Key: "$eq", Value: bson.A{bson.D{{Key: "$type", Value: "$" + c}}, "double"}}}, 1, 0}}}}}},
+			bson.E{Key: c + "_s", Value: bson.D{{Key: "$sum", Value: "$" + c}}},
+		)
+	}
+	cursor, err := cliente.Database(baseDatosE2E).Collection(persistencia.Coleccion).Aggregate(ctx, mongo.Pipeline{{{Key: "$group", Value: grupo}}})
+	if err != nil {
+		return h, err
+	}
+	var res []bson.M
+	if err := cursor.All(ctx, &res); err != nil || len(res) == 0 {
+		return h, fmt.Errorf("no se pudo calcular la huella: %v", err)
+	}
+	for i, c := range camposGases {
+		h.cantidad[i] = int64(numeroBSON(res[0][c+"_n"]))
+		h.suma[i] = numeroBSON(res[0][c+"_s"])
+	}
+	return h, nil
+}
+
+func numeroBSON(v any) float64 {
+	switch x := v.(type) {
+	case float64:
+		return x
+	case int32:
+		return float64(x)
+	case int64:
+		return float64(x)
+	}
+	return 0
 }
 
 func contarDocumentos() (int64, error) {
