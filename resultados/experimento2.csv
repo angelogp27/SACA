@@ -2,3 +2,9 @@ modo,goroutines,epocas,t_total_s,t_epoca_ms,t_calculo_ms,t_comunicacion_ms,perdi
 tcp_tailscale:angelo+augusto-pc+josue,3,200,8.3729,41.8643,17.5302,24.2193,0.132576,0.0147,0.9945,angelo(go)+augusto-pc(cuda)+josue(cuda) · 2499636 ejemplos
 tcp_tailscale:augusto-pc+josue,2,200,5.1185,25.5927,8.7122,16.8427,0.132576,0.0147,0.9945,augusto-pc(cuda)+josue(cuda) · 2499636 ejemplos
 secuencial,1,200,43.9585,219.7927,219.7927,0.0000,0.132576,0.0147,0.9945,augusto-pc(cuda)+josue(cuda) · 2499636 ejemplos
+tcp_tailscale:angelo+augusto-pc+josue,3,200,7.8462,39.2312,18.1559,20.9968,0.132576,0.0147,0.9945,angelo(go)+augusto-pc(cuda)+josue(cuda) · 2499636 ejemplos
+tcp_tailscale:angelo+augusto-pc+josue,3,200,6.1970,30.9848,18.1424,12.7626,0.132576,0.0147,0.9945,angelo(go)+augusto-pc(cuda)+josue(cuda) · 2499636 ejemplos
+secuencial,1,200,47.3170,236.5851,236.5851,0.0000,0.132576,0.0147,0.9945,angelo(go)+augusto-pc(cuda)+josue(cuda) · 2499636 ejemplos
+tcp_tailscale:augusto-pc,1,200,2.5682,12.8408,3.6472,9.1375,0.132576,0.0147,0.9945,augusto-pc(cuda) · 2499636 ejemplos
+secuencial,1,200,46.8052,234.0262,234.0262,0.0000,0.132576,0.0147,0.9945,augusto-pc(cuda) · 2499636 ejemplos
+tcp_tailscale:josue,1,200,4.6087,23.0435,7.6301,15.3533,0.132576,0.0147,0.9945,josue(cuda) · 2499636 ejemplos
