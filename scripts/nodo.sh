@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Une esta PC (Linux o macOS) al clúster como nodo trabajador (ver
-# docs/manual_cluster.md, paso 6):
-#   scripts/nodo.sh 100.101.102.103:9000 ana
+# docs/cluster/guia_nodo_sin_nvidia.md o guia_nodo_con_nvidia.md):
+#   bash scripts/nodo.sh 100.101.102.103:9000 ana
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -15,7 +15,7 @@ go build -o bin/trabajador ./entrenamiento/cmd/trabajador
 echo "   compilado bin/trabajador (commit $(git rev-parse --short HEAD))"
 
 echo "== 2/4 muestra de datos"
-[ -f data/muestra.gob ] || { echo "falta data/muestra.gob: descárgala de la carpeta compartida del grupo (manual, paso 3)"; exit 1; }
+[ -f data/muestra.gob ] || { echo "falta data/muestra.gob: descárgala de la carpeta compartida del grupo (ver la guía del nodo, paso 'Copiar la muestra')"; exit 1; }
 HUELLA=$( (sha256sum data/muestra.gob 2>/dev/null || shasum -a 256 data/muestra.gob) | cut -c1-12)
 echo "   huella $HUELLA (debe ser igual a la que muestra el maestro)"
 
@@ -28,11 +28,22 @@ else
 fi
 
 echo "== 4/4 conexión con el maestro $MAESTRO"
-if timeout 3 bash -c "</dev/tcp/${MAESTRO%:*}/${MAESTRO##*:}" 2>/dev/null; then
-  echo "   OK"
+HOST_MAESTRO=${MAESTRO%:*}
+PUERTO_MAESTRO=${MAESTRO##*:}
+# macOS no trae "timeout": se prueba primero con nc, que existe en macOS y
+# en casi todos los Linux.
+if command -v nc >/dev/null 2>&1; then
+  nc -z -w 3 "$HOST_MAESTRO" "$PUERTO_MAESTRO" >/dev/null 2>&1 && CONECTA=si || CONECTA=no
+elif command -v timeout >/dev/null 2>&1; then
+  timeout 3 bash -c "</dev/tcp/$HOST_MAESTRO/$PUERTO_MAESTRO" 2>/dev/null && CONECTA=si || CONECTA=no
 else
-  echo "   AVISO: no se pudo conectar todavía; el trabajador seguirá reintentando"
+  CONECTA=sin_comprobar
 fi
+case $CONECTA in
+  si) echo "   OK" ;;
+  no) echo "   AVISO: no se pudo conectar todavía (¿el maestro ya arrancó?, ¿Tailscale conectado?); el trabajador seguirá reintentando" ;;
+  *)  echo "   no se pudo comprobar (falta nc); el trabajador lo intentará igual" ;;
+esac
 
 echo "== nodo $ID en marcha (Ctrl+C para salir)"
 exec ./bin/trabajador -maestro "$MAESTRO" -id "$ID" -motor "$MOTOR"
