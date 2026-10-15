@@ -51,7 +51,7 @@ go run ./cargador/cmd/concurrente -goroutines $Goroutines -agregadoras 0
 Revisar "cargador concurrente"
 
 Paso "4/6 Entrenamiento y modelo"
-# Se reutiliza data/muestra.gob si existe: los CSV son siempre los mismos
+# Se reutiliza data/muestra_prueba.gob si existe: los CSV son siempre los mismos
 # (verificados por SHA-256), así el modelo es reproducible. Bórrala a mano
 # para sortear una muestra nueva.
 go run ./entrenamiento/cmd/secuencial -modelo data/modelo.json

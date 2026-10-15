@@ -45,11 +45,11 @@ func RegistrarFlags() *Config {
 	c := &Config{}
 	flag.StringVar(&c.MongoURI, "mongo-uri", "mongodb://localhost:27017", "cadena de conexión a MongoDB")
 	flag.StringVar(&c.BaseDatos, "db", "proyecto9", "nombre de la base de datos")
-	flag.IntVar(&c.TamanoMuestra, "muestra", 200000, "registros con NO2 sorteados de MongoDB antes de descartar los que no tienen etiqueta")
+	flag.IntVar(&c.TamanoMuestra, "muestra", 200000, "registros con NO2 sorteados de MongoDB antes de descartar los que no tienen etiqueta; 0 = todos (la muestra del clúster)")
 	flag.Float64Var(&c.TasaAprendizaje, "tasa", 0.1, "tasa de aprendizaje")
 	flag.IntVar(&c.Epocas, "epocas", 200, "numero de epocas")
 	flag.IntVar(&c.MesCorte, "mes-corte", 10, "los meses >= mes-corte se reservan para evaluar (partición temporal)")
-	flag.StringVar(&c.Cache, "cache", "data/muestra.gob", "caché de la muestra en disco (vacío para no usarla)")
+	flag.StringVar(&c.Cache, "cache", "data/muestra_prueba.gob", "caché de la muestra en disco (vacío para no usarla); la del clúster es data/muestra.gob")
 	flag.StringVar(&c.Resultado, "resultado", "", "CSV al que se agrega una fila con los tiempos y métricas de esta corrida")
 	flag.StringVar(&c.RutaModelo, "modelo", "", "JSON donde guardar el modelo entrenado (pesos y normalización), p. ej. data/modelo.json")
 	return c

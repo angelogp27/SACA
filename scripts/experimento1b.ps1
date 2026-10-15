@@ -1,7 +1,7 @@
 ﻿# Experimento 1b: tiempo de entrenamiento de la regresión logística con
 # 1, 2, 4, 8 y 12 goroutines y las tres estrategias de sincronización
 # (reduccion, mutex, atomico), contra el entrenamiento secuencial T(1).
-# Usa la caché data/muestra.gob (se crea desde MongoDB la primera vez).
+# Usa la caché data/muestra_prueba.gob (se crea desde MongoDB la primera vez).
 # Uso (desde la raíz del repo):
 #   powershell -ExecutionPolicy Bypass -File scripts/experimento1b.ps1
 param(
