@@ -172,13 +172,13 @@ El grupo debe presentar el avance del clúster de forma **virtual**: las PCs est
 - La muestra anterior pasó a `data/muestra_prueba.gob` y sigue siendo la caché por defecto de `secuencial`/`paralelo`, para el Experimento 1b y la e2e.
 - Los resultados con la muestra de prueba quedaron en `resultados/experimento2_prueba.*`.
 
-**Experimento 2 con la muestra completa** (3 rondas, mediana; T(1) secuencial = 41,5 s, 207 ms por época):
+**Experimento 2 con la muestra completa** (3 rondas por terminal + corridas desde la página; mediana; T(1) secuencial = 41,5 s, 207 ms por época):
 
 | Nodos | T(p) | S | Cálculo del más lento | Red | % red |
 |---|---:|---:|---:|---:|---:|
 | augusto (RTX 3060 Ti) | 2,28 s | 18,2 | 3,1 ms | 8,3 ms | 73 % |
-| + josue (RTX 4060 Laptop) | 3,88 s | 10,7 | 5,3 ms | 14,2 ms | 73 % |
-| + angelo (CPU, 16 hilos) | 6,85 s | 6,1 | 18,0 ms | 16,2 ms | 47 % |
+| + josue (RTX 4060 Laptop) | 3,92 s | 10,6 | 5,4 ms | 12,7 ms | 70 % |
+| + angelo (CPU, 16 hilos) | 7,29 s | 5,7 | 18,1 ms | 18,1 ms | 50 % |
 
 **Hallazgos:**
 - Una GPU remota calcula una época de 2,5 M ejemplos en ~3 ms. Con eso la red vuelve a dominar, y agregar nodos empeora el tiempo.

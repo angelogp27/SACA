@@ -64,14 +64,14 @@ Referencia de lo que dice cada diapositiva de la página, por si hay que exporta
 4. **De dónde venimos.** Experimento 1 (cargador, S(16) = 3,77) y 1b (entrenamiento con goroutines, S(8) = 6,11 con reducción; mutex y CAS más lentos que el secuencial). El clúster reutiliza la misma reducción.
 5. **Resultados del Experimento 2: clúster real por internet con todos los datos de NO2.**
 
-   Muestra completa: **2 499 636 ejemplos** de entrenamiento (3,3 M en total, 337 MB). 200 épocas, mediana de 3 repeticiones, 15/10/2026. Maestro en Windows (Ryzen 5 3600); nodos en 3 casas distintas unidos por Tailscale, todos con conexión directa (`tailscale ping` de 5, 6 y 17 ms).
+   Muestra completa: **2 499 636 ejemplos** de entrenamiento (3,3 M en total, 337 MB). 200 épocas, mediana de 3 a 5 repeticiones (incluye las corridas lanzadas desde la página), 15/10/2026. Maestro en Windows (Ryzen 5 3600); nodos en 3 casas distintas unidos por Tailscale, todos con conexión directa (`tailscale ping` de 5, 6 y 17 ms).
 
    | Configuración | Nodos | T(p) | **Speedup** | Cálculo del más lento | Red y espera | % comunicación |
    |---|---|---:|---:|---:|---:|---:|
    | Secuencial (1 hilo de CPU, PC del maestro) | — | 41,5 s | 1,0 | 207 ms | — | — |
    | **1 GPU** | augusto (RTX 3060 Ti) | **2,28 s** | **18,2** | 3,1 ms | 8,3 ms | 73 % |
-   | 2 GPUs | + josue (RTX 4060 Laptop) | 3,88 s | 10,7 | 5,3 ms | 14,2 ms | 73 % |
-   | 2 GPUs + 1 CPU | + angelo (Ryzen 7 7735HS, 16 hilos) | 6,85 s | 6,1 | **18,0 ms (angelo)** | 16,2 ms | 47 % |
+   | 2 GPUs | + josue (RTX 4060 Laptop) | 3,92 s | 10,6 | 5,4 ms | 12,7 ms | 70 % |
+   | 2 GPUs + 1 CPU | + angelo (Ryzen 7 7735HS, 16 hilos) | 7,29 s | 5,7 | **18,1 ms (angelo)** | 18,1 ms | 50 % |
 
    En todas las corridas, la pérdida final fue **idéntica** a la secuencial (`0.132576`, diferencia ~1e-15). Fuente: `resultados/experimento2.md` y `.csv`.
 
