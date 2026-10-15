@@ -13,7 +13,7 @@ No necesitas saber programar. Copia y pega cada comando **tal cual** y compara l
 ## Antes de empezar: qué necesitas
 
 - [ ] Internet estable. Para la demo, mejor por cable.
-- [ ] Unos 2 GB libres en el disco `C:`.
+- [ ] Unos 2 GB libres en el disco `C:` y **al menos 8 GB de RAM** (el programa del nodo usa ~1,5 GB).
 - [ ] Una cuenta de Google, Microsoft o GitHub, para Tailscale.
 - [ ] Del maestro, por el grupo:
   - la invitación de Tailscale (un enlace o un correo);
@@ -132,7 +132,9 @@ git pull
 
 ## Paso 4. Copiar la muestra
 
-**Qué vas a hacer:** poner el archivo de datos `muestra.gob` (unos 20 MB) dentro del proyecto. No viene con el proyecto: lo comparte el maestro por Drive.
+> **Si ya tenías una `muestra.gob` de antes** (huella `5e90db4b1158`), **reemplázala** por la nueva: el clúster ahora usa **todos** los datos de NO2 y el maestro rechaza la anterior.
+
+**Qué vas a hacer:** poner el archivo de datos `muestra.gob` (**unos 340 MB**: la descarga tarda unos minutos) dentro del proyecto. Contiene los 3,3 millones de mediciones de NO2 con las que se entrena. No viene con el proyecto: lo comparte el maestro por Drive.
 
 1. Abre el enlace de Drive del maestro y descarga `muestra.gob`. Queda en tu carpeta **Descargas**.
 2. Pega:
@@ -145,7 +147,7 @@ Copy-Item "$env:USERPROFILE\Downloads\muestra.gob" C:\saca\data\
 **Debes ver:**
 
 ```
-5e90db4b1158
+c2c8f8832a30
 ```
 
 Esa es la **huella**. Debe ser **exactamente** esta, o la que el maestro anuncie si regeneró los datos.
@@ -154,17 +156,17 @@ Esa es la **huella**. Debe ser **exactamente** esta, o la que el maestro anuncie
 - `No se encuentra la ruta de acceso ... muestra.gob`: el archivo se descargó con otro nombre (por ejemplo `muestra (1).gob`) o en otra carpeta. Renómbralo a `muestra.gob` y repite.
 - Otra huella: el archivo está incompleto o es de otra versión. Bórralo, descárgalo de nuevo y repite.
 
-- [ ] Mi huella es `5e90db4b1158`.
+- [ ] Mi huella es `c2c8f8832a30`.
 
 ---
 
 ## Paso 5. Ensayo individual
 
-**Qué vas a hacer:** comprobar que tu PC puede hacer todo. El script simula en tu PC un clúster completo (un maestro y 2 nodos). Unos 2-3 minutos la primera vez, porque compila.
+**Qué vas a hacer:** comprobar que tu PC puede hacer todo. El script simula en tu PC un clúster completo (un maestro y 1 nodo) con todos los datos. Tarda **unos 2-4 minutos**: compila, entrena y al final repite el entrenamiento en secuencial (la parte más larga) para comprobar que el resultado es el mismo. Usa ~3 GB de RAM; cierra el navegador y otros programas pesados mientras corre.
 
 ```powershell
 cd C:\saca
-powershell -ExecutionPolicy Bypass -File scripts\cluster-local.ps1 -Nodos 2
+powershell -ExecutionPolicy Bypass -File scripts\cluster-local.ps1 -Nodos 1
 ```
 
 Si Windows muestra un aviso de **Firewall de Windows Defender** para `maestro.exe`, haz clic en **Permitir** (o **Cancelar**: para este ensayo da igual).
@@ -173,16 +175,16 @@ Si Windows muestra un aviso de **Firewall de Windows Defender** para `maestro.ex
 
 ```
 nodo           part  motor dispositivo                           ejemplos  cálculo/ép.  desde
-local1            0  go    CPU ANA-LAPTOP, 4 goroutines             73413      2.42 ms  [::1]:60727
-local2            1  go    CPU ANA-LAPTOP, 4 goroutines             73302      2.80 ms  [::1]:60728
+local1            0  go    CPU ANA-LAPTOP, 8 goroutines           2499636     95.10 ms  [::1]:60727
 ...
-verificación: pérdida final distribuida 0.125720142, secuencial 0.125720142, diferencia 2.5e-15 → OK, mismo modelo
+verificación: pérdida final distribuida 0.132576204, secuencial 0.132576204, diferencia 8.6e-16 → OK, mismo modelo
 ```
 
 Lo que importa es que diga **`OK, mismo modelo`**. Los números de tiempo cambian según la PC.
 
 **Si en cambio ves:**
 - `falta data/muestra.gob`: repite el paso 4.
+- La PC se pone muy lenta o aparece `out of memory`: cierra otros programas y repite. Si tu PC tiene menos de 8 GB de RAM, avisa al maestro.
 - `go: ... dial tcp ... timeout` mientras compila: tu internet se cortó al descargar componentes. Repite el comando.
 - Cualquier otro error: copia las **últimas 15 líneas** y pégalas en el grupo.
 
@@ -212,7 +214,7 @@ CPU: Intel(R) Core(TM) i5-1135G7 @ 2.40GHz
 RAM: 8 GB
 GPU: Intel(R) Iris(R) Xe Graphics
 Sistema: Microsoft Windows 11 Home
-Huella: 5e90db4b1158
+Huella: c2c8f8832a30
 Version: 9fce811
 IP Tailscale: 100.70.12.34
 ```
@@ -256,20 +258,20 @@ Ejemplo ya completo: `powershell -ExecutionPolicy Bypass -File scripts\nodo.ps1 
 == 1/4 programa del trabajador
    compilado bin/trabajador.exe (commit 9fce811)
 == 2/4 muestra de datos
-   huella 5e90db4b1158 (debe ser igual a la que muestra el maestro)
+   data/muestra.gob, huella c2c8f8832a30 (debe ser igual a la que muestra el maestro)
 == 3/4 motor de cálculo
    sin GPU NVIDIA: se calcula con goroutines en la CPU
 == 4/4 conexión con el maestro 100.101.102.103:9000
    OK
 == nodo ana en marcha (Ctrl+C para salir)
-... muestra data/muestra.gob cargada, huella 5e90db4b1158
+... muestra data/muestra.gob cargada, huella c2c8f8832a30
 ... motor auto: no hay bin/gradiente_cuda.exe, se calcula con goroutines
-... registrado como ana: partición 1 de 4 → 38975 de 146715 ejemplos de entrenamiento (26.6%)
+... registrado como ana: partición 1 de 3 → 885234 de 2499636 ejemplos de entrenamiento (35.4%)
 ... listo: calcula con el motor go (CPU ANA-LAPTOP, 8 goroutines); esperando los parámetros del maestro
-... época 0: gradiente enviado (2.13 ms de cálculo)
-... época 50: gradiente enviado (2.40 ms de cálculo)
+... época 0: gradiente enviado (38.20 ms de cálculo)
+... época 50: gradiente enviado (35.90 ms de cálculo)
 ...
-... entrenamiento finalizado: 200 épocas, pérdida final 0.125720; este nodo calculó 2.42 ms por época en promedio
+... entrenamiento finalizado: 200 épocas, pérdida final 0.132576; este nodo calculó 36.10 ms por época en promedio
 ```
 
 - Si el maestro **todavía no arrancó**, verás `AVISO: no se pudo conectar todavía` y luego `maestro ... no disponible todavía ... reintentando...` cada pocos segundos. **Es normal: espera.** Se conecta solo cuando el maestro arranca.
@@ -302,7 +304,7 @@ Ejemplo ya completo: `powershell -ExecutionPolicy Bypass -File scripts\nodo.ps1 
 | `registro_rechazado: ya hay un nodo registrado con ese worker_id` | Otra persona usa tu mismo nombre. Cambia el `-Id`, por ejemplo `ana2` |
 | `el maestro pidió la baja: maestro_cerrando` o `el maestro cerró la conexión` | El maestro terminó o se reinició. Espera su indicación y repite el paso 7.2 |
 | `fatal: not a git repository` | No estás en la carpeta del proyecto. Pega `cd C:\saca` primero |
-| `huella` distinta de `5e90db4b1158` en el paso 1 o 2 del script | Paso 4 |
+| `huella` distinta de `c2c8f8832a30` en el paso 1 o 2 del script | Paso 4 |
 | La ventana se cerró sola | Abre PowerShell y repite el paso 7.2 |
 
 Si nada de esto aplica, copia las **últimas 15 líneas** de tu ventana y pégalas en el grupo.
@@ -354,13 +356,13 @@ cp ~/Downloads/muestra.gob ~/saca/data/
 shasum -a 256 ~/saca/data/muestra.gob | cut -c1-12
 ```
 
-(Si tu carpeta de descargas se llama `~/Descargas`, usa esa.) **Debes ver** `5e90db4b1158`.
+(Si tu carpeta de descargas se llama `~/Descargas`, usa esa.) **Debes ver** `c2c8f8832a30`.
 
 ### Paso 5 (Linux/Mac). Ensayo individual
 
 ```sh
 cd ~/saca
-bash scripts/cluster-local.sh 2
+bash scripts/cluster-local.sh 1
 ```
 
 **Debes ver** al final `OK, mismo modelo`.

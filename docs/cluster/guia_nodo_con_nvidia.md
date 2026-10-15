@@ -15,7 +15,7 @@ No necesitas saber programar. Copia y pega cada comando **tal cual** y compara l
 ## Antes de empezar: qué necesitas
 
 - [ ] Internet estable. Para la demo, mejor por cable.
-- [ ] Unos **15 GB libres** en el disco `C:`, por las herramientas de NVIDIA y Microsoft.
+- [ ] Unos **15 GB libres** en el disco `C:`, por las herramientas de NVIDIA y Microsoft, y **al menos 8 GB de RAM** (el programa del nodo usa ~1,5 GB).
 - [ ] Permisos de **administrador** en tu PC, para instalar.
 - [ ] Una cuenta de Google, Microsoft o GitHub, para Tailscale.
 - [ ] Del maestro, por el grupo:
@@ -105,7 +105,9 @@ Las veces siguientes: `cd C:\saca; git pull`.
 
 ## Paso 4. Copiar la muestra
 
-1. Descarga `muestra.gob` del enlace de Drive del maestro (queda en **Descargas**).
+> **Si ya tenías una `muestra.gob` de antes** (huella `5e90db4b1158`), **reemplázala** por la nueva: el clúster ahora usa **todos** los datos de NO2 y el maestro rechaza la anterior.
+
+1. Descarga `muestra.gob` del enlace de Drive del maestro (queda en **Descargas**). Pesa **unos 340 MB**: tarda unos minutos.
 2. Pega:
 
 ```powershell
@@ -113,13 +115,13 @@ Copy-Item "$env:USERPROFILE\Downloads\muestra.gob" C:\saca\data\
 (Get-FileHash C:\saca\data\muestra.gob -Algorithm SHA256).Hash.Substring(0,12).ToLower()
 ```
 
-**Debes ver** `5e90db4b1158` (o la huella que anuncie el maestro).
+**Debes ver** `c2c8f8832a30` (o la huella que anuncie el maestro).
 
 **Si en cambio ves:**
 - No encuentra el archivo: revisa si se descargó como `muestra (1).gob`. Renómbralo.
 - Otra huella: descárgalo de nuevo.
 
-- [ ] Mi huella es `5e90db4b1158`.
+- [ ] Mi huella es `c2c8f8832a30`.
 
 ---
 
@@ -220,7 +222,7 @@ GPU: NVIDIA GeForce RTX 3060, sm_86, 28 SM, 12.0 GB
 
 ```powershell
 cd C:\saca
-powershell -ExecutionPolicy Bypass -File scripts\cluster-local.ps1 -Nodos 2
+powershell -ExecutionPolicy Bypass -File scripts\cluster-local.ps1 -Nodos 1
 ```
 
 Si aparece un aviso del **Firewall de Windows** para `maestro.exe`, elige **Permitir** o **Cancelar** (para este ensayo da igual).
@@ -229,10 +231,9 @@ Si aparece un aviso del **Firewall de Windows** para `maestro.exe`, elige **Perm
 
 ```
 nodo           part  motor dispositivo                           ejemplos  cálculo/ép.  desde
-local1            0  cuda  NVIDIA GeForce RTX 3060, sm_86, 28 …     73413      0.85 ms  [::1]:60727
-local2            1  cuda  NVIDIA GeForce RTX 3060, sm_86, 28 …     73302      0.83 ms  [::1]:60728
+local1            0  cuda  NVIDIA GeForce RTX 3060, sm_86, 28 …   2499636      9.50 ms  [::1]:60727
 ...
-verificación: pérdida final distribuida 0.125720142, secuencial 0.125720142, diferencia ... → OK, mismo modelo
+verificación: pérdida final distribuida 0.132576204, secuencial 0.132576204, diferencia ... → OK, mismo modelo
 ```
 
 Para confirmar que la GPU pasó la prueba de corrección, pega:
@@ -311,20 +312,20 @@ Ejemplo: `powershell -ExecutionPolicy Bypass -File scripts\nodo.ps1 -Maestro 100
 == 1/4 programa del trabajador
    compilado bin/trabajador.exe (commit 9fce811)
 == 2/4 muestra de datos
-   huella 5e90db4b1158 (debe ser igual a la que muestra el maestro)
+   data/muestra.gob, huella c2c8f8832a30 (debe ser igual a la que muestra el maestro)
 == 3/4 motor de cálculo
    GPU NVIDIA: NVIDIA GeForce RTX 3060
 == 4/4 conexión con el maestro 100.101.102.103:9000
    OK
 == nodo luis en marcha (Ctrl+C para salir)
 ... motor cuda iniciado: NVIDIA GeForce RTX 3060, sm_86, 28 SM, 12.0 GB
-... registrado como luis: partición 2 de 4 → 38653 de 146715 ejemplos de entrenamiento (26.3%)
-gradiente_cuda: 38653 ejemplos x 12 variables en la GPU (224 bloques x 256 hilos)
+... registrado como luis: partición 2 de 3 → 807003 de 2499636 ejemplos de entrenamiento (32.3%)
+gradiente_cuda: 807003 ejemplos x 12 variables en la GPU (224 bloques x 256 hilos)
 ... motor cuda validado contra el de Go: mismo gradiente (tolerancia relativa 1e-8)
 ... listo: calcula con el motor cuda (NVIDIA GeForce RTX 3060, ...); esperando los parámetros del maestro
 ... época 0: gradiente enviado (0.91 ms de cálculo)
 ...
-... entrenamiento finalizado: 200 épocas, pérdida final 0.125720; este nodo calculó 0.85 ms por época en promedio
+... entrenamiento finalizado: 200 épocas, pérdida final 0.132576; este nodo calculó 3.10 ms por época en promedio
 ```
 
 - Si en 3/4 aparece `AVISO: falta bin/gradiente_cuda.exe`, tu nodo funcionará con la CPU. Si hay tiempo, repite el paso 7.
@@ -383,7 +384,7 @@ Para PCs con Linux (Ubuntu o Debian) y tarjeta NVIDIA. La terminal es **Terminal
    ```sh
    cd ~ && git clone https://github.com/angelogp27/SACA.git saca
    cp ~/Downloads/muestra.gob ~/saca/data/
-   shasum -a 256 ~/saca/data/muestra.gob | cut -c1-12      # debe dar 5e90db4b1158
+   shasum -a 256 ~/saca/data/muestra.gob | cut -c1-12      # debe dar c2c8f8832a30
    ```
 
 4. **Driver y CUDA:** `nvidia-smi` debe mostrar tu tarjeta; si no, instala el driver con `sudo ubuntu-drivers install` y reinicia. Luego:
@@ -402,7 +403,7 @@ Para PCs con Linux (Ubuntu o Debian) y tarjeta NVIDIA. La terminal es **Terminal
    ./bin/gradiente_cuda --info
    ```
 
-6. **Ensayo individual:** `bash scripts/cluster-local.sh 2`. Debe terminar en `OK, mismo modelo`, con `cuda` en la columna `motor`. Para confirmar: `grep "motor cuda" bin/logs/trabajador-local1.log`.
+6. **Ensayo individual:** `bash scripts/cluster-local.sh 1`. Debe terminar en `OK, mismo modelo`, con `cuda` en la columna `motor`. Para confirmar: `grep "motor cuda" bin/logs/trabajador-local1.log`.
 7. **Datos para el grupo:**
 
    ```sh
