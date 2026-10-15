@@ -355,3 +355,14 @@ button:disabled {
   color: var(--text-muted);
   margin-top: 8px;
 }
+
+.verificacion {
+  margin: 6px 0 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.verificacion .corrida-cabecera {
+  font-size: 13px;
+  color: var(--text-secondary);
+}

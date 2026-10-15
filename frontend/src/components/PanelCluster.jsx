@@ -168,6 +168,28 @@ function normalizar(c) {
   }
 }
 
+// Verificacion: el maestro entrena lo mismo en secuencial (1 hilo) para
+// comprobar que el modelo es idéntico; con la muestra completa tarda ~40 s.
+function Verificacion({ corrida, t1 }) {
+  const hechas = corrida.verificacion_epoca ?? 0
+  const pct = corrida.epocas ? (100 * hechas) / corrida.epocas : 0
+  const restante = t1 > 0 ? ((corrida.epocas - hechas) * t1) / 1000 : NaN
+  return (
+    <div className="verificacion">
+      <div className="corrida-cabecera">
+        <span>Verificando contra el secuencial (1 hilo de CPU en el maestro)</span>
+        <span>
+          época {hechas} / {corrida.epocas}
+          {Number.isFinite(restante) && hechas < corrida.epocas ? ` · faltan ~${fmt(restante, 0)} s` : ''}
+        </span>
+      </div>
+      <div className="progreso" aria-label={`Verificación ${Math.round(pct)}%`}>
+        <div className="progreso-fill verificando" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
+
 function Corrida({ inst, corrida: cruda }) {
   const corrida = normalizar(cruda)
   const n = Math.max(corrida.nodos.length, 1)
@@ -198,6 +220,7 @@ function Corrida({ inst, corrida: cruda }) {
       <div className="progreso" aria-label={`Progreso ${Math.round(progreso)}%`}>
         <div className={`progreso-fill ${corrida.estado}`} style={{ width: `${progreso}%` }} />
       </div>
+      {corrida.estado === 'verificando' && <Verificacion corrida={corrida} t1={t1} />}
       {corrida.mensaje && <p className="mensaje-corrida">{corrida.mensaje}</p>}
 
       <div className="kpis">
