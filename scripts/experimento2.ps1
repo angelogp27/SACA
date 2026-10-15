@@ -11,7 +11,7 @@
 # y los T(1) secuenciales que ya estén en el CSV se conservan.
 param(
     [int]$Repeticiones = 3,
-    [int[]]$Nodos = @(1, 2, 4, 8),
+    $Nodos = "1,2,4,8",
     [int]$Epocas = 200,
     [int]$Puerto = 9000,
     [string]$Muestra = "data/muestra.gob",
@@ -19,8 +19,12 @@ param(
 )
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "memoria.ps1")
+$Nodos = ConvertTo-ListaNodos $Nodos
 
 if (-not (Test-Path $Muestra)) { throw "falta $Muestra (ver docs/cluster/guia_maestro.md)" }
+Write-Host "== nodos: $($Nodos -join ', ')"
+Assert-MemoriaSuficiente -Muestra $Muestra -Procesos (($Nodos | Measure-Object -Maximum).Maximum + 1)
 New-Item -ItemType Directory -Force bin, bin/logs, resultados | Out-Null
 go build -o bin/maestro.exe ./entrenamiento/cmd/maestro
 go build -o bin/trabajador.exe ./entrenamiento/cmd/trabajador

@@ -17,8 +17,11 @@ param(
 )
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "memoria.ps1")
 
 if (-not (Test-Path $Muestra)) { throw "falta $Muestra (ver docs/cluster/, paso 'Copiar la muestra' de tu guía)" }
+if ($Nodos -lt 1 -or $Nodos -gt 32) { throw "-Nodos debe estar entre 1 y 32" }
+Assert-MemoriaSuficiente -Muestra $Muestra -Procesos ($Nodos + 1)
 New-Item -ItemType Directory -Force bin, bin/logs | Out-Null
 go build -o bin/maestro.exe ./entrenamiento/cmd/maestro
 go build -o bin/trabajador.exe ./entrenamiento/cmd/trabajador
