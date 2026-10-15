@@ -11,8 +11,8 @@ Para el orden en que se usan, ver [guia_ejecucion.md](guia_ejecucion.md). Para c
 | [`cargador/cmd/concurrente`](#cargadores) | Lo mismo con N goroutines y K agregadoras | Sí (salvo `-sin-mongo`) |
 | [`entrenamiento/cmd/secuencial`](#entrenamiento) | Entrenar el modelo y evaluarlo | Solo la primera vez (luego usa la caché) |
 | [`entrenamiento/cmd/paralelo`](#entrenamiento) | Entrenar con N goroutines y 3 estrategias de sincronización | Ídem |
-| [`entrenamiento/cmd/maestro`](#cluster-tcp) | Maestro del clúster TCP | No |
-| [`entrenamiento/cmd/trabajador`](#cluster-tcp) | Nodo trabajador del clúster | No |
+| [`entrenamiento/cmd/maestro`](#cluster-tcp) | Maestro del clúster TCP: entrenamiento distribuido síncrono | No (usa `data/muestra.gob`) |
+| [`entrenamiento/cmd/trabajador`](#cluster-tcp) | Nodo trabajador del clúster (motor go o cuda) | No (usa `data/muestra.gob`) |
 | [`herramientas/cmd/exportar`](#exportar) | Generar los JSON reales del frontend | Sí |
 | [`experimentos/cmd/analisis`](#analisis) | Speedup, eficiencia y Amdahl a partir de un CSV de corridas | No |
 | [`herramientas/cmd/e2e`](#e2e) | Prueba end-to-end de todo el sistema | Sí |
@@ -115,16 +115,36 @@ Las tres estrategias dan **la misma pérdida final**. Si no coincide, hay un err
 
 ## Clúster TCP
 
-`go run ./entrenamiento/cmd/maestro` y `go run ./entrenamiento/cmd/trabajador` forman el clúster. El maestro escucha por TCP, registra trabajadores, le asigna a cada uno una partición distinta de las estaciones, rechaza a los que sobran y detecta bajas y caídas.
+`entrenamiento/cmd/maestro` y `entrenamiento/cmd/trabajador` forman el clúster de **entrenamiento distribuido síncrono**:
+
+- El maestro escucha por TCP, registra a los trabajadores y le asigna a cada uno una partición distinta de las estaciones.
+- Rechaza a los nodos que sobran y a los que tienen otra muestra (huella SHA-256).
+- Cuando están todos, en cada época difunde los pesos, recibe el gradiente parcial de cada nodo, los suma y actualiza.
+- Al final muestra una tabla por nodo y el desglose cálculo/red, y verifica que la pérdida sea igual a la del entrenamiento secuencial.
+- Si un nodo se cae, aborta con un mensaje claro.
 
 | Programa | Opción | Por defecto |
 |---|---|---|
 | maestro | `-escuchar` | `:9000` |
-| maestro | `-nodos` | `2` (particiones = nodos esperados) |
-| trabajador | `-maestro` | `localhost:9000` (en otra PC: `IP:9000`) |
+| maestro | `-nodos` | `2` (particiones = nodos esperados; el entrenamiento empieza cuando están todos) |
+| maestro | `-muestra` | `data/muestra.gob` (los nodos deben tener una copia idéntica) |
+| maestro | `-epocas`, `-tasa`, `-mes-corte` | `200`, `0.1`, `10` |
+| maestro | `-espera` | `2m` (cuánto se espera el gradiente de un nodo antes de abortar) |
+| maestro | `-verificar` | `true` (entrena también en secuencial: misma pérdida y speedup) |
+| maestro | `-resultado`, `-modo`, `-maquina` | CSV del Experimento 2; `tcp_sincrono`; texto libre |
+| trabajador | `-maestro` | `localhost:9000` (por Tailscale: `100.x.y.z:9000`) |
 | trabajador | `-id` | nombre de la PC + PID |
+| trabajador | `-muestra` | `data/muestra.gob` |
+| trabajador | `-motor` | `auto`: CUDA si existe `bin/gradiente_cuda.exe` y valida contra Go; si no, goroutines. También `go` o `cuda` |
+| trabajador | `-hilos` | `0` = todos los núcleos lógicos (motor go) |
 
-El trabajador reintenta la conexión si el maestro todavía no arrancó. Con Ctrl+C se despide con un mensaje `baja`. El cálculo distribuido del gradiente llega en la semana 9. Mensajes: [contrato_protocolo_tcp.md](contrato_protocolo_tcp.md).
+El trabajador no necesita MongoDB y reintenta la conexión si el maestro todavía no arrancó. Con Ctrl+C se despide con un mensaje `baja`. Mensajes: [contrato_protocolo_tcp.md](contrato_protocolo_tcp.md). Manual para unir las PCs del grupo por internet: [manual_cluster.md](manual_cluster.md). Motor CUDA: [nativo/cuda/README.md](../nativo/cuda/README.md).
+
+Scripts:
+
+- `scripts/cluster-local.ps1` (o `.sh`): el maestro y N trabajadores en una PC; con `-Ventanas`, cada trabajador en su ventana.
+- `scripts/nodo.ps1 -Maestro IP:9000 -Id nombre` (o `nodo.sh`): une una PC al clúster.
+- `scripts/experimento2.ps1`: el Experimento 2 con 1, 2, 4 y 8 nodos locales.
 
 ## exportar
 
