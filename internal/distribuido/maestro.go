@@ -113,6 +113,9 @@ func (m *Maestro) Atender(conn net.Conn) {
 
 	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	msg, err := c.Recibir()
+	if errors.Is(err, io.EOF) {
+		return // se conectó y se fue sin hablar: la prueba de conexión de scripts/nodo.*
+	}
 	if err != nil || msg.Tipo != protocolo.TipoRegistro || msg.WorkerID == "" {
 		log.Printf("%s: se esperaba un mensaje de registro con worker_id (%v)", remoto, err)
 		return
