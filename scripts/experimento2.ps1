@@ -6,24 +6,33 @@
 # con -modo tcp_tailscale (ver docs/cluster/guia_maestro.md).
 # Uso (desde la raíz del repo):
 #   powershell -ExecutionPolicy Bypass -File scripts/experimento2.ps1
+#   ... -Muestra data/muestra_prueba.gob -Nombre experimento2_prueba
+# Solo reemplaza sus propias filas (tcp_local): las corridas por Tailscale
+# y los T(1) secuenciales que ya estén en el CSV se conservan.
 param(
     [int]$Repeticiones = 3,
     [int[]]$Nodos = @(1, 2, 4, 8),
     [int]$Epocas = 200,
-    [int]$Puerto = 9000
+    [int]$Puerto = 9000,
+    [string]$Muestra = "data/muestra.gob",
+    [string]$Nombre = "experimento2"
 )
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
 
-if (-not (Test-Path data/muestra.gob)) { throw "falta data/muestra.gob (se crea con scripts/pipeline.ps1)" }
+if (-not (Test-Path $Muestra)) { throw "falta $Muestra (ver docs/cluster/guia_maestro.md)" }
 New-Item -ItemType Directory -Force bin, bin/logs, resultados | Out-Null
 go build -o bin/maestro.exe ./entrenamiento/cmd/maestro
 go build -o bin/trabajador.exe ./entrenamiento/cmd/trabajador
 go build -o bin/analisis.exe ./experimentos/cmd/analisis
 if ($LASTEXITCODE -ne 0) { throw "no se pudo compilar" }
 
-$csv = "resultados/experimento2.csv"
-if (Test-Path $csv) { Remove-Item $csv }
+$csv = "resultados/$Nombre.csv"
+if (Test-Path $csv) {
+    # Se quitan solo las corridas locales anteriores; el resto se conserva.
+    $lineas = Get-Content $csv -Encoding UTF8 | Where-Object { -not $_.StartsWith("tcp_local,") }
+    [IO.File]::WriteAllLines((Join-Path (Get-Location) $csv), [string[]]$lineas)
+}
 
 for ($r = 1; $r -le $Repeticiones; $r++) {
     foreach ($n in $Nodos) {
@@ -31,13 +40,13 @@ for ($r = 1; $r -le $Repeticiones; $r++) {
         $trabajadores = @()
         for ($i = 1; $i -le $n; $i++) {
             $trabajadores += Start-Process .\bin\trabajador.exe -PassThru -NoNewWindow `
-                -ArgumentList "-maestro localhost:$Puerto -id local$i -hilos 1 -motor go" `
+                -ArgumentList "-maestro localhost:$Puerto -id local$i -hilos 1 -motor go -muestra $Muestra" `
                 -RedirectStandardError "bin/logs/e2-trabajador$i.log" -RedirectStandardOutput "bin/logs/e2-trabajador$i.out"
         }
         # Start-Process y no "&": en PowerShell 5.1 redirigir el stderr de un
         # ejecutable con 2> lo convierte en error y detiene el script.
         $maestro = Start-Process .\bin\maestro.exe -PassThru -NoNewWindow -Wait `
-            -ArgumentList "-nodos $n -escuchar :$Puerto -epocas $Epocas -resultado $csv -modo tcp_local -maquina `"$env:COMPUTERNAME local`"" `
+            -ArgumentList "-nodos $n -escuchar :$Puerto -epocas $Epocas -muestra $Muestra -resultado $csv -modo tcp_local -maquina `"$env:COMPUTERNAME local`"" `
             -RedirectStandardError "bin/logs/e2-maestro.log" -RedirectStandardOutput "bin/logs/e2-maestro.out"
         if ($maestro.ExitCode -ne 0) { Get-Content bin/logs/e2-maestro.log -Tail 5 -Encoding UTF8; throw "falló la corrida con $n nodos" }
         Get-Content bin/logs/e2-maestro.log -Encoding UTF8 | Select-String -Pattern "T\(|verificación" | ForEach-Object { "   " + $_.Line }
@@ -45,6 +54,8 @@ for ($r = 1; $r -le $Repeticiones; $r++) {
     }
 }
 
-& ./bin/analisis.exe -entrada $csv -json frontend/public/datos/experimento2.json -md resultados/experimento2.md `
-    -nombre "Experimento 2" -descripcion "Entrenamiento distribuido maestro-trabajador por TCP (procesos en una PC)" `
-    -paralelo "tcp_local" "-serial="
+$paralelo = "tcp_local"
+if (Select-String -Path $csv -Pattern "^tcp_tailscale," -Quiet) { $paralelo = "tcp_local,tcp_tailscale" }
+& ./bin/analisis.exe -entrada $csv -json "frontend/public/datos/$Nombre.json" -md "resultados/$Nombre.md" `
+    -nombre "Experimento 2" -descripcion "Entrenamiento distribuido maestro-trabajador por TCP ($Muestra)" `
+    -paralelo $paralelo "-serial="
