@@ -249,7 +249,7 @@ Para ver más comportamiento:
 - un tercer trabajador es **rechazado** porque solo hay 2 particiones, y uno con otra muestra es rechazado por `muestra_distinta`;
 - al cerrar un trabajador con Ctrl+C a mitad del entrenamiento, el maestro **aborta** con `el nodo w1 se cayó`.
 
-**En varias PCs**, incluso en casas distintas por internet: seguir [manual_cluster.md](manual_cluster.md), que cubre Tailscale, el firewall, los nodos con GPU NVIDIA (motor CUDA) y los problemas frecuentes. Arquitectura y MPI: [guia_cluster.md](guia_cluster.md).
+**En varias PCs**, incluso en casas distintas por internet: seguir la guía de cada rol en [cluster/README.md](cluster/README.md), que cubre Tailscale, el firewall, los nodos con GPU NVIDIA (motor CUDA) y los problemas frecuentes. Arquitectura y MPI: [guia_cluster.md](guia_cluster.md).
 
 ---
 

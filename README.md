@@ -40,7 +40,7 @@ CSV EPA (16.9 M filas) ──► [A] Cargador concurrente ──► MongoDB (10.
 | [cargador/cmd/concurrente](cargador/cmd/concurrente/main.go) | Worker pool con fan-out/fan-in y agregadoras particionadas (`-goroutines`, `-agregadoras`) |
 | [entrenamiento/cmd/secuencial](entrenamiento/cmd/secuencial/main.go) | Regresión logística secuencial, con evaluación en meses no vistos |
 | [entrenamiento/cmd/paralelo](entrenamiento/cmd/paralelo/main.go) | Gradiente con N goroutines (`-estrategia reduccion\|mutex\|atomico`) |
-| [entrenamiento/cmd/maestro](entrenamiento/cmd/maestro/main.go), [trabajador](entrenamiento/cmd/trabajador/main.go) | Clúster TCP: entrenamiento distribuido síncrono entre PCs, con motor go o CUDA por nodo ([manual](docs/manual_cluster.md)) |
+| [entrenamiento/cmd/maestro](entrenamiento/cmd/maestro/main.go), [trabajador](entrenamiento/cmd/trabajador/main.go) | Clúster TCP: entrenamiento distribuido síncrono entre PCs, con motor go o CUDA por nodo ([guías por rol](docs/cluster/README.md)) |
 | [api/cmd/api](api/cmd/api/main.go) | API REST (por ahora solo `/health`) |
 | [herramientas/cmd/descargar](herramientas/cmd/descargar/main.go) | Descarga reproducible de los datos con manifiesto SHA-256 |
 | [herramientas/cmd/exportar](herramientas/cmd/exportar/main.go) | Genera los JSON reales para el frontend |
@@ -114,7 +114,7 @@ go run ./entrenamiento/cmd/paralelo -goroutines 8 -estrategia reduccion
 go run ./entrenamiento/cmd/maestro -nodos 2
 go run ./entrenamiento/cmd/trabajador -id w1
 go run ./entrenamiento/cmd/trabajador -id w2
-#   en otra PC por Tailscale: scripts/nodo.ps1 -Maestro 100.x.y.z:9000 -Id nombre (ver docs/manual_cluster.md)
+#   en otra PC por Tailscale: scripts/nodo.ps1 -Maestro 100.x.y.z:9000 -Id nombre (ver docs/cluster/README.md)
 
 # Experimentos
 powershell -ExecutionPolicy Bypass -File scripts/experimento1.ps1    # o: sh scripts/experimento1.sh

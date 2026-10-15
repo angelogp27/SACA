@@ -1,6 +1,6 @@
 # Guía para la presentación del avance: el clúster distribuido de SACA
 
-Guía para que el grupo prepare y dé la presentación **virtual** del avance del clúster. Cómo ejecutar cada cosa está en [manual_cluster.md](manual_cluster.md). Aquí está **qué decir, en qué orden, quién lo hace y qué hacer si algo falla**.
+Guía para que el grupo prepare y dé la presentación **virtual** del avance del clúster. Cómo ejecutar cada cosa está en la guía de cada rol: [maestro](cluster/guia_maestro.md), [nodo sin GPU NVIDIA](cluster/guia_nodo_sin_nvidia.md) y [nodo con GPU NVIDIA](cluster/guia_nodo_con_nvidia.md). Aquí está **qué decir, en qué orden, quién lo hace y qué hacer si algo falla**.
 
 ## 1. Lo que el docente debe llevarse (3 ideas)
 
@@ -10,14 +10,14 @@ Guía para que el grupo prepare y dé la presentación **virtual** del avance de
 
 ## 2. Roles
 
-| Rol | Quién | Qué hace |
-|---|---|---|
-| Presentador principal | ___ | Conduce, muestra las diapositivas y narra la demo |
-| Operador del maestro | ___ (quien tiene la muestra y el puerto abierto) | Comparte su pantalla durante la demo y lanza `maestro.exe` |
-| Nodo GPU 1 | ___ | Corre `nodo.ps1`; comparte pantalla cuando se le pide (validación CUDA) |
-| Nodo GPU 2 | ___ | Ídem |
-| Nodos CPU | ___, ___ | Corren `nodo.ps1`; uno de ellos hace la "caída" del nodo |
-| Respaldo | ___ | Tiene listo el plan B (sección 6) y la grabación del ensayo |
+| Rol | Quién | Qué hace | Su guía |
+|---|---|---|---|
+| Presentador principal | ___ | Conduce, muestra las diapositivas y narra la demo | esta |
+| Operador del maestro | ___ (quien tiene la muestra y el puerto abierto) | Comparte su pantalla durante la demo y lanza `maestro.exe` | [guia_maestro.md](cluster/guia_maestro.md), paso 8 |
+| Nodo con GPU NVIDIA 1 | ___ | Corre `nodo.ps1`; comparte pantalla cuando se le pide (validación CUDA) | [guia_nodo_con_nvidia.md](cluster/guia_nodo_con_nvidia.md), paso 10 |
+| Nodo con GPU NVIDIA 2 | ___ | Ídem | ídem |
+| Nodos sin GPU NVIDIA | ___, ___ | Corren `nodo.ps1`; uno de ellos hace la "caída" del nodo | [guia_nodo_sin_nvidia.md](cluster/guia_nodo_sin_nvidia.md), paso 7 |
+| Respaldo | ___ | Tiene listo el plan B (sección 6) y la grabación del ensayo | [guia_maestro.md](cluster/guia_maestro.md), paso 8 |
 
 Todos con la cámara apagada y el micrófono silenciado, salvo quien habla. Las terminales con letra grande: `Ctrl` + rueda del mouse en Windows Terminal.
 
@@ -62,7 +62,7 @@ Antes de empezar a hablar, **todos los nodos ya están con `nodo.ps1` abierto y 
 
 1. **Problema.** Una frase de impacto social y la pregunta predictiva. Datos: 4 contaminantes, 16 972 287 filas, 1447 estaciones.
 2. **Por qué se puede distribuir.** La fórmula ∇L = Σᵢ ∇ℓᵢ partida en Σ_{nodo 1} + Σ_{nodo 2} + …; la figura del *parameter server*. Conceptos del sílabo: **descomposición de datos** (semana 10) y **paso de mensajes** (semanas 3-4).
-3. **Arquitectura del clúster.** La figura de [manual_cluster.md](manual_cluster.md). Clasificación: **multicomputador MIMD de memoria distribuida, heterogéneo** (semana 2); dentro de cada nodo, memoria compartida o GPU SIMT. Protocolo: JSON por TCP (registro, partición, parámetros, gradiente, finalizado, baja).
+3. **Arquitectura del clúster.** La figura de [cluster/README.md](cluster/README.md). Clasificación: **multicomputador MIMD de memoria distribuida, heterogéneo** (semana 2); dentro de cada nodo, memoria compartida o GPU SIMT. Protocolo: JSON por TCP (registro, partición, parámetros, gradiente, finalizado, baja).
 4. **De dónde venimos.** Experimento 1 (cargador, S(16) = 3,77) y 1b (entrenamiento con goroutines, S(8) = 6,11 con reducción; mutex y CAS más lentos que el secuencial). El clúster reutiliza la misma reducción.
 5. **Resultados del Experimento 2.**
 
@@ -104,7 +104,7 @@ Antes de empezar a hablar, **todos los nodos ya están con `nodo.ps1` abierto y 
 ## 8. Listas de verificación
 
 **El día anterior (ensayo general)**
-- [ ] Todos completaron el paso 9.1 del manual (`cluster-local.ps1` con OK)
+- [ ] Todos completaron el "Ensayo individual" de su guía (`cluster-local.ps1` con OK) y enviaron sus datos al grupo
 - [ ] Inventario lleno con las IPs de Tailscale
 - [ ] Ensayo general hecho, tabla de Tailscale llena y CSV subido al repo
 - [ ] Diapositiva 5 actualizada con los números del ensayo

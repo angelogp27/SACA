@@ -154,7 +154,7 @@ El grupo debe presentar el avance del clúster de forma **virtual**: las PCs est
 **Entregables**
 - Código: `internal/distribuido`, `entrenamiento/cmd/maestro` y `trabajador`, `nativo/cuda/`.
 - Scripts: `scripts/cluster-local.*`, `nodo.*`, `experimento2.ps1`.
-- Documentos: [docs/manual_cluster.md](../docs/manual_cluster.md) (paso a paso para el grupo) y [docs/guia_presentacion_cluster.md](../docs/guia_presentacion_cluster.md) (guion, demo, plan B y preguntas).
+- Documentos: guías por rol en [docs/cluster/](../docs/cluster/README.md) (maestro, nodo sin GPU NVIDIA y nodo con GPU NVIDIA, para quien no conoce el código) y [docs/guia_presentacion_cluster.md](../docs/guia_presentacion_cluster.md) (guion, demo, plan B y preguntas).
 - La prueba e2e (paso 12) ahora entrena distribuido y compara con el secuencial: **TODO OK**.
 
 **Pendiente antes de presentar**

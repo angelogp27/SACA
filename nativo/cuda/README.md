@@ -17,6 +17,8 @@ maestro (Go) ──TCP──► trabajador (Go) ──stdin/stdout──► grad
 
 **Corrección.** Antes de la primera época, el trabajador compara el gradiente de la GPU con el de Go en dos puntos. Si no coinciden (tolerancia relativa 1e-8), avisa y calcula con goroutines. La demo nunca se cae por el motor CUDA.
 
+> Para integrantes que no conocen el código: la guía paso a paso, con la salida que se debe ver en cada paso, es [docs/cluster/guia_nodo_con_nvidia.md](../../docs/cluster/guia_nodo_con_nvidia.md).
+
 ## Compilar en una PC con GPU NVIDIA
 
 ### Windows

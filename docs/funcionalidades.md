@@ -138,7 +138,7 @@ Las tres estrategias dan **la misma pérdida final**. Si no coincide, hay un err
 | trabajador | `-motor` | `auto`: CUDA si existe `bin/gradiente_cuda.exe` y valida contra Go; si no, goroutines. También `go` o `cuda` |
 | trabajador | `-hilos` | `0` = todos los núcleos lógicos (motor go) |
 
-El trabajador no necesita MongoDB y reintenta la conexión si el maestro todavía no arrancó. Con Ctrl+C se despide con un mensaje `baja`. Mensajes: [contrato_protocolo_tcp.md](contrato_protocolo_tcp.md). Manual para unir las PCs del grupo por internet: [manual_cluster.md](manual_cluster.md). Motor CUDA: [nativo/cuda/README.md](../nativo/cuda/README.md).
+El trabajador no necesita MongoDB y reintenta la conexión si el maestro todavía no arrancó. Con Ctrl+C se despide con un mensaje `baja`. Mensajes: [contrato_protocolo_tcp.md](contrato_protocolo_tcp.md). Guías por rol para unir las PCs del grupo por internet: [cluster/README.md](cluster/README.md). Motor CUDA: [nativo/cuda/README.md](../nativo/cuda/README.md).
 
 Scripts:
 
