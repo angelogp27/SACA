@@ -21,43 +21,42 @@ Guía para que el grupo prepare y dé la presentación **virtual** del avance de
 
 Todos con la cámara apagada y el micrófono silenciado, salvo quien habla. Las terminales con letra grande: `Ctrl` + rueda del mouse en Windows Terminal.
 
-## 3. Guion (12-15 minutos)
+## 3. Guion (12-15 minutos): se presenta desde la página
 
-| Min | Bloque | Quién | Qué se muestra |
+Toda la presentación está en la página del proyecto: botón **Presentación**, con 10 diapositivas que se navegan con ← → o la barra espaciadora. Las cifras salen de los resultados reales, y la diapositiva 6 controla el clúster en vivo. El operador del maestro comparte la pantalla del navegador en pantalla completa (`F11`).
+
+| Min | Diapositiva | Quién | Qué decir |
 |---|---|---|---|
-| 0-1 | Problema | Presentador | Diapositiva 1: alerta temprana de contaminación con 16,97 M mediciones horarias de la EPA. Regresión logística: ¿superará el NO2 el umbral AQI 51 en la próxima hora? |
-| 1-3 | Por qué distribuir y cómo | Presentador | Diapositiva 2: el gradiente es una suma sobre ejemplos, así que cada nodo suma su parte y el maestro las combina (*parameter server* síncrono). Diapositiva 3: arquitectura (maestro, nodos CPU y GPU, Tailscale) |
-| 3-4 | Lo que ya teníamos | Presentador | Diapositiva 4: Experimentos 1 y 1b en memoria compartida (S(8) = 6,11 con reducción). El clúster es el siguiente nivel |
-| 4-10 | **Demo en vivo** | Operador del maestro + nodos | Sección 4 |
-| 10-12 | Resultados | Presentador | Diapositiva 5: Experimento 2 con todos los datos (1 GPU: S = 18; más nodos: más lento) y comparación con la muestra de prueba |
-| 12-13 | Lecciones | Presentador | Diapositiva 6: Amdahl, latencia, desbalance, heterogeneidad |
-| 13-14 | Próximos pasos | Presentador | Diapositiva 7: MPI (Experimentos 7 y 7a), kernels CUDA con *shuffle* (Experimento 8), reparto proporcional al rendimiento (Experimento 9) |
+| 0-1 | 1 · El problema | Presentador | Alerta temprana; 16,97 M mediciones; ¿superará el NO₂ el umbral AQI 51 en la próxima hora? El foco es cómo se paraleliza |
+| 1-2 | 2 · Los datos en el mapa | Presentador | El cargador concurrente procesó los 4 CSV; elegir una estación y mostrar su serie con la probabilidad del modelo |
+| 2-3 | 3 · Por qué se puede distribuir | Presentador | El gradiente es una suma: scatter, broadcast, reduce (*parameter server*). Mismo modelo que el secuencial |
+| 3-4 | 4 · De dónde venimos | Presentador | Memoria compartida: reducción S(8) = 6,11; mutex y CAS más lentos que el secuencial (contención) |
+| 4-5 | 5 · El clúster del grupo | Presentador | MIMD de memoria distribuida y heterogéneo; los nodos **conectados ahora** aparecen en el diagrama |
+| 5-10 | **6 · Demo en vivo** | Operador del maestro | Sección 4 |
+| 10-11 | 7 · Resultados | Presentador | Muestra de prueba frente a completa: con pocos datos 72 % de red; con todos, 1 GPU S = 18,2 |
+| 11-12 | 8 · Lecciones | Presentador | Amdahl y tamaño; más nodos ≠ más rápido; el más lento marca el ritmo; correctitud |
+| 12-13 | 9 · Temas del curso | Presentador | Recorrer la tabla por unidad: tema, dónde está, evidencia medida y estado |
+| 13-14 | 10 · Próximos pasos | Presentador | Reparto proporcional, MPI, CUDA *shuffle*, Pthreads/OpenMP nativos, tolerancia a fallos |
 | 14-15 | Preguntas | Todos | Sección 7 |
 
-## 4. La demo, paso a paso
+## 4. La demo, paso a paso (diapositiva 6)
 
-Antes de empezar a hablar, **todos los nodos ya están con `nodo.ps1` abierto y reintentando**, y el maestro todavía no arrancó.
+**Antes de empezar a hablar:** el maestro está en modo servidor (`maestro -web`, [guia_maestro.md](cluster/guia_maestro.md), paso 8) y **los tres nodos ya aparecen en la sala** de la página. Cada uno ejecutó su comando una sola vez.
 
-1. **Arranque del maestro.** El operador comparte pantalla y ejecuta:
+1. **La sala.** Señalar cada nodo: nombre, **GPU** o **CPU**, la tarjeta y la IP `100.x` (PCs en casas distintas). Tema: memoria distribuida, solo mensajes.
+2. **1 GPU.** Marcar solo **augusto** → **Entrenar** (200 épocas, sin verificar). En ~2 s:
+   - "Tiempo por época" muestra cuánto es cálculo y cuánto red;
+   - "Speedup en vivo" sube a ~18× frente al secuencial;
+   - la franja inferior narra el concepto: scatter, broadcast + reduce, CUDA.
+3. **2 GPUs.** Marcar **augusto + josue** → **Entrenar**. Es **más lento**: con 3 ms de cálculo por época, repartir ahorra poco y la red de un nodo más pesa más.
+4. **2 GPUs + 1 CPU.** Marcar los **tres** → **Entrenar**. En "Cálculo por época de cada nodo", la línea de angelo (CPU) queda arriba: la franja dice "barrera síncrona: esperando al más lento (angelo)". Es el balanceo de carga.
+5. **Comparación.** Bajar a "Corridas de esta sesión": las 3 barras medidas en vivo, con S y E. Coinciden con la diapositiva 7.
+6. **(Opcional) Verificación.** Repetir 1 GPU con **Verificar contra el secuencial**. Al final: "mismo modelo que el secuencial (diferencia ~1e-15)".
+7. **Caída de un nodo.** Poner **2000 épocas** con los tres → **Entrenar**, y a mitad pedir a angelo que presione `Ctrl` + `C` **en su terminal**. La corrida aparece como **abortada** con "el nodo angelo se cayó"; augusto y josue vuelven a la sala. Angelo relanza su comando y reaparece solo. La tolerancia a fallos completa es el Experimento 4.
 
-   ```powershell
-   .\bin\maestro.exe -nodos 3 -modo tcp_tailscale -maquina "demo: 3 PCs por Tailscale" -verificar=false
-   ```
+## 5. Contenido de las diapositivas (ya incluido en la página)
 
-   Narrar: "el maestro carga los 2,5 millones de ejemplos, calcula su huella y espera 3 nodos". `-verificar=false` evita el minuto de entrenamiento secuencial al final; la verificación ya está medida en el Experimento 2 y se muestra en la diapositiva 5.
-2. **Registro de los nodos.** En segundos aparecen las líneas `nodo luis registrado desde 100.x.y.z → partición 2/4, motor cuda (NVIDIA ...)`. Señalar:
-   - las **IPs 100.x**: son PCs en casas distintas;
-   - el **motor** de cada nodo: go o cuda;
-   - la **partición**: cada nodo tiene estaciones distintas, sin solaparse.
-3. **(Opcional, 30 s) Rechazo por datos distintos.** Si se preparó un nodo con una muestra alterada, mostrar el `rechazado, su muestra tiene otra huella`. Mensaje: el maestro protege la corrección del resultado.
-4. **Entrenamiento.** Corre solo, en unos 7 s por internet. Leer una línea: "por época, el nodo más lento calcula X ms y la red se lleva Y ms".
-5. **Nodo GPU.** El nodo GPU 1 comparte pantalla 20 s: `motor cuda validado contra el de Go: mismo gradiente`. Mensaje: antes de usar la GPU se comprueba que da lo mismo que la CPU.
-6. **Tabla final y verificación.** Volver al maestro:
-   - tabla por nodo: quién calculó qué y cuánto tardó;
-   - señalar que angelo (CPU) tardó ~18 ms por época y augusto (GPU) ~1,3 ms: **el más lento marca el ritmo**, lo que conecta con las lecciones.
-7. **Caída de un nodo.** El maestro relanza con `-epocas 2000 -verificar=false`. A mitad, angelo presiona `Ctrl` + `C` **en su terminal** (el operador del maestro no toca su ventana). El maestro aborta con `el nodo X se cayó; el modo síncrono no puede seguir sin su partición`. Mensaje: se detecta y no se cuelga. La tolerancia a fallos (redistribuir la partición o el modo asíncrono) es el siguiente paso, en el Experimento 4.
-
-## 5. Contenido sugerido de las diapositivas
+Referencia de lo que dice cada diapositiva de la página, por si hay que exportar algo a otro formato.
 
 1. **Problema.** Una frase de impacto social y la pregunta predictiva. Datos: 4 contaminantes, 16 972 287 filas, 1447 estaciones.
 2. **Por qué se puede distribuir.** La fórmula ∇L = Σᵢ ∇ℓᵢ partida en Σ_{nodo 1} + Σ_{nodo 2} + …; la figura del *parameter server*. Conceptos del sílabo: **descomposición de datos** (semana 10) y **paso de mensajes** (semanas 3-4).
@@ -91,8 +90,9 @@ Antes de empezar a hablar, **todos los nodos ya están con `nodo.ps1` abierto y 
 
 | Falla | Respuesta (sin perder más de 30 s) |
 |---|---|
-| Un nodo no conecta | Seguir sin él: el operador reinicia el maestro con `-nodos` uno menor. Decir "un nodo tiene problemas de red: es justo el tipo de fallo que el sistema detecta" |
-| Tailscale o internet del maestro caídos | **Plan B local:** el operador ejecuta `scripts\cluster-local.ps1 -Nodos 4 -Ventanas`, que abre el maestro y 4 trabajadores en su PC. Se explica igual: son procesos que solo se hablan por TCP |
+| Un nodo no aparece en la sala | Seguir sin él: en la página se desmarca y se entrena con los demás. Decir "un nodo tiene problemas de red: es justo el tipo de fallo que el sistema detecta" |
+| La página dice "maestro sin conexión" | El maestro no corre en modo servidor: relanzarlo (paso 8.1 de la guía del maestro). Los nodos vuelven solos a la sala en unos segundos |
+| Tailscale o internet del maestro caídos | **Plan B local:** `Ctrl` + `C` al maestro y `scripts\cluster-local.ps1 -Nodos 2 -Web -Muestra data/muestra_prueba.gob`. La página sigue igual, con 2 nodos locales en la sala. Se explica igual: son procesos que solo se hablan por TCP |
 | La GPU no valida o no compila | El nodo sigue con la CPU automáticamente. Mostrar el aviso en el log como prueba de que se valida |
 | Falla todo | El respaldo reproduce la **grabación del ensayo general** (grabar la pantalla del maestro con `Win + Alt + R` o con OBS) |
 
@@ -112,7 +112,7 @@ Antes de empezar a hablar, **todos los nodos ya están con `nodo.ps1` abierto y 
 - [ ] Todos completaron el "Ensayo individual" de su guía (`cluster-local.ps1` con OK) y enviaron sus datos al grupo
 - [ ] Inventario lleno con las IPs de Tailscale
 - [ ] Ensayo general hecho, tabla de Tailscale llena y CSV subido al repo
-- [ ] Diapositiva 5 actualizada con los números del ensayo
+- [ ] Recorrido completo de las 10 diapositivas de la página, con la demo de la diapositiva 6 funcionando con los tres nodos
 - [ ] Grabación del ensayo guardada por el respaldo
 
 **1 hora antes**
@@ -123,6 +123,6 @@ Antes de empezar a hablar, **todos los nodos ya están con `nodo.ps1` abierto y 
 - [ ] Nodos GPU: `bin\gradiente_cuda.exe --info` funciona
 
 **5 minutos antes**
-- [ ] Todos los nodos con `nodo.ps1` abierto y reintentando
-- [ ] El operador con el comando del maestro escrito, sin ejecutar
-- [ ] El respaldo con `cluster-local.ps1` y la grabación a mano
+- [ ] Maestro en modo servidor corriendo y la página abierta en **Presentación**, diapositiva 1, en pantalla completa
+- [ ] Los tres nodos ya aparecen en la sala (diapositiva 5 o 6)
+- [ ] El respaldo con `cluster-local.ps1 -Web` y la grabación a mano
