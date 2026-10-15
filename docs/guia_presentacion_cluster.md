@@ -72,9 +72,21 @@ Antes de empezar a hablar, **todos los nodos ya están con `nodo.ps1` abierto y 
    | TCP local (procesos, 1 goroutine por nodo) | 2 | 1,65 s | 1,62 | 3 % |
    | TCP local | 4 | 1,37 s | 1,96 | 4 % |
    | TCP local | 8 | 1,07 s | 2,51 | 4-5 % |
-   | Tailscale (ensayo del __/__) | __ | __ | __ | __ |
+   | **Tailscale: 2 casas por internet** (15/10, 1 nodo Fedora de 16 hilos) | 1 | 2,06 s | 1,30* | **72 %** |
 
-   Mediana de 3 repeticiones, 200 épocas, Ryzen 5 3600. Fuente: `resultados/experimento2.md`.
+   Mediana de 3 repeticiones, 200 épocas; maestro en un Ryzen 5 3600. Fuente: `resultados/experimento2.md`.
+
+   **Por Tailscale** (maestro en Windows y nodo en Fedora, conexión directa, `tailscale ping` de 29 ms), cada época dura unos 10 ms:
+
+   | | ms por época |
+   |---|---:|
+   | Cálculo del nodo | 2,8 |
+   | Red (ida y vuelta) | 7,4 |
+   | **Total** | **10,3** |
+
+   El **72 % del tiempo es comunicación**, y en una corrida con más jitter de internet llegó al 83 %. Pérdida final idéntica a la secuencial (diferencia 2,5e-15). La caída del nodo se detectó y el maestro abortó limpio en la época 239.
+
+   \* El S(1) = 1,30 **no** viene de distribuir. El nodo calcula con 16 hilos y el secuencial con 1: su CPU hace en 2,8 ms lo que el secuencial hace en ~12 ms, y la red se come casi toda esa ganancia. No se compara con la serie local, que usa 1 hilo por nodo.
 6. **Lecciones.**
    - **Amdahl y Karp-Flatt:** localmente f ≈ 0,31, y el speedup máximo ronda 3,2.
    - **Latencia:** por internet, la comunicación síncrona por época (decenas de ms) supera al cálculo (pocos ms). El clúster gana solo si el trabajo por época crece: todos los registros en lugar de una muestra, más variables con los rezagos.
