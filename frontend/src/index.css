@@ -19,6 +19,8 @@
   --serie-1: #2a78d6; /* observado / linea principal */
   --serie-2: #eb6834; /* predicho */
   --serie-3: #1baf7a;
+  --serie-4: #8a5cd6;
+  --serie-5: #c9a000;
 
   --status-good: #0ca30c;
   --status-warning: #fab219;
@@ -40,6 +42,8 @@
     --serie-1: #3987e5;
     --serie-2: #d95926;
     --serie-3: #199e70;
+    --serie-4: #9d74e8;
+    --serie-5: #d4ad18;
   }
 }
 
