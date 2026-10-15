@@ -17,7 +17,7 @@ param(
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
 
-if (-not (Test-Path data/muestra.gob)) { throw "falta data/muestra.gob (ver docs/manual_cluster.md, paso 3)" }
+if (-not (Test-Path data/muestra.gob)) { throw "falta data/muestra.gob (ver docs/cluster/, paso 'Copiar la muestra' de tu guía)" }
 New-Item -ItemType Directory -Force bin, bin/logs | Out-Null
 go build -o bin/maestro.exe ./entrenamiento/cmd/maestro
 go build -o bin/trabajador.exe ./entrenamiento/cmd/trabajador

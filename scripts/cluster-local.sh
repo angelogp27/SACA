@@ -11,7 +11,7 @@ EPOCAS=${2:-200}
 PUERTO=${PUERTO:-9000}
 MOTOR=${MOTOR:-auto}
 
-[ -f data/muestra.gob ] || { echo "falta data/muestra.gob (ver docs/manual_cluster.md, paso 3)"; exit 1; }
+[ -f data/muestra.gob ] || { echo "falta data/muestra.gob (ver docs/cluster/, paso 'Copiar la muestra' de tu guía)"; exit 1; }
 mkdir -p bin/logs
 go build -o bin/maestro ./entrenamiento/cmd/maestro
 go build -o bin/trabajador ./entrenamiento/cmd/trabajador

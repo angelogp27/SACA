@@ -1,5 +1,6 @@
 ﻿# Une esta PC al clúster como nodo trabajador. Es lo único que corre cada
-# integrante el día de la demo (ver docs/manual_cluster.md, paso 6):
+# integrante el día de la demo (ver docs/cluster/guia_nodo_sin_nvidia.md
+# o guia_nodo_con_nvidia.md):
 #   powershell -ExecutionPolicy Bypass -File scripts/nodo.ps1 -Maestro 100.101.102.103:9000 -Id ana
 # Comprueba la muestra y la conexión con el maestro, elige el motor (CUDA si
 # hay GPU NVIDIA y bin/gradiente_cuda.exe; si no, goroutines) y lanza el
@@ -22,11 +23,11 @@ if (Get-Command go -ErrorAction SilentlyContinue) {
 } elseif (Test-Path bin/trabajador.exe) {
     Write-Host "   Go no está instalado; se usa el bin/trabajador.exe que ya existe"
 } else {
-    throw "no hay Go ni bin/trabajador.exe: instala Go (manual, paso 2) o pide el .exe al grupo"
+    throw "no hay Go ni bin/trabajador.exe: instala Go (guía del nodo, paso 1) o pide el .exe al grupo"
 }
 
 Write-Host "== 2/4 muestra de datos"
-if (-not (Test-Path data/muestra.gob)) { throw "falta data/muestra.gob: descárgala de la carpeta compartida del grupo (manual, paso 3)" }
+if (-not (Test-Path data/muestra.gob)) { throw "falta data/muestra.gob: descárgala de la carpeta compartida del grupo (guía del nodo, paso 'Copiar la muestra')" }
 $huella = (Get-FileHash data/muestra.gob -Algorithm SHA256).Hash.ToLower()
 Write-Host "   huella $($huella.Substring(0, 12)) (debe ser igual a la que muestra el maestro)"
 

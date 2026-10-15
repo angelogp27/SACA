@@ -3,7 +3,7 @@
 # nodo), contra el entrenamiento secuencial T(1) que el maestro corre en
 # cada repetición (-verificar). Mide el costo del protocolo sin la red
 # real; las corridas en el clúster por Tailscale se agregan al mismo CSV
-# con -modo tcp_tailscale (ver docs/manual_cluster.md).
+# con -modo tcp_tailscale (ver docs/cluster/guia_maestro.md).
 # Uso (desde la raíz del repo):
 #   powershell -ExecutionPolicy Bypass -File scripts/experimento2.ps1
 param(
