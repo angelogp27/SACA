@@ -1,0 +1,140 @@
+{
+  "experimento": "Experimento 2",
+  "descripcion": "Entrenamiento distribuido por TCP entre PCs del grupo por Tailscale, muestra completa (2,5 M ejemplos)",
+  "generado": "2026-10-15T17:22:38-05:00",
+  "cpus_logicas": 12,
+  "modo_base": "secuencial",
+  "modo_paralelo": "tcp_tailscale",
+  "t1_s": 41.4509,
+  "fases_base": {
+    "auc": 0.9945,
+    "epocas": 200,
+    "f1": 0.0147,
+    "perdida_final": 0.132576,
+    "t_calculo_ms": 207.2547,
+    "t_comunicacion_ms": 0,
+    "t_epoca_ms": 207.2547,
+    "t_total_s": 41.4509
+  },
+  "fraccion_serial": 0.000001,
+  "origen_fraccion_serial": "karp_flatt",
+  "speedup_maximo_amdahl": 1000000,
+  "puntos": [
+    {
+      "unidades": 1,
+      "repeticiones": 3,
+      "t_total_s": 2.2767,
+      "speedup": 18.206570914042253,
+      "eficiencia": 18.206570914042253,
+      "speedup_amdahl": 1,
+      "fases": {
+        "auc": 0.9945,
+        "epocas": 200,
+        "f1": 0.0147,
+        "perdida_final": 0.132576,
+        "t_calculo_ms": 3.0951,
+        "t_comunicacion_ms": 8.3341,
+        "t_epoca_ms": 11.3833,
+        "t_total_s": 2.2767
+      }
+    },
+    {
+      "unidades": 2,
+      "repeticiones": 3,
+      "t_total_s": 3.8775,
+      "speedup": 10.69010960670535,
+      "eficiencia": 5.345054803352675,
+      "karp_flatt": -0.8129111792506314,
+      "speedup_amdahl": 1.9999980000020001,
+      "fases": {
+        "auc": 0.9945,
+        "epocas": 200,
+        "f1": 0.0147,
+        "perdida_final": 0.132576,
+        "t_calculo_ms": 5.2537,
+        "t_comunicacion_ms": 14.2466,
+        "t_epoca_ms": 19.3873,
+        "t_total_s": 3.8775
+      }
+    },
+    {
+      "unidades": 3,
+      "repeticiones": 3,
+      "t_total_s": 6.8537,
+      "speedup": 6.047959496330449,
+      "eficiencia": 2.0159864987768166,
+      "karp_flatt": -0.2519824660019444,
+      "speedup_amdahl": 2.9999940000120002,
+      "fases": {
+        "auc": 0.9945,
+        "epocas": 200,
+        "f1": 0.0147,
+        "perdida_final": 0.132576,
+        "t_calculo_ms": 18.1027,
+        "t_comunicacion_ms": 16.2394,
+        "t_epoca_ms": 34.2685,
+        "t_total_s": 6.8537
+      }
+    }
+  ],
+  "series": {
+    "tcp_tailscale": [
+      {
+        "unidades": 1,
+        "repeticiones": 3,
+        "t_total_s": 2.2767,
+        "speedup": 18.206570914042253,
+        "eficiencia": 18.206570914042253,
+        "speedup_amdahl": 1,
+        "fases": {
+          "auc": 0.9945,
+          "epocas": 200,
+          "f1": 0.0147,
+          "perdida_final": 0.132576,
+          "t_calculo_ms": 3.0951,
+          "t_comunicacion_ms": 8.3341,
+          "t_epoca_ms": 11.3833,
+          "t_total_s": 2.2767
+        }
+      },
+      {
+        "unidades": 2,
+        "repeticiones": 3,
+        "t_total_s": 3.8775,
+        "speedup": 10.69010960670535,
+        "eficiencia": 5.345054803352675,
+        "karp_flatt": -0.8129111792506314,
+        "speedup_amdahl": 1.9999980000020001,
+        "fases": {
+          "auc": 0.9945,
+          "epocas": 200,
+          "f1": 0.0147,
+          "perdida_final": 0.132576,
+          "t_calculo_ms": 5.2537,
+          "t_comunicacion_ms": 14.2466,
+          "t_epoca_ms": 19.3873,
+          "t_total_s": 3.8775
+        }
+      },
+      {
+        "unidades": 3,
+        "repeticiones": 3,
+        "t_total_s": 6.8537,
+        "speedup": 6.047959496330449,
+        "eficiencia": 2.0159864987768166,
+        "karp_flatt": -0.2519824660019444,
+        "speedup_amdahl": 2.9999940000120002,
+        "fases": {
+          "auc": 0.9945,
+          "epocas": 200,
+          "f1": 0.0147,
+          "perdida_final": 0.132576,
+          "t_calculo_ms": 18.1027,
+          "t_comunicacion_ms": 16.2394,
+          "t_epoca_ms": 34.2685,
+          "t_total_s": 6.8537
+        }
+      }
+    ]
+  }
+}
