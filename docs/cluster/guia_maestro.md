@@ -210,7 +210,7 @@ Completa la tabla del ensayo en [../guia_presentacion_cluster.md](../guia_presen
 .\bin\maestro.exe -nodos <N> -epocas 2000 -verificar=false
 ```
 
-Cuando empiece, pide a un nodo sin GPU que presione `Ctrl` + `C`. **Debes ver:**
+Cuando empiece, pide a un nodo sin GPU que presione `Ctrl` + `C` **en SU terminal**. **Tú no presionas nada en tu ventana**: si lo haces, detienes al maestro y verás `maestro detenido con Ctrl+C en ESTA ventana (no fue un nodo)`. **Debes ver:**
 
 ```
 entrenamiento abortado: época 312: el nodo ana se cayó (baja: cierre_normal); el modo síncrono no puede seguir sin su partición
@@ -277,7 +277,7 @@ Copia los números de la serie `tcp_tailscale` a la diapositiva 5.
 3. Deja correr el entrenamiento y lee una línea de época.
 4. Pide al nodo con GPU que comparta su pantalla unos segundos (`motor cuda validado`).
 5. Muestra la tabla final y `OK, mismo modelo`.
-6. La caída: relanza con `.\bin\maestro.exe -nodos <N> -epocas 2000 -verificar=false`, los nodos repiten su comando (flecha ↑ y Enter) y el integrante acordado presiona `Ctrl` + `C`.
+6. La caída: relanza con `.\bin\maestro.exe -nodos <N> -epocas 2000 -verificar=false`, los nodos repiten su comando (flecha ↑ y Enter) y el integrante acordado presiona `Ctrl` + `C` **en su terminal**. Tú no tocas tu ventana.
 
 **Plan B** si la red falla: ejecuta `powershell -ExecutionPolicy Bypass -File scripts\cluster-local.ps1 -Nodos 4 -Ventanas`, que hace el clúster completo en tu PC, y explica que son procesos que solo se hablan por TCP, igual que entre casas.
 
