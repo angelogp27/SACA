@@ -34,7 +34,7 @@ func main() {
 		log.Fatal("-goroutines debe ser >= 1")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour) // construir la muestra completa (-muestra 0) tarda minutos
 	defer cancel()
 
 	datos, err := entrenador.Preparar(ctx, cfg)
