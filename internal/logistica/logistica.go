@@ -110,6 +110,13 @@ func (m *Modelo) Predecir(x []float64) float64 {
 // parámetros con su promedio. Devuelve la pérdida promedio ponderada de
 // cada época.
 func (m *Modelo) Entrenar(X [][]float64, y []float64, tasaAprendizaje float64, epocas int, pesosClase PesosClase) []float64 {
+	return m.EntrenarConAvance(X, y, tasaAprendizaje, epocas, pesosClase, nil)
+}
+
+// EntrenarConAvance es Entrenar avisando al terminar cada época (avance
+// recibe cuántas épocas van), para mostrar el progreso de un
+// entrenamiento largo. avance puede ser nil.
+func (m *Modelo) EntrenarConAvance(X [][]float64, y []float64, tasaAprendizaje float64, epocas int, pesosClase PesosClase, avance func(int)) []float64 {
 	perdidaPorEpoca := make([]float64, 0, epocas)
 	n := float64(len(X))
 
@@ -120,6 +127,9 @@ func (m *Modelo) Entrenar(X [][]float64, y []float64, tasaAprendizaje float64, e
 		}
 		m.Sesgo -= tasaAprendizaje * gradSesgo / n
 		perdidaPorEpoca = append(perdidaPorEpoca, perdida/n)
+		if avance != nil {
+			avance(e + 1)
+		}
 	}
 
 	return perdidaPorEpoca

@@ -587,7 +587,12 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 		log.Printf("verificando: entreno lo mismo en secuencial en esta PC para comparar (%d ejemplos; puede tardar ~1 min, no cierres la ventana)...", len(X))
 		secuencial := logistica.NuevoModelo(len(X[0]))
 		inicioSec := time.Now()
-		perdidas := secuencial.Entrenar(X, m.cfg.Datos.Entrenamiento.Y, op.Tasa, op.Epocas, m.cfg.Datos.PesosClase)
+		perdidas := secuencial.EntrenarConAvance(X, m.cfg.Datos.Entrenamiento.Y, op.Tasa, op.Epocas, m.cfg.Datos.PesosClase, func(e int) {
+			m.mu.Lock()
+			c.estado.VerificacionEpoca = e
+			m.mu.Unlock()
+			m.publicar()
+		})
 		v := &Verificacion{Perdidas: perdidas, Duracion: time.Since(inicioSec)}
 		v.Diferencia = math.Abs(final - perdidas[len(perdidas)-1])
 		v.Evaluacion = entrenador.Evaluar(secuencial, m.cfg.Datos.Prueba)

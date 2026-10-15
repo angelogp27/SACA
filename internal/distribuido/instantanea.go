@@ -44,7 +44,10 @@ type EstadoCorrida struct {
 	Nodos  []NodoCorrida `json:"nodos"`
 	Epocas int           `json:"epocas"`
 	Epoca  int           `json:"epoca"` // épocas completadas
-	Inicio time.Time     `json:"inicio"`
+	// VerificacionEpoca: épocas completadas del entrenamiento secuencial de
+	// verificación (estado "verificando").
+	VerificacionEpoca int       `json:"verificacion_epoca"`
+	Inicio            time.Time `json:"inicio"`
 
 	Perdidas   []float64 `json:"perdidas"`
 	TEpocaMs   []float64 `json:"t_epoca_ms"`
