@@ -310,9 +310,20 @@ Abre en el navegador la dirección que muestra (`http://localhost:5173`). Pulsa 
 - **Cancelar corrida:** la detiene; los nodos vuelven a la sala.
 - **Quitar** (en cada nodo): despide a ese nodo; se cierra en su PC.
 - **Terminar sesión:** despide a todos (pide confirmación).
-- **Corridas de esta sesión:** al final del panel, una barra por corrida con su tiempo por época (cálculo y red), el speedup y la eficiencia. Si lanzaste el maestro con `-resultado`, cada corrida también se agrega al CSV del Experimento 2.
+- **Corridas de esta sesión:** al final del panel, una barra por corrida terminada con su tiempo por época (cálculo y red), el speedup y la eficiencia.
 
-**8.5 Para terminar:** `Ctrl` + `C` en la PowerShell del maestro. Despide a todos los nodos, que esperarán reintentando hasta que lo vuelvas a arrancar o cierren su ventana.
+**8.5 Guardar los resultados por combinación.** Con `-resultado resultados\experimento2.csv`, cada corrida terminada se guarda con su **combinación exacta de nodos** (p. ej. `tcp_tailscale:augusto-pc+josue`), así que puedes probar todas las combinaciones que quieras sin que se mezclen:
+1. **Primera corrida de la sesión con "Verificar contra el secuencial" marcado** (una basta): guarda el T(1) secuencial que necesita la tabla.
+2. Lanza cada combinación que quieras comparar, idealmente **3 veces** (la tabla usa la mediana).
+3. Genera la tabla (y los datos que muestra la página en "Resultados"):
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\experimento2-tabla.ps1
+   ```
+
+   Recarga la página (`F5`) para ver las barras nuevas. Las corridas anteriores (agrupadas solo por cantidad de nodos) quedaron archivadas en `resultados\experimento2_anterior.*`; la página las muestra mientras no haya corridas nuevas.
+
+**8.6 Para terminar:** `Ctrl` + `C` en la PowerShell del maestro. Despide a todos los nodos, que esperarán reintentando hasta que lo vuelvas a arrancar o cierren su ventana.
 
 **Ensayo en tu PC (sin compañeros):**
 

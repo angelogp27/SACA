@@ -20,6 +20,14 @@ function punto(exp, modo, unidades) {
   return exp?.series?.[modo]?.find((p) => p.unidades === unidades)
 }
 
+// combinacion busca el punto de una combinación exacta de nodos (series
+// "tcp_tailscale:id1+id2", en orden alfabético). Con los resultados
+// anteriores, agrupados solo por cantidad de nodos, usa esa cantidad.
+function combinacion(exp, ids) {
+  const clave = `tcp_tailscale:${[...ids].sort().join('+')}`
+  return exp?.series?.[clave]?.[0] ?? punto(exp, 'tcp_tailscale', ids.length)
+}
+
 // Cifras clave de los experimentos, con respaldo si falta algún JSON.
 export function cifras(datos) {
   const e1 = datos?.experimento1
@@ -29,9 +37,9 @@ export function cifras(datos) {
   const particionado = mejor(e1?.series?.concurrente_particionado)
   const reduccion8 = punto(e1b, 'paralelo_reduccion', 8)
   const mutex8 = punto(e1b, 'paralelo_mutex', 8)
-  const gpu1 = punto(e2, 'tcp_tailscale', 1)
-  const gpu2 = punto(e2, 'tcp_tailscale', 2)
-  const mixto3 = punto(e2, 'tcp_tailscale', 3)
+  const gpu1 = combinacion(e2, ['augusto-pc'])
+  const gpu2 = combinacion(e2, ['augusto-pc', 'josue'])
+  const mixto3 = combinacion(e2, ['augusto-pc', 'josue', 'angelo'])
   const prueba1 = punto(e2p, 'tcp_tailscale', 1)
   const pct = (p) => (p ? Math.round((100 * p.fases.t_comunicacion_ms) / (p.fases.t_calculo_ms + p.fases.t_comunicacion_ms)) : NaN)
   return {

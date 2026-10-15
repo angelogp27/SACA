@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { estaciones as estacionesMock, lineaTiempoMock, experimentoSpeedupMock } from './mock'
 
-const ARCHIVOS = ['estaciones', 'series', 'resumen', 'experimento1', 'experimento1b', 'experimento2', 'experimento2_prueba']
+const ARCHIVOS = ['estaciones', 'series', 'resumen', 'experimento1', 'experimento1b', 'experimento2', 'experimento2_prueba', 'experimento2_anterior']
 
 async function cargar(nombre) {
   const resp = await fetch(`${import.meta.env.BASE_URL}datos/${nombre}.json`)
@@ -24,6 +24,9 @@ export function useDatosReales() {
       ARCHIVOS.forEach((nombre, i) => {
         datos[nombre] = resultados[i].status === 'fulfilled' ? resultados[i].value : null
       })
+      // Mientras no haya corridas nuevas del Experimento 2 (agrupadas por
+      // combinación de nodos), se muestran las anteriores.
+      datos.experimento2 = datos.experimento2 ?? datos.experimento2_anterior
       setEstado(datos)
     })
     return () => {
