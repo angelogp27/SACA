@@ -2,6 +2,8 @@
 
 Guía para que el grupo prepare y dé la presentación **virtual** del avance del clúster. Cómo ejecutar cada cosa está en la guía de cada rol: [maestro](cluster/guia_maestro.md), [nodo sin GPU NVIDIA](cluster/guia_nodo_sin_nvidia.md) y [nodo con GPU NVIDIA](cluster/guia_nodo_con_nvidia.md). Aquí está **qué decir, en qué orden, quién lo hace y qué hacer si algo falla**.
 
+> **Para la exposición de 10 minutos con un solo expositor, usa [guion_exposicion.md](guion_exposicion.md)**: el guion minuto a minuto de las 10 diapositivas de la página (qué decir, qué hacer, la demo y las preguntas probables). Esta guía queda como referencia de la versión con todo el grupo.
+
 ## 1. Lo que el docente debe llevarse (3 ideas)
 
 1. **El clúster funciona de verdad y da el mismo resultado.** Varias PCs del grupo, cada una en su casa, entrenan juntas el modelo. La pérdida final es idéntica a la del entrenamiento secuencial (diferencia del orden de 1e-15): la descomposición de datos es correcta.
