@@ -86,7 +86,9 @@ type ResumenCorrida struct {
 	TSecuencialS    float64  `json:"t_secuencial_s"` // si se verificó
 }
 
-func copiarSerie(s []float64) []float64 { return append([]float64(nil), s...) }
+// copiarSerie copia una serie y nunca devuelve nil: una serie vacía debe
+// llegar a la página como [] y no como null (la página suma sus valores).
+func copiarSerie(s []float64) []float64 { return append(make([]float64, 0, len(s)), s...) }
 
 func (e *EstadoCorrida) copia() *EstadoCorrida {
 	if e == nil {
