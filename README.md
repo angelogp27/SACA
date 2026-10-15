@@ -25,7 +25,7 @@ CSV EPA (16.9 M filas) ──► [A] Cargador concurrente ──► MongoDB (10.
                                                               ▼
                            [B] Entrenamiento ◄── muestra etiquetada (caché gob)
                                secuencial / paralelo (goroutines)
-                               maestro TCP + trabajadores (semana 9: distribuido)
+                               maestro TCP + trabajadores (distribuido, CPU o CUDA)
                                                               │ modelo.json
                                                               ▼
                            [C] API REST (/health; resto semanas 9-11)
@@ -40,12 +40,12 @@ CSV EPA (16.9 M filas) ──► [A] Cargador concurrente ──► MongoDB (10.
 | [cargador/cmd/concurrente](cargador/cmd/concurrente/main.go) | Worker pool con fan-out/fan-in y agregadoras particionadas (`-goroutines`, `-agregadoras`) |
 | [entrenamiento/cmd/secuencial](entrenamiento/cmd/secuencial/main.go) | Regresión logística secuencial, con evaluación en meses no vistos |
 | [entrenamiento/cmd/paralelo](entrenamiento/cmd/paralelo/main.go) | Gradiente con N goroutines (`-estrategia reduccion\|mutex\|atomico`) |
-| [entrenamiento/cmd/maestro](entrenamiento/cmd/maestro/main.go), [trabajador](entrenamiento/cmd/trabajador/main.go) | Clúster TCP: registro de nodos, particiones y bajas |
+| [entrenamiento/cmd/maestro](entrenamiento/cmd/maestro/main.go), [trabajador](entrenamiento/cmd/trabajador/main.go) | Clúster TCP: entrenamiento distribuido síncrono entre PCs, con motor go o CUDA por nodo ([manual](docs/manual_cluster.md)) |
 | [api/cmd/api](api/cmd/api/main.go) | API REST (por ahora solo `/health`) |
 | [herramientas/cmd/descargar](herramientas/cmd/descargar/main.go) | Descarga reproducible de los datos con manifiesto SHA-256 |
 | [herramientas/cmd/exportar](herramientas/cmd/exportar/main.go) | Genera los JSON reales para el frontend |
 | [experimentos/cmd/analisis](experimentos/cmd/analisis/main.go) | Speedup, eficiencia, Karp-Flatt y Amdahl a partir de las corridas |
-| `internal/` | Paquetes compartidos: `aqs` (limpieza), `persistencia`, `particion`, `dataset`, `logistica`, `metricas`, `entrenador`, `protocolo`, `cluster`, `medicion`, `registro` |
+| `internal/` | Paquetes compartidos: `aqs` (limpieza), `persistencia`, `particion`, `dataset`, `logistica`, `metricas`, `entrenador`, `protocolo`, `cluster`, `distribuido`, `medicion`, `registro` |
 | `nativo/` (en desarrollo) | Núcleos en C/C++: `pthreads/cargador`, `openmp/entrenamiento`, `openmp/variables`, `mpi/entrenamiento`, `cuda/gradiente`, `cuda/estaciones` |
 | [frontend/](frontend/) | SPA React + Vite |
 | [scripts/](scripts/) | Pipeline y experimentos, en PowerShell (`.ps1`) y sh (`.sh`) |
@@ -110,14 +110,16 @@ go run ./cargador/cmd/concurrente -goroutines 8 -agregadoras 0   # tantas agrega
 go run ./entrenamiento/cmd/secuencial -modelo data/modelo.json
 go run ./entrenamiento/cmd/paralelo -goroutines 8 -estrategia reduccion
 
-# Parte B: clúster TCP (en terminales distintas)
+# Parte B: clúster TCP (en terminales distintas, o todo junto con scripts/cluster-local.ps1)
 go run ./entrenamiento/cmd/maestro -nodos 2
 go run ./entrenamiento/cmd/trabajador -id w1
 go run ./entrenamiento/cmd/trabajador -id w2
+#   en otra PC por Tailscale: scripts/nodo.ps1 -Maestro 100.x.y.z:9000 -Id nombre (ver docs/manual_cluster.md)
 
 # Experimentos
 powershell -ExecutionPolicy Bypass -File scripts/experimento1.ps1    # o: sh scripts/experimento1.sh
 powershell -ExecutionPolicy Bypass -File scripts/experimento1b.ps1   # o: sh scripts/experimento1b.sh
+powershell -ExecutionPolicy Bypass -File scripts/experimento2.ps1    # clúster TCP con 1, 2, 4 y 8 nodos locales
 
 # Pruebas (incluye detector de carreras)
 go test -race ./...

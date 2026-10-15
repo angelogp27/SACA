@@ -109,7 +109,7 @@ Resultado esperado:
 [ 9/15] Cargador concurrente = secuencial (registros y valores)    OK   6.9s  concurrente y concurrente_particionado: mismos registros y mismos valores
 [10/15] Entrenamiento secuencial + modelo                          OK   4.2s  pérdida 0.166297, modelo de 12 pesos guardado
 [11/15] Entrenamiento paralelo (3 estrategias) = secuencial        OK   1.1s  reducción, mutex y atómico dan la misma pérdida (±1e-6)
-[12/15] Clúster TCP: maestro + 3 trabajadores                      OK   0.8s  2 registrados (particiones 0 y 1), 1 rechazado, caída detectada
+[12/15] Clúster TCP: entrenamiento distribuido = secuencial        OK   1.6s  2 nodos: pérdida 0.166297 = secuencial; sobrante y muestra distinta rechazados; caída detectada
 [13/15] Exportar datos para el frontend                            OK     3s  56 estaciones, 38 series del 2025-11-15
 [14/15] Análisis de experimentos (resultados existentes)           OK   0.3s  Experimento 1b releído: mejor S(8) = 6.11
 [15/15] Frontend: lint, build y servidor                           OK     7s  build OK, 6 recursos servidos
@@ -222,7 +222,15 @@ Si alguien introduce un acceso concurrente sin sincronizar, esto falla con un re
 
 ## Tutorial 4: clúster TCP en una PC o en varias
 
-**En una PC**, con 3 terminales:
+Requisito: `data/muestra.gob`, que se crea con el pipeline o el entrenamiento secuencial, o se copia de otra PC.
+
+**En una PC**, todo con un comando:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/cluster-local.ps1 -Nodos 3
+```
+
+O a mano, con 3 terminales:
 
 ```powershell
 go run ./entrenamiento/cmd/maestro -nodos 2      # terminal 1
@@ -230,17 +238,18 @@ go run ./entrenamiento/cmd/trabajador -id w1     # terminal 2
 go run ./entrenamiento/cmd/trabajador -id w2     # terminal 3
 ```
 
-El maestro muestra `nodos activos 2/2 [w1(p0) w2(p1)] — clúster completo, listo para entrenar`. Para ver más comportamiento:
+Cuando están los 2 nodos, el maestro entrena: una línea cada 20 épocas con el tiempo de cálculo y de red. Al final muestra una tabla por nodo y la verificación:
 
-- un tercer trabajador es **rechazado**, porque solo hay 2 particiones;
-- al cerrar uno con Ctrl+C, el maestro lo **da de baja** y libera su partición.
+```
+verificación: pérdida final distribuida 0.125720142, secuencial 0.125720142, diferencia 2.6e-15 → OK, mismo modelo
+```
 
-**En varias PCs** de la misma red:
+Para ver más comportamiento:
 
-1. El maestro corre en una PC (abre el puerto 9000 en su firewall).
-2. En cada una de las otras: `go run ./entrenamiento/cmd/trabajador -maestro IP-DEL-MAESTRO:9000 -id nombre`. También se puede copiar el ejecutable: `go build -o trabajador.exe ./entrenamiento/cmd/trabajador`.
+- un tercer trabajador es **rechazado** porque solo hay 2 particiones, y uno con otra muestra es rechazado por `muestra_distinta`;
+- al cerrar un trabajador con Ctrl+C a mitad del entrenamiento, el maestro **aborta** con `el nodo w1 se cayó`.
 
-Guía completa del clúster del grupo (MPI, nodos GPU, firewall): [guia_cluster.md](guia_cluster.md).
+**En varias PCs**, incluso en casas distintas por internet: seguir [manual_cluster.md](manual_cluster.md), que cubre Tailscale, el firewall, los nodos con GPU NVIDIA (motor CUDA) y los problemas frecuentes. Arquitectura y MPI: [guia_cluster.md](guia_cluster.md).
 
 ---
 
