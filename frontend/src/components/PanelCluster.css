@@ -349,3 +349,9 @@ button:disabled {
 .panel-cluster.grande .g-cabecera h4 {
   font-size: 14px;
 }
+
+.historial-otras {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}

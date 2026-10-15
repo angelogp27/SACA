@@ -263,29 +263,43 @@ function Corrida({ inst, corrida: cruda }) {
   )
 }
 
+const describirNodos = (h) =>
+  comoLista(h.nodos).map((id, i) => `${id}${esGPU(comoLista(h.motores)[i]) ? '·GPU' : '·CPU'}`).join(' + ')
+
+// Historial: barras solo para las corridas terminadas (las canceladas o
+// abortadas no tienen tiempos: se listan aparte, sin barra).
 function Historial({ historial }) {
-  const filas = comoLista(historial)
-    .slice(-8)
-    .map((h) => ({
-      clave: String(h.id),
-      etiqueta: `#${h.id} · ${comoLista(h.nodos).map((id, i) => `${id}${esGPU(comoLista(h.motores)[i]) ? '·GPU' : '·CPU'}`).join(' + ')}`,
-      valores: { calculo: h.t_calculo_ms, red: h.t_comunicacion_ms },
-      extra:
-        h.estado === 'terminado'
-          ? `${h.t_total_s.toFixed(2)} s · S = ${fmt(h.speedup)} · E = ${fmt((100 * h.eficiencia), 0)} %${h.verificado ? ` · verificado (dif. ${h.diferencia.toExponential(1)})` : ''}`
-          : h.estado,
-    }))
-  if (!filas.length) return null
+  const todas = comoLista(historial)
+  const terminadas = todas.filter((h) => h.estado === 'terminado' && h.t_epoca_ms > 0).slice(-8)
+  const otras = todas.filter((h) => !(h.estado === 'terminado' && h.t_epoca_ms > 0)).slice(-3)
+  if (!terminadas.length && !otras.length) return null
+  const filas = terminadas.map((h) => ({
+    clave: String(h.id),
+    etiqueta: `#${h.id} · ${describirNodos(h)}`,
+    valores: { calculo: h.t_calculo_ms, red: h.t_comunicacion_ms },
+    extra: `${h.t_total_s.toFixed(2)} s · S = ${fmt(h.speedup)} · E = ${fmt(100 * h.eficiencia, 0)} %${h.verificado ? ` · verificado (dif. ${h.diferencia.toExponential(1)})` : ''}`,
+  }))
+  const nombreEstado = { cancelado: 'cancelada', abortado: 'abortada' }
   return (
-    <BarrasH
-      titulo="Corridas de esta sesión (ms por época)"
-      tema="Comparación en vivo"
-      filas={filas}
-      capas={[
-        { clave: 'calculo', nombre: 'Cálculo del más lento', color: CALCULO },
-        { clave: 'red', nombre: 'Red y espera', color: RED },
-      ]}
-    />
+    <div className="historial">
+      {filas.length > 0 && (
+        <BarrasH
+          titulo="Corridas de esta sesión (ms por época)"
+          tema="Comparación en vivo"
+          filas={filas}
+          capas={[
+            { clave: 'calculo', nombre: 'Cálculo del más lento', color: CALCULO },
+            { clave: 'red', nombre: 'Red y espera', color: RED },
+          ]}
+        />
+      )}
+      {otras.length > 0 && (
+        <p className="historial-otras">
+          Sin completar:{' '}
+          {otras.map((h) => `#${h.id} ${nombreEstado[h.estado] ?? h.estado} (${describirNodos(h)})`).join(' · ')}
+        </p>
+      )}
+    </div>
   )
 }
 
