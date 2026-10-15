@@ -1,93 +1,122 @@
-// Nodo trabajador del clúster de entrenamiento (Parte B, semana 7). Se
-// conecta al maestro (reintentando si todavía no está arriba), se
-// registra, recibe su partición de datos y queda escuchando. Al cerrarlo
-// con Ctrl+C se despide con un mensaje "baja".
+// Nodo trabajador del clúster de entrenamiento (Parte B). Se conecta al
+// maestro (reintentando si todavía no está arriba), se registra con la
+// huella de su muestra y su motor de cálculo, recibe su partición y
+// calcula un gradiente parcial por cada época que le pide el maestro
+// (docs/contrato_protocolo_tcp.md, pasos 1 a 7).
 //
-// El cálculo del gradiente parcial sobre su partición
-// (logistica.GradienteParcial) se conecta en la semana 9.
+// Los datos salen de data/muestra.gob, copiada en cada PC: el trabajador
+// no necesita MongoDB. El motor de cálculo puede ser:
+//   - go:   goroutines en la CPU (cualquier PC);
+//   - cuda: nativo/cuda/gradiente_servidor.cu en una GPU NVIDIA, validado
+//     contra el de Go antes de la primera época;
+//   - auto: cuda si existe el ejecutable compilado y funciona; si no, go.
+//
+// Al cerrarlo con Ctrl+C se despide con un mensaje "baja".
 package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"os"
 	"os/signal"
+	"runtime"
 	"time"
 
+	"proyecto9/internal/distribuido"
 	"proyecto9/internal/protocolo"
 )
 
 func main() {
-	maestro := flag.String("maestro", "localhost:9000", "dirección TCP del maestro")
+	maestro := flag.String("maestro", "localhost:9000", "dirección TCP del maestro (IP:puerto; con Tailscale, la IP 100.x.y.z del maestro)")
 	nombre, _ := os.Hostname()
 	id := flag.String("id", fmt.Sprintf("%s-%d", nombre, os.Getpid()), "worker_id con el que se registra este nodo")
+	rutaMuestra := flag.String("muestra", "data/muestra.gob", "muestra de entrenamiento (la misma que la del maestro)")
+	mesCorte := flag.Int("mes-corte", 10, "los meses >= mes-corte son de prueba (igual que en el maestro)")
+	nombreMotor := flag.String("motor", "auto", "motor de cálculo: auto, go o cuda")
+	cudaExe := flag.String("cuda-exe", ejecutableCUDA(), "ejecutable compilado de nativo/cuda/gradiente_servidor.cu")
+	hilos := flag.Int("hilos", 0, "goroutines del motor go (0 = todos los núcleos lógicos)")
 	flag.Parse()
+
+	datos, huella, err := distribuido.PrepararLocal(*rutaMuestra, *mesCorte)
+	if err != nil {
+		log.Fatalf("no se pudo preparar la muestra %s: %v (cópiala desde la PC del maestro, ver docs/manual_cluster.md)", *rutaMuestra, err)
+	}
+	log.Printf("muestra %s cargada, huella %s", *rutaMuestra, distribuido.Corta(huella))
+
+	respaldo := distribuido.NuevoMotorGo(*hilos)
+	motor, err := elegirMotor(*nombreMotor, *cudaExe, respaldo)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	ctx, cancelar := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancelar()
 
 	conn, err := conectar(ctx, *maestro)
 	if err != nil {
+		motor.Cerrar()
 		log.Fatal(err)
 	}
 	defer conn.Close()
 	c := protocolo.NuevaConexion(conn)
 
-	if err := c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoRegistro, WorkerID: *id}); err != nil {
-		log.Fatalf("no se pudo enviar el registro: %v", err)
-	}
-
-	m, err := c.Recibir()
-	if err != nil {
-		log.Fatalf("el maestro cerró la conexión antes de asignar partición: %v", err)
-	}
-	if m.Tipo == protocolo.TipoBaja {
-		log.Fatalf("el maestro rechazó el registro: %s", m.Motivo)
-	}
-	if m.Tipo != protocolo.TipoParticionAsignada || m.FiltroMongo == nil {
-		log.Fatalf("se esperaba particion_asignada, llegó %q", m.Tipo)
-	}
-	log.Printf("registrado como %s: partición %d de %d (estaciones con hash %% %d == %d)",
-		*id, m.FiltroMongo.Resto, m.FiltroMongo.Mod, m.FiltroMongo.Mod, m.FiltroMongo.Resto)
-
-	// Ctrl+C: despedirse con "baja" y cerrar, lo que también desbloquea el
-	// Recibir de abajo.
+	// Ctrl+C: despedirse con "baja" y cerrar, lo que también desbloquea la
+	// lectura de Trabajar.
 	go func() {
 		<-ctx.Done()
 		c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoBaja, WorkerID: *id, Motivo: "cierre_normal"})
 		conn.Close()
 	}()
 
-	for {
-		m, err := c.Recibir()
-		switch {
-		case ctx.Err() != nil:
-			log.Print("nodo cerrado")
-			return
-		case errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed):
-			log.Print("el maestro cerró la conexión")
-			return
-		case err != nil:
-			log.Fatalf("error leyendo del maestro: %v", err)
-		case m.Tipo == protocolo.TipoBaja:
-			log.Printf("el maestro pidió la baja: %s", m.Motivo)
-			return
-		case m.Tipo == protocolo.TipoEntrenamientoFinalizado:
-			log.Printf("entrenamiento finalizado en la época %d (pérdida %.4f)", m.EpocaFinal, m.PerdidaFinal)
-			return
-		default:
-			log.Printf("mensaje %q recibido (el cálculo del gradiente se conecta en la semana 9)", m.Tipo)
-		}
+	err = distribuido.Trabajar(c, distribuido.ConfigTrabajador{ID: *id, Datos: datos, Huella: huella, Motor: motor, Respaldo: respaldo})
+	switch {
+	case ctx.Err() != nil:
+		log.Print("nodo cerrado")
+	case err != nil:
+		log.Fatal(err)
 	}
 }
 
-// conectar reintenta hasta que el maestro acepte la conexión: en Docker
-// Compose los trabajadores pueden arrancar antes que el maestro.
+// elegirMotor arranca el motor pedido. Con "auto", un motor CUDA que no
+// existe o no arranca no es un error: el nodo calcula con goroutines.
+func elegirMotor(nombre, cudaExe string, respaldo *distribuido.MotorGo) (distribuido.Motor, error) {
+	switch nombre {
+	case "go":
+		return respaldo, nil
+	case "cuda", "auto":
+		if _, err := os.Stat(cudaExe); err != nil {
+			if nombre == "cuda" {
+				return nil, fmt.Errorf("no se encontró %s: compílalo con nvcc (ver nativo/cuda/README.md)", cudaExe)
+			}
+			log.Printf("motor auto: no hay %s, se calcula con goroutines", cudaExe)
+			return respaldo, nil
+		}
+		motor, err := distribuido.IniciarExterno("cuda", cudaExe)
+		if err != nil {
+			if nombre == "cuda" {
+				return nil, err
+			}
+			log.Printf("motor auto: %v; se calcula con goroutines", err)
+			return respaldo, nil
+		}
+		log.Printf("motor cuda iniciado: %s", motor.Dispositivo())
+		return motor, nil
+	}
+	return nil, fmt.Errorf("motor desconocido %q (usa auto, go o cuda)", nombre)
+}
+
+func ejecutableCUDA() string {
+	if runtime.GOOS == "windows" {
+		return "bin/gradiente_cuda.exe"
+	}
+	return "bin/gradiente_cuda"
+}
+
+// conectar reintenta hasta que el maestro acepte la conexión: los nodos
+// pueden arrancar antes que el maestro.
 func conectar(ctx context.Context, direccion string) (net.Conn, error) {
 	var d net.Dialer
 	for intento := 1; ; intento++ {
