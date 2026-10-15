@@ -48,7 +48,9 @@ $prueba = Test-NetConnection -ComputerName $hostMaestro -Port ([int]$puerto) -Wa
 if (-not $prueba.TcpTestSucceeded) {
     Write-Host "   AVISO: no se pudo conectar todavía (¿el maestro ya arrancó?, ¿Tailscale conectado?, ¿firewall?); el trabajador seguirá reintentando" -ForegroundColor Yellow
 } else {
-    Write-Host "   OK (ping $($prueba.PingReplyDetails.RoundtripTime) ms)"
+    $ping = ""
+    if ($prueba.PingSucceeded) { $ping = " (ping $($prueba.PingReplyDetails.RoundtripTime) ms)" }
+    Write-Host "   OK$ping"
 }
 
 Write-Host "== nodo $Id en marcha (Ctrl+C para salir)"
