@@ -6,6 +6,10 @@
 #   powershell -ExecutionPolicy Bypass -File scripts/cluster-local.ps1 -Nodos 4 -Ventanas
 # -Ventanas abre cada trabajador en su propia ventana (más vistoso para la
 # demo); sin él, la salida de cada trabajador va a bin/logs/.
+# -Web arranca el maestro en modo servidor (API en 127.0.0.1:8080) en vez
+# de hacer una corrida: los trabajadores quedan en la sala y las corridas
+# se lanzan desde la página (cd frontend; npm run dev). Ctrl+C para salir.
+#   powershell -ExecutionPolicy Bypass -File scripts/cluster-local.ps1 -Nodos 2 -Web -Muestra data/muestra_prueba.gob
 param(
     [int]$Nodos = 3,
     [int]$Epocas = 200,
@@ -13,7 +17,8 @@ param(
     [int]$Hilos = 0,
     [string]$Motor = "auto",
     [string]$Muestra = "data/muestra.gob",
-    [switch]$Ventanas
+    [switch]$Ventanas,
+    [switch]$Web
 )
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
@@ -32,13 +37,21 @@ if ($Hilos -le 0) { $Hilos = [Math]::Max(1, [int]([Environment]::ProcessorCount 
 
 $trabajadores = @()
 for ($i = 1; $i -le $Nodos; $i++) {
-    $argumentos = "-maestro localhost:$Puerto -id local$i -hilos $Hilos -motor $Motor -muestra $Muestra"
+    $argumentos = "-maestro localhost:$Puerto -id local$i -hilos $Hilos -motor $Motor -muestra $Muestra -reconectar"
     if ($Ventanas) {
         $trabajadores += Start-Process powershell -PassThru -ArgumentList "-NoExit", "-Command", "`$host.UI.RawUI.WindowTitle='trabajador local$i'; .\bin\trabajador.exe $argumentos"
     } else {
         $trabajadores += Start-Process .\bin\trabajador.exe -PassThru -NoNewWindow -ArgumentList $argumentos `
             -RedirectStandardError "bin/logs/trabajador-local$i.log" -RedirectStandardOutput "bin/logs/trabajador-local$i.out"
     }
+}
+
+if ($Web) {
+    Write-Host "== maestro en modo servidor con $Nodos nodos locales; abre la página (cd frontend; npm run dev). Ctrl+C para terminar."
+    & ./bin/maestro.exe -web 127.0.0.1:8080 -capacidad 16 -escuchar ":$Puerto" -epocas $Epocas -muestra $Muestra -modo tcp_local
+    $codigo = $LASTEXITCODE
+    foreach ($p in $trabajadores) { if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } }
+    exit $codigo
 }
 
 Write-Host "== maestro con $Nodos nodos de $Hilos goroutines cada uno"

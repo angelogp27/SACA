@@ -49,4 +49,6 @@ case $CONECTA in
 esac
 
 echo "== nodo $ID en marcha (Ctrl+C para salir)"
-exec ./bin/trabajador -maestro "$MAESTRO" -id "$ID" -motor "$MOTOR" -muestra "$MUESTRA"
+# -reconectar: si el maestro está en modo servidor, el nodo queda en la sala
+# entre corridas y vuelve solo si se corta la conexión.
+exec ./bin/trabajador -maestro "$MAESTRO" -id "$ID" -motor "$MOTOR" -muestra "$MUESTRA" -reconectar

@@ -57,4 +57,6 @@ if (-not $prueba.TcpTestSucceeded) {
 }
 
 Write-Host "== nodo $Id en marcha (Ctrl+C para salir)"
-& ./bin/trabajador.exe -maestro $Maestro -id $Id -motor $Motor -hilos $Hilos -muestra $Muestra
+# -reconectar: si el maestro está en modo servidor, el nodo queda en la sala
+# entre corridas y vuelve solo si se corta la conexión.
+& ./bin/trabajador.exe -maestro $Maestro -id $Id -motor $Motor -hilos $Hilos -muestra $Muestra -reconectar
