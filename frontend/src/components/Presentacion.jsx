@@ -113,7 +113,21 @@ function Tuberia({ c }) {
   )
 }
 
-function Problema({ c, estaciones, estacion, setElegida }) {
+// Experimento 1: el cargador con 1 agregadora frente a N agregadoras.
+function CargadorMini({ datos }) {
+  const e1 = datos?.experimento1?.series ?? {}
+  const serie = (clave, nombre, color) => ({ nombre, color, puntos: (e1[clave] ?? []).map((p) => ({ p: p.unidades, s: p.speedup })) })
+  const series = [serie('concurrente_particionado', 'N agregadoras', 'var(--serie-3)'), serie('concurrente', '1 agregadora', 'var(--serie-2)')].filter((x) => x.puntos.length)
+  if (!series.length) return null
+  return (
+    <figure className="mini-cargador">
+      <figcaption>Experimento 1 · cargador concurrente: speedup frente a goroutines</figcaption>
+      <GraficaSpeedup series={series} />
+    </figure>
+  )
+}
+
+function Problema({ c, datos, estaciones, estacion, setElegida }) {
   return (
     <div className="llena">
       <div className="dos-columnas">
@@ -128,6 +142,7 @@ function Problema({ c, estaciones, estacion, setElegida }) {
             <Cifra valor={fmtN.format(c.estaciones)} texto="estaciones de monitoreo" />
             <Cifra valor={c.auc.toFixed(3)} texto="AUC en meses no vistos (oct-dic)" tono="acento" />
           </div>
+          <CargadorMini datos={datos} />
           <p className="nota">
             Regresión logística por descenso de gradiente: simple a propósito. El foco del curso es cómo se paraleliza: el
             cargador concurrente bajó la ingesta de {c.cargadorT1} s a {c.cargadorTp} s con agregadoras particionadas
@@ -325,35 +340,32 @@ function Resultados({ c, datos }) {
 
 function Conclusiones({ c, datos }) {
   const puntos = [
-    { cifra: `${c.pctPrueba}`, titulo: 'Con pocos datos, la red domina', texto: 'La comunicación síncrona es la fracción serial: no conviene distribuir.' },
-    { cifra: `${c.gpu1S}×`, titulo: 'Con todos los datos, el clúster gana', texto: `Una GPU remota entrena ${c.gpu1S} veces más rápido que la CPU local, con el mismo modelo.` },
-    { cifra: `${c.gpu1S} → ${c.mixto3S}`, titulo: 'El más lento marca el ritmo', texto: `Sumar un nodo CPU (${c.mixto3Calc} ms por época) frena a las GPUs en cada barrera.` },
+    { cifra: `${c.pctPrueba}`, titulo: 'Con pocos datos, la red domina', texto: 'La comunicación síncrona es la fracción serial: no conviene distribuir.', tono: 'alerta' },
+    { cifra: `${c.gpu1S}×`, titulo: 'Con todos los datos, el clúster gana', texto: 'Una GPU remota, por internet, con exactamente el mismo modelo.', tono: 'acento' },
+    { cifra: `${c.gpu1S} → ${c.mixto3S}`, titulo: 'El más lento marca el ritmo', texto: `Un nodo CPU (${c.mixto3Calc} ms/época) frena a las GPUs en cada barrera.`, tono: 'red' },
   ]
   return (
     <div className="llena">
-      <div className="dos-columnas ancha-izq">
-        <ol className="conclusiones">
-          {puntos.map((p) => (
-            <li key={p.titulo}>
-              <span className="conclusion-cifra">{p.cifra}</span>
-              <div>
-                <strong>{p.titulo}</strong>
-                <p>{p.texto}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
-        <div className="pila">
-          <Concepto id="balanceo" />
-          <table className="tabla-teoria">
-            <thead><tr><th>Teoría del curso</th><th>Lo que medimos</th></tr></thead>
-            <tbody>
-              {teoriaMedido(datos).map((t) => (
-                <tr key={t.teoria}><td>{t.teoria}</td><td>{t.medido}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="tarjetas-conclusion">
+        {puntos.map((p, i) => (
+          <div key={p.titulo} className={`tarjeta-conclusion ${p.tono}`}>
+            <span className="numero-conclusion">{i + 1}</span>
+            <strong className="cifra-conclusion">{p.cifra}</strong>
+            <span className="titulo-conclusion">{p.titulo}</span>
+            <p>{p.texto}</p>
+          </div>
+        ))}
+      </div>
+      <div className="dos-columnas">
+        <Concepto id="balanceo" />
+        <table className="tabla-teoria">
+          <thead><tr><th>Teoría del curso</th><th>Lo que medimos</th></tr></thead>
+          <tbody>
+            {teoriaMedido(datos).map((t) => (
+              <tr key={t.teoria}><td>{t.teoria}</td><td>{t.medido}</td></tr>
+            ))}
+          </tbody>
+        </table>
       </div>
       <div className="proximos">
         {proximos.map((p) => (
@@ -418,7 +430,7 @@ function Ajustado({ children }) {
       if (!m || !c || !c.scrollHeight) return
       // scrollHeight/Width no cambian con transform: no hay ciclo.
       const s = Math.min(1, m.clientHeight / c.scrollHeight, m.clientWidth / c.scrollWidth)
-      setEscala(Math.max(0.4, Math.floor(s * 100) / 100))
+      setEscala(Math.max(0.8, Math.floor(s * 100) / 100))
     }
     calcular()
     if (typeof ResizeObserver === 'undefined') return undefined
@@ -430,6 +442,36 @@ function Ajustado({ children }) {
   return (
     <div ref={marco} className="ajuste-marco">
       <div ref={contenido} className="ajuste-contenido" style={{ transform: escala < 1 ? `scale(${escala})` : undefined }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+// Escenario mide el espacio disponible y escala el lienzo de 1280×720 para
+// llenarlo sin deformarlo: en una pantalla de 1920×1080 todo se ve 1,5 veces
+// más grande, como en un programa de diapositivas.
+const ANCHO_LIENZO = 1280
+const ALTO_LIENZO = 720
+
+function Escenario({ children }) {
+  const caja = useRef(null)
+  const [escala, setEscala] = useState(1)
+  useLayoutEffect(() => {
+    const calcular = () => {
+      const c = caja.current
+      if (!c || !c.clientWidth) return
+      setEscala(Math.min(c.clientWidth / ANCHO_LIENZO, c.clientHeight / ALTO_LIENZO))
+    }
+    calcular()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const ro = new ResizeObserver(calcular)
+    ro.observe(caja.current)
+    return () => ro.disconnect()
+  }, [])
+  return (
+    <div ref={caja} className="escenario">
+      <div className="lienzo" style={{ transform: `translate(-50%, -50%) scale(${escala})` }}>
         {children}
       </div>
     </div>
@@ -481,7 +523,7 @@ export default function Presentacion({ indice, setIndice, datos, estaciones, est
   const meta = diapositivas[indice - 1]
   const contenido = {
     1: <Portada c={c} />,
-    2: <Problema c={c} estaciones={estaciones} estacion={estacion} setElegida={setElegida} />,
+    2: <Problema c={c} datos={datos} estaciones={estaciones} estacion={estacion} setElegida={setElegida} />,
     3: <Arquitectura />,
     4: <MemoriaCompartida c={c} datos={datos} />,
     5: <Distribucion c={c} />,
@@ -494,6 +536,7 @@ export default function Presentacion({ indice, setIndice, datos, estaciones, est
 
   return (
     <div className="presentacion">
+      <Escenario>
       <section className={`diapositiva ${indice === 1 ? 'es-portada' : ''} ${indice === 7 ? 'es-demo' : ''}`}>
         <header className="diapositiva-cabecera">
           <span className="seccion">{dosDigitos(indice)} · {meta.seccion}</span>
@@ -517,6 +560,7 @@ export default function Presentacion({ indice, setIndice, datos, estaciones, est
           <span>{indice} / {TOTAL_DIAPOSITIVAS}</span>
         </footer>
       </section>
+      </Escenario>
 
       {notas && (
         <aside className="notas-orador" aria-label="Notas del orador">

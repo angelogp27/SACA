@@ -10,9 +10,9 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 24px 40px 14px;
-  height: calc(100vh - 120px);
-  min-height: 460px;
+  padding: 26px 40px 14px;
+  width: 1280px;
+  height: 720px;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 12px;
@@ -29,9 +29,38 @@
   padding: 10px 14px;
 }
 
-:fullscreen .diapositiva {
-  height: calc(100vh - 20px);
-  min-height: 0;
+:fullscreen .app-shell,
+:fullscreen .app-shell.presentando {
+  padding: 0;
+}
+
+/* Escenario: ocupa el espacio disponible y escala el lienzo de 1280×720
+   para llenarlo (como una presentación de diapositivas). */
+.escenario {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 64px);
+  overflow: hidden;
+}
+
+:fullscreen .escenario {
+  height: 100vh;
+}
+
+.lienzo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1280px;
+  height: 720px;
+  transform-origin: center center;
+}
+
+.diapositiva {
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--serie-1) 9%, transparent), transparent 45%),
+    radial-gradient(circle at 0% 100%, color-mix(in srgb, var(--serie-3) 7%, transparent), transparent 40%),
+    var(--surface);
 }
 
 .ajuste-marco {
@@ -81,10 +110,9 @@
 }
 
 .diapositiva-titulo {
-  font-size: clamp(24px, 2.6vw, 36px);
-  line-height: 1.18;
+  font-size: 32px;
+  line-height: 1.15;
   letter-spacing: -0.6px;
-  max-width: 28ch;
   font-weight: 700;
 }
 
@@ -146,15 +174,7 @@
   min-width: 0;
 }
 
-@media (max-width: 900px) {
-  .dos-columnas,
-  .dos-columnas.ancha-izq {
-    grid-template-columns: 1fr;
-  }
-  .diapositiva {
-    padding: 20px 16px 14px;
-  }
-}
+
 
 .nota {
   font-size: 13.5px;
@@ -265,8 +285,8 @@
 
 /* Portada */
 .diapositiva.es-portada .diapositiva-titulo {
-  font-size: clamp(30px, 3.4vw, 48px);
-  max-width: 26ch;
+  font-size: 44px;
+  max-width: 24ch;
 }
 
 .portada {
@@ -547,8 +567,8 @@
 .llena {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 18px;
+  justify-content: center;
+  gap: 20px;
   min-height: 100%;
 }
 
@@ -646,14 +666,7 @@
   color: var(--text-muted);
 }
 
-@media (max-width: 900px) {
-  .tuberia {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .tuberia li::after {
-    display: none;
-  }
-}
+
 
 /* Tablas de contenido (niveles, mensajes, teoría) */
 .tabla-niveles,
@@ -803,12 +816,127 @@
   color: var(--text-primary);
 }
 
-@media (max-width: 900px) {
-  .portada-pie,
-  .codigos,
-  .arbol-con-texto,
-  .proximos,
-  .cifras.compactas.tres {
-    grid-template-columns: 1fr;
-  }
+
+
+/* --- Lienzo: ajustes de diseño por diapositiva --------------------------- */
+
+/* Diapositiva 2: mapa acotado y mini gráfica del cargador */
+.mapa-pequeno .panel-mapa svg {
+  max-height: 300px;
+}
+
+.mapa-pequeno .leyenda-detalle,
+.mapa-pequeno .nota {
+  display: none;
+}
+
+.mini-cargador {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px 4px;
+  background: var(--page);
+}
+
+.mini-cargador figcaption {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+
+.mini-cargador svg {
+  max-height: 190px;
+}
+
+/* Diapositiva 9: tres tarjetas grandes */
+.tarjetas-conclusion {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.tarjeta-conclusion {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  background: var(--page);
+}
+
+.tarjeta-conclusion.alerta {
+  border-color: color-mix(in srgb, var(--serie-2) 60%, transparent);
+}
+
+.tarjeta-conclusion.acento {
+  border-color: color-mix(in srgb, var(--serie-3) 60%, transparent);
+}
+
+.tarjeta-conclusion.red {
+  border-color: color-mix(in srgb, var(--serie-1) 60%, transparent);
+}
+
+.numero-conclusion {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.cifra-conclusion {
+  font-size: 46px;
+  line-height: 1;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tarjeta-conclusion.alerta .cifra-conclusion {
+  color: var(--serie-2);
+}
+
+.tarjeta-conclusion.acento .cifra-conclusion {
+  color: var(--serie-3);
+}
+
+.tarjeta-conclusion.red .cifra-conclusion {
+  color: var(--serie-1);
+}
+
+.titulo-conclusion {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.tarjeta-conclusion p {
+  font-size: 14px;
+}
+
+/* Tarjetas y cifras con un leve tinte de su color */
+.cifra.acento {
+  background: color-mix(in srgb, var(--serie-3) 8%, var(--page));
+}
+
+.cifra.alerta {
+  border-color: color-mix(in srgb, var(--serie-2) 55%, transparent);
+  background: color-mix(in srgb, var(--serie-2) 7%, var(--page));
+}
+
+.concepto {
+  background: color-mix(in srgb, var(--serie-1) 6%, var(--page));
+}
+
+/* Dentro del lienzo, los diagramas no pasan de un alto razonable: dejan
+   lugar al resto del contenido sin que haya que reducir la diapositiva. */
+.diapositiva-cuerpo .diagrama-svg {
+  max-height: 270px;
+}
+
+.diapositiva-cuerpo .mini-cargador .diagrama-svg {
+  max-height: 180px;
 }
