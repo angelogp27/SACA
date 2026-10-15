@@ -11,11 +11,15 @@
 //     contra el de Go antes de la primera época;
 //   - auto: cuda si existe el ejecutable compilado y funciona; si no, go.
 //
-// Al cerrarlo con Ctrl+C se despide con un mensaje "baja".
+// Con un maestro en modo servidor, el nodo queda en la sala entre corridas
+// hasta que la página lo despide o se cierra con Ctrl+C (que manda una
+// "baja"). Con -reconectar, si se pierde la conexión (internet, el maestro
+// se reinició) vuelve a intentar y reaparece solo en la sala.
 package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -23,6 +27,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"time"
 
 	"proyecto9/internal/distribuido"
@@ -38,6 +43,7 @@ func main() {
 	nombreMotor := flag.String("motor", "auto", "motor de cálculo: auto, go o cuda")
 	cudaExe := flag.String("cuda-exe", ejecutableCUDA(), "ejecutable compilado de nativo/cuda/gradiente_servidor.cu")
 	hilos := flag.Int("hilos", 0, "goroutines del motor go (0 = todos los núcleos lógicos)")
+	reconectar := flag.Bool("reconectar", false, "si se pierde la conexión con el maestro, volver a intentar en vez de terminar")
 	flag.Parse()
 
 	datos, huella, err := distribuido.PrepararLocal(*rutaMuestra, *mesCorte)
@@ -55,28 +61,59 @@ func main() {
 	ctx, cancelar := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancelar()
 
-	conn, err := conectar(ctx, *maestro)
-	if err != nil {
-		motor.Cerrar()
-		log.Fatal(err)
-	}
-	defer conn.Close()
-	c := protocolo.NuevaConexion(conn)
-
-	// Ctrl+C: despedirse con "baja" y cerrar, lo que también desbloquea la
-	// lectura de Trabajar.
-	go func() {
-		<-ctx.Done()
-		c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoBaja, WorkerID: *id, Motivo: "cierre_normal"})
-		conn.Close()
-	}()
-
-	err = distribuido.Trabajar(c, distribuido.ConfigTrabajador{ID: *id, Datos: datos, Huella: huella, Motor: motor, Respaldo: respaldo})
+	cfg := &distribuido.ConfigTrabajador{ID: *id, Datos: datos, Huella: huella, Motor: motor, Respaldo: respaldo}
+	err = sesion(ctx, *maestro, cfg, *reconectar)
+	cfg.Motor.Cerrar()
 	switch {
 	case ctx.Err() != nil:
 		log.Print("nodo cerrado")
+	case errors.Is(err, distribuido.ErrSesionTerminada):
+		log.Print("el maestro terminó la sesión: nodo cerrado")
 	case err != nil:
 		log.Fatal(err)
+	}
+}
+
+// sesion conecta con el maestro y trabaja. Con reconectar, una conexión
+// perdida (o un nombre todavía registrado de la conexión anterior) no es
+// el final: espera un momento y vuelve a la sala.
+func sesion(ctx context.Context, maestro string, cfg *distribuido.ConfigTrabajador, reconectar bool) error {
+	for {
+		conn, err := conectar(ctx, maestro)
+		if err != nil {
+			return err
+		}
+		c := protocolo.NuevaConexion(conn)
+
+		// Ctrl+C: despedirse con "baja" y cerrar, lo que también desbloquea
+		// la lectura de Trabajar.
+		listo := make(chan struct{})
+		go func() {
+			select {
+			case <-ctx.Done():
+				c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoBaja, WorkerID: cfg.ID, Motivo: "cierre_normal"})
+				conn.Close()
+			case <-listo:
+			}
+		}()
+		err = distribuido.Trabajar(c, cfg)
+		close(listo)
+		conn.Close()
+
+		switch {
+		case ctx.Err() != nil:
+			return nil
+		case err == nil, !reconectar, errors.Is(err, distribuido.ErrSesionTerminada):
+			return err
+		case errors.Is(err, distribuido.ErrRechazado) && !strings.Contains(err.Error(), "worker_id"):
+			return err // otra muestra o sala llena: reintentar no lo arregla
+		}
+		log.Printf("%v; vuelvo a intentar en 3 s (Ctrl+C para salir)", err)
+		select {
+		case <-time.After(3 * time.Second):
+		case <-ctx.Done():
+			return nil
+		}
 	}
 }
 
