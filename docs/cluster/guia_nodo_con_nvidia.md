@@ -333,7 +333,11 @@ gradiente_cuda: 807003 ejemplos x 12 variables en la GPU (224 bloques x 256 hilo
 - Mientras entrena, **no cierres la ventana** y no suspendas la PC.
 - En la presentación, el maestro puede pedirte que **compartas tu pantalla** unos segundos para mostrar la línea `motor cuda validado`.
 
-**10.3 Otra corrida.** Cuando aparece `entrenamiento finalizado`, el nodo termina. Si el maestro pide otra corrida: **flecha ↑** y **Enter**.
+**10.3 Otra corrida.** Depende de cómo arranque el maestro:
+- **Desde la página (modo servidor, lo normal en la presentación):** tu nodo **no se cierra**. Al terminar cada corrida verás `de vuelta en la sala: esperando la siguiente corrida`. No hagas nada. Cada corrida nueva vuelve a copiar tu parte de los datos a la GPU (`gradiente_cuda: ... en la GPU`). Si se corta internet o el maestro se reinicia, tu nodo vuelve solo.
+- **Maestro de una corrida:** cuando aparece `entrenamiento finalizado`, el nodo termina. Si el maestro pide otra corrida: **flecha ↑** y **Enter**.
+
+Si ves `el maestro terminó la sesión: nodo cerrado`, el maestro te despidió desde la página: ya terminaste.
 
 **10.4 La caída (solo si el maestro te lo pide).** Presiona **`Ctrl` + `C`** en tu ventana cuando te lo indiquen.
 

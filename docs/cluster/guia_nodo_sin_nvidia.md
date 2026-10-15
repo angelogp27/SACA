@@ -277,7 +277,11 @@ Ejemplo ya completo: `powershell -ExecutionPolicy Bypass -File scripts\nodo.ps1 
 - Si el maestro **todavía no arrancó**, verás `AVISO: no se pudo conectar todavía` y luego `maestro ... no disponible todavía ... reintentando...` cada pocos segundos. **Es normal: espera.** Se conecta solo cuando el maestro arranca.
 - Mientras entrena, **no cierres la ventana** y no suspendas la PC.
 
-**7.3 Otra corrida.** Cuando aparece `entrenamiento finalizado`, tu nodo termina. Si el maestro pide **"otra corrida"**, presiona la **flecha ↑** del teclado (vuelve el último comando) y **Enter**.
+**7.3 Otra corrida.** Depende de cómo arranque el maestro:
+- **Desde la página (modo servidor, lo normal en la presentación):** tu nodo **no se cierra**. Al terminar cada corrida verás `de vuelta en la sala: esperando la siguiente corrida`. No hagas nada: el maestro elige desde la página cuándo y con qué nodos entrenar. Si se corta internet o el maestro se reinicia, verás `vuelvo a intentar en 3 s` y tu nodo vuelve solo.
+- **Maestro de una corrida:** cuando aparece `entrenamiento finalizado`, tu nodo termina. Si el maestro pide **"otra corrida"**, presiona la **flecha ↑** del teclado (vuelve el último comando) y **Enter**.
+
+Si ves `el maestro terminó la sesión: nodo cerrado`, el maestro te despidió desde la página: ya terminaste.
 
 **7.4 La caída (solo si el maestro te lo pide).** En la presentación se muestra qué pasa si un nodo se cae. Solo el integrante al que el maestro se lo pida presiona **`Ctrl` + `C`** en su ventana cuando se lo indiquen.
 
