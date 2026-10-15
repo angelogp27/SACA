@@ -4,7 +4,7 @@ Guion para **un solo expositor** (Piero Carlinho Vargas Chota), que maneja la p�
 
 **Grupo** (orden por apellido): Cerna Sifuentes, Augusto Nicolas · Goitia Peves, Angelo Diego · Grijalva De La Cruz, Rony · Leon Garcia, Angel Gabriel · Martines Cancho, Josue · Vargas Chota, Piero Carlinho · Yanyachi Perez, Pedro · Zarate Vilchez, Axhell. Docente: Javier Antonio Prudencio Vidal.
 
-Las diapositivas tienen **más contenido del que se dice**, a propósito: tablas, código y cifras de respaldo. **No los leas.** Di la idea central, señala el elemento y deja que la pantalla sostenga el detalle. Si el docente pregunta, la respuesta ya está a la vista. La presentación es la página del proyecto en modo **Presentación**: 10 diapositivas y la demo del clúster en vivo.
+Las diapositivas tienen **más contenido del que se dice**, a propósito: tablas, código y cifras de respaldo. **No los leas.** Di la idea central, señala el elemento y deja que la pantalla sostenga el detalle. Si el docente pregunta, la respuesta ya está a la vista. La presentación es la página del proyecto en modo **Presentación**: 9 diapositivas y la demo del clúster en vivo.
 
 En cada diapositiva tienes tres cosas:
 - **Qué hacer:** clics y qué señalar en la pantalla.
@@ -35,10 +35,9 @@ Atajos en la página:
 | 6 | El clúster y CUDA | 0:50 | 4:40 |
 | 7 | **Demo en vivo** | 3:00 | 7:40 |
 | 8 | Resultados: Amdahl | 1:00 | 8:40 |
-| 9 | Conclusiones | 0:50 | 9:30 |
-| 10 | Temas del curso | 0:30 | 10:00 |
+| 9 | Conclusiones y cierre | 1:20 | 10:00 |
 
-**Si vas atrasado al llegar a la demo** (más de 5:00 en el cronómetro), haz solo 2 corridas (1 GPU y los tres), y en la diapositiva 10 di solo la frase final.
+**Si vas atrasado al llegar a la demo** (más de 5:00 en el cronómetro), haz solo 2 corridas (1 GPU y los tres), y en la diapositiva 9 di solo las tres conclusiones y la frase final.
 
 ---
 
@@ -164,7 +163,7 @@ Es el panel de control del clúster. **Corrida 1** (unos 50 s):
 
 **Transición:** "Cierro con lo aprendido."
 
-## Diapositiva 9 · Conclusiones (0:50)
+## Diapositiva 9 · Conclusiones y cierre (1:20)
 
 **En pantalla:** **3 tarjetas grandes** numeradas con su cifra (73 %, 18×, 18 → 6), la tarjeta de balanceo junto a la tabla **"teoría del curso → lo que medimos"** y, abajo, 4 tarjetas de próximos pasos con su semana.
 
@@ -173,18 +172,10 @@ Es el panel de control del clúster. **Corrida 1** (unos 50 s):
 **Qué decir:**
 > "Tres conclusiones. Primera: con pocos datos, la red domina y no conviene distribuir. Segunda: con todos los datos, el clúster sí gana, y el modelo es idéntico. Tercera: en un algoritmo síncrono, el nodo más lento marca el ritmo; agregar una CPU baja el speedup de 18 a 6. El siguiente paso es un **reparto proporcional al rendimiento**: medir cuánto rinde cada nodo y darle más datos a la GPU. Después vienen MPI, warp shuffles en CUDA y los núcleos nativos en Pthreads y OpenMP. La tabla de la derecha resume la idea de toda la exposición: cada ley del curso, Amdahl, Gustafson y la barrera síncrona, la medimos en el clúster real."
 
-**Transición:** "Y para cerrar, cómo se conecta esto con el curso."
+**Cierre** (señala la tabla "teoría → lo medido" y mira al público):
+> "En resumen: cada concepto del curso que aplicamos, desde Flynn y las colectivas hasta Amdahl, el balanceo y CUDA, no solo está implementado: está **medido** en un clúster real. Muchas gracias en nombre de todo el grupo; quedo atento a sus preguntas."
 
-## Diapositiva 10 · Temas del curso (0:30)
-
-**En pantalla:** 3 contadores (temas hechos, en Go, pendientes), la matriz de temas y el cierre "Gracias · ¿Preguntas?" con los nombres del grupo.
-
-**Qué hacer:** señala los contadores; recorre la tabla con la vista, sin leerla.
-
-**Qué decir:**
-> "Arriba, el resumen: la mayoría de los temas están hechos y medidos. Cada tema del curso que aplicamos tiene aquí una evidencia **medida**, no solo implementada: Flynn, speedup y Amdahl, colectivas, mutex frente a CAS, reducción, balanceo de carga y CUDA. Lo pendiente, MPI y los núcleos nativos, ya tiene el contrato de datos listo. Muchas gracias en nombre de todo el grupo; quedo atento a sus preguntas."
-
----
+**Qué hacer después:** deja la diapositiva 9 en pantalla durante las preguntas; si piden un detalle, vuelve con `←` a la diapositiva que corresponda.
 
 ## Preguntas probables (respuestas cortas que muestran dominio)
 
