@@ -1,7 +1,7 @@
 {
   "experimento": "Experimento 2",
   "descripcion": "Entrenamiento distribuido por TCP entre PCs del grupo por Tailscale, muestra completa (2,5 M ejemplos)",
-  "generado": "2026-10-15T17:46:44-05:00",
+  "generado": "2026-10-15T18:12:14-05:00",
   "cpus_logicas": 12,
   "modo_base": "secuencial",
   "modo_paralelo": "tcp_tailscale",
@@ -22,18 +22,18 @@
   "puntos": [
     {
       "unidades": 1,
-      "repeticiones": 3,
+      "repeticiones": 5,
       "t_total_s": 2.2767,
       "speedup": 18.206570914042253,
       "eficiencia": 18.206570914042253,
       "speedup_amdahl": 1,
-      "maquina": "1 PC por Tailscale (1 GPU), muestra completa",
+      "maquina": "web: augusto-pc(cuda)",
       "fases": {
         "auc": 0.9945,
         "epocas": 200,
         "f1": 0.0147,
         "perdida_final": 0.132576,
-        "t_calculo_ms": 3.0951,
+        "t_calculo_ms": 3.127,
         "t_comunicacion_ms": 8.3341,
         "t_epoca_ms": 11.3833,
         "t_total_s": 2.2767
@@ -41,42 +41,42 @@
     },
     {
       "unidades": 2,
-      "repeticiones": 3,
-      "t_total_s": 3.8775,
-      "speedup": 10.69010960670535,
-      "eficiencia": 5.345054803352675,
-      "karp_flatt": -0.8129111792506314,
+      "repeticiones": 5,
+      "t_total_s": 3.9226,
+      "speedup": 10.567200326314179,
+      "eficiencia": 5.2836001631570895,
+      "karp_flatt": -0.8107351106972346,
       "speedup_amdahl": 1.9999980000020001,
-      "maquina": "2 PCs por Tailscale (2 GPU), muestra completa",
+      "maquina": "web: augusto-pc(cuda)+josue(cuda)",
       "fases": {
         "auc": 0.9945,
         "epocas": 200,
         "f1": 0.0147,
         "perdida_final": 0.132576,
-        "t_calculo_ms": 5.2537,
-        "t_comunicacion_ms": 14.2466,
-        "t_epoca_ms": 19.3873,
-        "t_total_s": 3.8775
+        "t_calculo_ms": 5.3614,
+        "t_comunicacion_ms": 12.6772,
+        "t_epoca_ms": 19.6132,
+        "t_total_s": 3.9226
       }
     },
     {
       "unidades": 3,
-      "repeticiones": 3,
-      "t_total_s": 6.8537,
-      "speedup": 6.047959496330449,
-      "eficiencia": 2.0159864987768166,
-      "karp_flatt": -0.2519824660019444,
+      "repeticiones": 4,
+      "t_total_s": 7.286099999999999,
+      "speedup": 5.68903803131991,
+      "eficiencia": 1.89634601043997,
+      "karp_flatt": -0.23633503735745176,
       "speedup_amdahl": 2.9999940000120002,
-      "maquina": "3 PCs por Tailscale (2 GPU + 1 CPU), muestra completa",
+      "maquina": "web: augusto-pc(cuda)+josue(cuda)+angelo(go)",
       "fases": {
         "auc": 0.9945,
         "epocas": 200,
         "f1": 0.0147,
         "perdida_final": 0.132576,
-        "t_calculo_ms": 18.1027,
-        "t_comunicacion_ms": 16.2394,
-        "t_epoca_ms": 34.2685,
-        "t_total_s": 6.8537
+        "t_calculo_ms": 18.06465,
+        "t_comunicacion_ms": 18.1344,
+        "t_epoca_ms": 36.4306,
+        "t_total_s": 7.286099999999999
       }
     }
   ],
@@ -84,18 +84,18 @@
     "tcp_tailscale": [
       {
         "unidades": 1,
-        "repeticiones": 3,
+        "repeticiones": 5,
         "t_total_s": 2.2767,
         "speedup": 18.206570914042253,
         "eficiencia": 18.206570914042253,
         "speedup_amdahl": 1,
-        "maquina": "1 PC por Tailscale (1 GPU), muestra completa",
+        "maquina": "web: augusto-pc(cuda)",
         "fases": {
           "auc": 0.9945,
           "epocas": 200,
           "f1": 0.0147,
           "perdida_final": 0.132576,
-          "t_calculo_ms": 3.0951,
+          "t_calculo_ms": 3.127,
           "t_comunicacion_ms": 8.3341,
           "t_epoca_ms": 11.3833,
           "t_total_s": 2.2767
@@ -103,42 +103,42 @@
       },
       {
         "unidades": 2,
-        "repeticiones": 3,
-        "t_total_s": 3.8775,
-        "speedup": 10.69010960670535,
-        "eficiencia": 5.345054803352675,
-        "karp_flatt": -0.8129111792506314,
+        "repeticiones": 5,
+        "t_total_s": 3.9226,
+        "speedup": 10.567200326314179,
+        "eficiencia": 5.2836001631570895,
+        "karp_flatt": -0.8107351106972346,
         "speedup_amdahl": 1.9999980000020001,
-        "maquina": "2 PCs por Tailscale (2 GPU), muestra completa",
+        "maquina": "web: augusto-pc(cuda)+josue(cuda)",
         "fases": {
           "auc": 0.9945,
           "epocas": 200,
           "f1": 0.0147,
           "perdida_final": 0.132576,
-          "t_calculo_ms": 5.2537,
-          "t_comunicacion_ms": 14.2466,
-          "t_epoca_ms": 19.3873,
-          "t_total_s": 3.8775
+          "t_calculo_ms": 5.3614,
+          "t_comunicacion_ms": 12.6772,
+          "t_epoca_ms": 19.6132,
+          "t_total_s": 3.9226
         }
       },
       {
         "unidades": 3,
-        "repeticiones": 3,
-        "t_total_s": 6.8537,
-        "speedup": 6.047959496330449,
-        "eficiencia": 2.0159864987768166,
-        "karp_flatt": -0.2519824660019444,
+        "repeticiones": 4,
+        "t_total_s": 7.286099999999999,
+        "speedup": 5.68903803131991,
+        "eficiencia": 1.89634601043997,
+        "karp_flatt": -0.23633503735745176,
         "speedup_amdahl": 2.9999940000120002,
-        "maquina": "3 PCs por Tailscale (2 GPU + 1 CPU), muestra completa",
+        "maquina": "web: augusto-pc(cuda)+josue(cuda)+angelo(go)",
         "fases": {
           "auc": 0.9945,
           "epocas": 200,
           "f1": 0.0147,
           "perdida_final": 0.132576,
-          "t_calculo_ms": 18.1027,
-          "t_comunicacion_ms": 16.2394,
-          "t_epoca_ms": 34.2685,
-          "t_total_s": 6.8537
+          "t_calculo_ms": 18.06465,
+          "t_comunicacion_ms": 18.1344,
+          "t_epoca_ms": 36.4306,
+          "t_total_s": 7.286099999999999
         }
       }
     ]
