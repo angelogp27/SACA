@@ -80,7 +80,7 @@ function App() {
       </header>
 
       {presentando ? (
-        <Protector key={`p${diapositiva}`}>
+        <Protector>
         <Presentacion
           indice={diapositiva}
           setIndice={irA}
