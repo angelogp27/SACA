@@ -163,6 +163,32 @@ El grupo debe presentar el avance del clúster de forma **virtual**: las PCs est
 - Correr el Experimento 2 por Tailscale (`-modo tcp_tailscale`) y actualizar la diapositiva 5.
 - Opcional: panel del clúster del frontend con los datos reales del Experimento 2 (hoy es una maqueta).
 
+## Clúster real por Tailscale con todos los datos (15 de octubre de 2026, tarde)
+
+**Primer ensayo real:** maestro en Windows (Piero) y nodo en Fedora (angelo), en casas distintas. Con la muestra de prueba (146 mil ejemplos): 2,8 ms de cálculo + 7,4 ms de red por época, **72 % de comunicación**, misma pérdida que la secuencial y la caída del nodo detectada en la época 239. No justificaba un clúster.
+
+**Decisión:** el clúster usa **todos los registros con NO2 etiquetables**.
+- Se construye con `secuencial -muestra 0 -cache data/muestra.gob`: 3 342 599 ejemplos, 2 499 636 de entrenamiento, 337 MB, huella `c2c8f8832a30`, ~10 min desde Mongo.
+- La muestra anterior pasó a `data/muestra_prueba.gob` y sigue siendo la caché por defecto de `secuencial`/`paralelo`, para el Experimento 1b y la e2e.
+- Los resultados con la muestra de prueba quedaron en `resultados/experimento2_prueba.*`.
+
+**Experimento 2 con la muestra completa** (3 rondas, mediana; T(1) secuencial = 41,5 s, 207 ms por época):
+
+| Nodos | T(p) | S | Cálculo del más lento | Red | % red |
+|---|---:|---:|---:|---:|---:|
+| augusto (RTX 3060 Ti) | 2,28 s | 18,2 | 3,1 ms | 8,3 ms | 73 % |
+| + josue (RTX 4060 Laptop) | 3,88 s | 10,7 | 5,3 ms | 14,2 ms | 73 % |
+| + angelo (CPU, 16 hilos) | 6,85 s | 6,1 | 18,0 ms | 16,2 ms | 47 % |
+
+**Hallazgos:**
+- Una GPU remota calcula una época de 2,5 M ejemplos en ~3 ms. Con eso la red vuelve a dominar, y agregar nodos empeora el tiempo.
+- Con el nodo CPU, el modo síncrono espera al más lento. Motiva el reparto proporcional al rendimiento (Experimento 9): se estima que bajaría el cálculo por época de ~18 ms a ~3,5 ms.
+
+**Incidentes:**
+- **PC del maestro sin memoria.** Al pasar `-Nodos 1,2,4` desde otra terminal, PowerShell lo recibió como un texto y `[int[]]` lo convirtió en **124**: se lanzaron 124 trabajadores de ~1,5 GB cada uno. Ahora `scripts/memoria.ps1` lee la lista correctamente, limita el rango a 1-32 y **comprueba la RAM libre antes de lanzar procesos** (~4,5 veces el tamaño de la muestra por proceso).
+- **Ctrl+C en la ventana del maestro.** La prueba de caída se hacía presionando Ctrl+C en el maestro y no en el nodo. Ahora el maestro distingue los dos casos en su mensaje.
+- **Nodos que llegaban tarde.** Algunos se registraban durante la verificación secuencial. Ahora el maestro deja de aceptar nodos al terminar el entrenamiento y avisa durante la verificación.
+
 ## Cómo retomar
 
 ```powershell
