@@ -1,0 +1,90 @@
+{
+  "experimento": "Experimento 2",
+  "descripcion": "Entrenamiento distribuido por TCP entre las PCs del grupo, por combinación de nodos",
+  "generado": "2026-10-15T18:23:14-05:00",
+  "cpus_logicas": 12,
+  "modo_base": "secuencial",
+  "modo_paralelo": "tcp_tailscale:augusto-pc+josue",
+  "t1_s": 43.9585,
+  "fases_base": {
+    "auc": 0.9945,
+    "epocas": 200,
+    "f1": 0.0147,
+    "perdida_final": 0.132576,
+    "t_calculo_ms": 219.7927,
+    "t_comunicacion_ms": 0,
+    "t_epoca_ms": 219.7927,
+    "t_total_s": 43.9585
+  },
+  "fraccion_serial": 0.000001,
+  "origen_fraccion_serial": "karp_flatt",
+  "speedup_maximo_amdahl": 1000000,
+  "puntos": [
+    {
+      "unidades": 2,
+      "repeticiones": 1,
+      "t_total_s": 5.1185,
+      "speedup": 8.588160593924002,
+      "eficiencia": 4.294080296962001,
+      "karp_flatt": -0.7671212620994802,
+      "speedup_amdahl": 1.9999980000020001,
+      "maquina": "augusto-pc(cuda)+josue(cuda) · 2499636 ejemplos",
+      "fases": {
+        "auc": 0.9945,
+        "epocas": 200,
+        "f1": 0.0147,
+        "perdida_final": 0.132576,
+        "t_calculo_ms": 8.7122,
+        "t_comunicacion_ms": 16.8427,
+        "t_epoca_ms": 25.5927,
+        "t_total_s": 5.1185
+      }
+    }
+  ],
+  "series": {
+    "tcp_tailscale:angelo+augusto-pc+josue": [
+      {
+        "unidades": 3,
+        "repeticiones": 1,
+        "t_total_s": 8.3729,
+        "speedup": 5.2500925605226385,
+        "eficiencia": 1.7500308535075462,
+        "karp_flatt": -0.21429075150425966,
+        "speedup_amdahl": 2.9999940000120002,
+        "maquina": "angelo(go)+augusto-pc(cuda)+josue(cuda) · 2499636 ejemplos",
+        "fases": {
+          "auc": 0.9945,
+          "epocas": 200,
+          "f1": 0.0147,
+          "perdida_final": 0.132576,
+          "t_calculo_ms": 17.5302,
+          "t_comunicacion_ms": 24.2193,
+          "t_epoca_ms": 41.8643,
+          "t_total_s": 8.3729
+        }
+      }
+    ],
+    "tcp_tailscale:augusto-pc+josue": [
+      {
+        "unidades": 2,
+        "repeticiones": 1,
+        "t_total_s": 5.1185,
+        "speedup": 8.588160593924002,
+        "eficiencia": 4.294080296962001,
+        "karp_flatt": -0.7671212620994802,
+        "speedup_amdahl": 1.9999980000020001,
+        "maquina": "augusto-pc(cuda)+josue(cuda) · 2499636 ejemplos",
+        "fases": {
+          "auc": 0.9945,
+          "epocas": 200,
+          "f1": 0.0147,
+          "perdida_final": 0.132576,
+          "t_calculo_ms": 8.7122,
+          "t_comunicacion_ms": 16.8427,
+          "t_epoca_ms": 25.5927,
+          "t_total_s": 5.1185
+        }
+      }
+    ]
+  }
+}

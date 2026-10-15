@@ -1,0 +1,4 @@
+modo,goroutines,epocas,t_total_s,t_epoca_ms,t_calculo_ms,t_comunicacion_ms,perdida_final,f1,auc,maquina
+tcp_tailscale:angelo+augusto-pc+josue,3,200,8.3729,41.8643,17.5302,24.2193,0.132576,0.0147,0.9945,angelo(go)+augusto-pc(cuda)+josue(cuda) · 2499636 ejemplos
+tcp_tailscale:augusto-pc+josue,2,200,5.1185,25.5927,8.7122,16.8427,0.132576,0.0147,0.9945,augusto-pc(cuda)+josue(cuda) · 2499636 ejemplos
+secuencial,1,200,43.9585,219.7927,219.7927,0.0000,0.132576,0.0147,0.9945,augusto-pc(cuda)+josue(cuda) · 2499636 ejemplos
