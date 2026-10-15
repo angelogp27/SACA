@@ -11,6 +11,7 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -125,8 +126,9 @@ func AsegurarIndice(ctx context.Context, coleccion *mongo.Collection) error {
 
 // Construir sortea n registros que tienen NO2 con $sample y etiqueta cada uno con el NO2
 // de la misma estación horizonteHoras más tarde (1 si supera UmbralNO2).
-// Los registros sin NO2, o sin lectura futura, se descartan porque no se
-// pueden etiquetar.
+// Con n <= 0 usa todos los registros con NO2, sin sortear: es la muestra
+// completa del clúster. Los registros sin NO2, o sin lectura futura, se
+// descartan porque no se pueden etiquetar.
 //
 // Las lecturas futuras se piden en lotes de tamanoLote con un $or sobre el
 // índice compuesto, en vez de un FindOne por registro: con 200 000
@@ -134,10 +136,13 @@ func AsegurarIndice(ctx context.Context, coleccion *mongo.Collection) error {
 func Construir(ctx context.Context, coleccion *mongo.Collection, n, horizonteHoras int) (*Muestra, error) {
 	const tamanoLote = 1000
 
-	cursor, err := coleccion.Aggregate(ctx, mongo.Pipeline{
+	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.D{{Key: "no2_ppb", Value: bson.D{{Key: "$ne", Value: nil}}}}}},
-		{{Key: "$sample", Value: bson.D{{Key: "size", Value: n}}}},
-	})
+	}
+	if n > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$sample", Value: bson.D{{Key: "size", Value: n}}}})
+	}
+	cursor, err := coleccion.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
@@ -145,6 +150,7 @@ func Construir(ctx context.Context, coleccion *mongo.Collection, n, horizonteHor
 
 	muestra := &Muestra{}
 	lote := make([]registro.RegistroProcesado, 0, tamanoLote)
+	leidos, inicio := 0, time.Now()
 	for cursor.Next(ctx) {
 		var r registro.RegistroProcesado
 		if err := cursor.Decode(&r); err != nil {
@@ -156,6 +162,9 @@ func Construir(ctx context.Context, coleccion *mongo.Collection, n, horizonteHor
 				return nil, err
 			}
 			lote = lote[:0]
+			if leidos += tamanoLote; leidos%100000 == 0 {
+				log.Printf("muestra: %d registros leídos, %d etiquetados (%s)", leidos, muestra.Len(), time.Since(inicio).Round(time.Second))
+			}
 		}
 	}
 	if err := cursor.Err(); err != nil {
