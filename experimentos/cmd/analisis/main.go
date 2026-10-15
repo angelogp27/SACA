@@ -32,6 +32,9 @@ type Punto struct {
 	Eficiencia   float64 `json:"eficiencia"`
 	KarpFlatt    float64 `json:"karp_flatt,omitempty"`
 	Amdahl       float64 `json:"speedup_amdahl"`
+	// Maquina es la columna "maquina" de la última corrida (si el CSV la
+	// tiene): describe la configuración, p. ej. qué nodos y GPUs usó.
+	Maquina string `json:"maquina,omitempty"`
 	// Columnas adicionales del CSV (mediana), por ejemplo t_mongo_s.
 	Fases map[string]float64 `json:"fases"`
 }
@@ -66,7 +69,7 @@ func main() {
 	columnasSerial := flag.String("serial", "t_indexado_s,t_mongo_s", "columnas que suman la parte serial del T(1), para Amdahl; vacío para estimarla con Karp-Flatt")
 	flag.Parse()
 
-	corridas, err := leer(*entrada)
+	corridas, maquinas, err := leer(*entrada)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -81,7 +84,7 @@ func main() {
 	modos := strings.Split(*modosParalelos, ",")
 	series := map[string][]Punto{}
 	for _, modo := range modos {
-		if ps := puntos(corridas, modo, t1); len(ps) > 0 {
+		if ps := puntos(corridas, maquinas, modo, t1); len(ps) > 0 {
 			series[modo] = ps
 		}
 	}
@@ -145,14 +148,14 @@ func main() {
 
 // puntos resume las corridas de un modo: mediana por número de
 // goroutines, speedup y eficiencia contra t1, y Karp-Flatt.
-func puntos(corridas map[clave][]map[string]float64, modo string, t1 float64) []Punto {
+func puntos(corridas map[clave][]map[string]float64, maquinas map[clave]string, modo string, t1 float64) []Punto {
 	var res []Punto
 	for k, filas := range corridas {
 		if k.modo != modo {
 			continue
 		}
 		fases := medianas(filas)
-		p := Punto{Unidades: k.goroutines, Repeticiones: len(filas), TTotal: fases["t_total_s"], Fases: fases}
+		p := Punto{Unidades: k.goroutines, Repeticiones: len(filas), TTotal: fases["t_total_s"], Fases: fases, Maquina: maquinas[k]}
 		p.Speedup = t1 / p.TTotal
 		p.Eficiencia = p.Speedup / float64(p.Unidades)
 		n := float64(p.Unidades)
@@ -173,32 +176,36 @@ type clave struct {
 	goroutines int
 }
 
-func leer(ruta string) (map[clave][]map[string]float64, error) {
+func leer(ruta string) (map[clave][]map[string]float64, map[clave]string, error) {
 	f, err := os.Open(ruta)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer f.Close()
 
 	filas, err := csv.NewReader(f).ReadAll()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(filas) < 2 {
-		return nil, fmt.Errorf("%s no tiene corridas", ruta)
+		return nil, nil, fmt.Errorf("%s no tiene corridas", ruta)
 	}
 	encabezado := filas[0]
 
 	corridas := map[clave][]map[string]float64{}
+	maquinas := map[clave]string{}
 	for _, fila := range filas[1:] {
 		valores := map[string]float64{}
 		var k clave
+		maquina := ""
 		for i, col := range encabezado {
 			switch col {
 			case "modo":
 				k.modo = fila[i]
 			case "goroutines":
 				k.goroutines, _ = strconv.Atoi(fila[i])
+			case "maquina":
+				maquina = fila[i]
 			default:
 				if v, err := strconv.ParseFloat(fila[i], 64); err == nil {
 					valores[col] = v
@@ -206,8 +213,11 @@ func leer(ruta string) (map[clave][]map[string]float64, error) {
 			}
 		}
 		corridas[k] = append(corridas[k], valores)
+		if maquina != "" {
+			maquinas[k] = maquina // la de la última corrida
+		}
 	}
-	return corridas, nil
+	return corridas, maquinas, nil
 }
 
 // medianas toma, columna por columna, la mediana de las repeticiones: es
