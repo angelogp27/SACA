@@ -128,13 +128,7 @@ export const diapositivas = [
     seccion: 'Conclusiones',
     titulo: 'El nodo más lento marca el ritmo del clúster',
     tema: 'Sem. 10 · Balanceo de carga',
-    notas: 'Tres conclusiones con su cifra. Cerrar con el próximo paso: reparto proporcional al rendimiento, para que la GPU reciba más datos que la CPU. 45 s.',
-  },
-  {
-    seccion: 'Temas del curso',
-    titulo: 'Lo que el curso enseña, aplicado y medido en SACA',
-    tema: 'Unidades I a IV',
-    notas: 'No leer la tabla: señalar que cada tema tiene una evidencia medida. Lo pendiente (MPI, Pthreads, OpenMP nativos, warp shuffles) ya tiene contrato y datos listos. Cerrar: "Gracias, ¿preguntas?" 30 s.',
+    notas: 'Tres conclusiones con su cifra; la tabla une cada ley del curso con lo medido. Próximo paso: reparto proporcional al rendimiento. Cerrar: "Muchas gracias en nombre del grupo; quedo atento a sus preguntas." 1 min 20 s.',
   },
 ]
 

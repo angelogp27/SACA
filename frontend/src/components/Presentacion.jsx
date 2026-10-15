@@ -1,4 +1,4 @@
-// Modo presentación: la exposición del avance en 10 diapositivas (unos 10
+// Modo presentación: la exposición del avance en 9 diapositivas (unos 10
 // minutos, demo incluida), con los datos reales y el clúster en vivo.
 // Teclas: ← → o espacio para navegar, N para las notas del orador, F para
 // pantalla completa y T para reiniciar el cronómetro. La diapositiva
@@ -12,14 +12,12 @@ import {
   conceptos,
   diapositivas,
   docentes,
-  etiquetaEstado,
   grupo,
   integrantes,
   mensajes,
   niveles,
   proximos,
   teoriaMedido,
-  temasCurso,
 } from '../data/presentacion'
 import { esGPU, useCluster } from '../data/cluster'
 import { ArbolReduccion, FlujoColectivas, GraficaSpeedup, ModeloCosto, NivelesParalelismo } from './Diagramas'
@@ -380,39 +378,6 @@ function Conclusiones({ c, datos }) {
   )
 }
 
-function Temas({ datos }) {
-  const temas = temasCurso(datos)
-  const cuenta = (e) => temas.filter((t) => t.estado === e).length
-  return (
-    <div className="llena">
-      <div className="cifras compactas tres">
-        <Cifra valor={cuenta('hecho')} texto="temas hechos y medidos" tono="acento" />
-        <Cifra valor={cuenta('go')} texto="hechos en Go, núcleo nativo pendiente" />
-        <Cifra valor={cuenta('pendiente')} texto="pendientes, con contrato de datos listo" />
-      </div>
-      <table className="matriz-temas">
-        <thead>
-          <tr><th>Unidad</th><th>Tema</th><th>Evidencia medida en SACA</th><th>Estado</th></tr>
-        </thead>
-        <tbody>
-          {temas.map((t) => (
-            <tr key={t.tema}>
-              <td className="unidad">{t.unidad}</td>
-              <td>{t.tema}</td>
-              <td>{t.evidencia}</td>
-              <td><span className={`estado-tema ${t.estado}`}>{etiquetaEstado[t.estado]}</span></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="cierre">
-        <strong>Gracias · ¿Preguntas?</strong>
-        <span>{grupo.map((g) => `${g.nombres.split(' ')[0]} ${g.apellidos.split(' ')[0]}`).join(' · ')}</span>
-      </div>
-    </div>
-  )
-}
-
 // --- Plantilla y controles ---------------------------------------------
 
 // Ajustado escala su contenido para que quepa entero en el espacio de la
@@ -531,7 +496,6 @@ export default function Presentacion({ indice, setIndice, datos, estaciones, est
     7: <Demo datos={datos} />,
     8: <Resultados c={c} datos={datos} />,
     9: <Conclusiones c={c} datos={datos} />,
-    10: <Temas datos={datos} />,
   }[indice]
 
   return (
