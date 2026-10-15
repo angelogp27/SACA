@@ -6,17 +6,17 @@ Guía para que el grupo prepare y dé la presentación **virtual** del avance de
 
 1. **El clúster funciona de verdad y da el mismo resultado.** Varias PCs del grupo, cada una en su casa, entrenan juntas el modelo. La pérdida final es idéntica a la del entrenamiento secuencial (diferencia del orden de 1e-15): la descomposición de datos es correcta.
 2. **Es heterogéneo.** Unas PCs calculan con goroutines en la CPU y otras con CUDA en su GPU NVIDIA, bajo el mismo protocolo. Es el modelo jerárquico de HPC: paso de mensajes entre nodos, memoria compartida o GPU dentro de cada nodo.
-3. **Medimos el costo de la comunicación.** En una PC la red cuesta un 3-5 % por época. Por internet domina, porque cada época calcula unos pocos ms y espera decenas de ms de red. Es Amdahl en vivo: el speedup lo limita la parte que no se paraleliza (la comunicación síncrona), no la cantidad de nodos.
+3. **Medimos cuándo conviene un clúster.** Con una muestra pequeña, el 72 % del tiempo es red y no se gana nada. Con **todos los datos de NO2** (2,5 M ejemplos), una GPU remota por internet entrena **18 veces más rápido** que la CPU local. Pero sumar nodos más lentos frena a todos: en modo síncrono el más lento marca el ritmo. Es Amdahl y balanceo de carga, medidos en un clúster real.
 
 ## 2. Roles
 
 | Rol | Quién | Qué hace | Su guía |
 |---|---|---|---|
 | Presentador principal | ___ | Conduce, muestra las diapositivas y narra la demo | esta |
-| Operador del maestro | ___ (quien tiene la muestra y el puerto abierto) | Comparte su pantalla durante la demo y lanza `maestro.exe` | [guia_maestro.md](cluster/guia_maestro.md), paso 8 |
-| Nodo con GPU NVIDIA 1 | ___ | Corre `nodo.ps1`; comparte pantalla cuando se le pide (validación CUDA) | [guia_nodo_con_nvidia.md](cluster/guia_nodo_con_nvidia.md), paso 10 |
-| Nodo con GPU NVIDIA 2 | ___ | Ídem | ídem |
-| Nodos sin GPU NVIDIA | ___, ___ | Corren `nodo.ps1`; uno de ellos hace la "caída" del nodo | [guia_nodo_sin_nvidia.md](cluster/guia_nodo_sin_nvidia.md), paso 7 |
+| Operador del maestro | Piero (tiene la muestra y el puerto abierto) | Comparte su pantalla durante la demo y lanza `maestro.exe` | [guia_maestro.md](cluster/guia_maestro.md), paso 8 |
+| Nodo con GPU NVIDIA 1 | augusto (RTX 3060 Ti) | Corre `nodo.ps1`; comparte pantalla cuando se le pide (validación CUDA) | [guia_nodo_con_nvidia.md](cluster/guia_nodo_con_nvidia.md), paso 10 |
+| Nodo con GPU NVIDIA 2 | josue (RTX 4060 Laptop) | Ídem | ídem |
+| Nodo sin GPU NVIDIA | angelo (Fedora, CPU) | Corren `nodo.ps1`; uno de ellos hace la "caída" del nodo | [guia_nodo_sin_nvidia.md](cluster/guia_nodo_sin_nvidia.md), paso 7 |
 | Respaldo | ___ | Tiene listo el plan B (sección 6) y la grabación del ensayo | [guia_maestro.md](cluster/guia_maestro.md), paso 8 |
 
 Todos con la cámara apagada y el micrófono silenciado, salvo quien habla. Las terminales con letra grande: `Ctrl` + rueda del mouse en Windows Terminal.
@@ -29,7 +29,7 @@ Todos con la cámara apagada y el micrófono silenciado, salvo quien habla. Las 
 | 1-3 | Por qué distribuir y cómo | Presentador | Diapositiva 2: el gradiente es una suma sobre ejemplos, así que cada nodo suma su parte y el maestro las combina (*parameter server* síncrono). Diapositiva 3: arquitectura (maestro, nodos CPU y GPU, Tailscale) |
 | 3-4 | Lo que ya teníamos | Presentador | Diapositiva 4: Experimentos 1 y 1b en memoria compartida (S(8) = 6,11 con reducción). El clúster es el siguiente nivel |
 | 4-10 | **Demo en vivo** | Operador del maestro + nodos | Sección 4 |
-| 10-12 | Resultados | Presentador | Diapositiva 5: Experimento 2 local frente a Tailscale; desglose cálculo/comunicación |
+| 10-12 | Resultados | Presentador | Diapositiva 5: Experimento 2 con todos los datos (1 GPU: S = 18; más nodos: más lento) y comparación con la muestra de prueba |
 | 12-13 | Lecciones | Presentador | Diapositiva 6: Amdahl, latencia, desbalance, heterogeneidad |
 | 13-14 | Próximos pasos | Presentador | Diapositiva 7: MPI (Experimentos 7 y 7a), kernels CUDA con *shuffle* (Experimento 8), reparto proporcional al rendimiento (Experimento 9) |
 | 14-15 | Preguntas | Todos | Sección 7 |
@@ -41,22 +41,21 @@ Antes de empezar a hablar, **todos los nodos ya están con `nodo.ps1` abierto y 
 1. **Arranque del maestro.** El operador comparte pantalla y ejecuta:
 
    ```powershell
-   .\bin\maestro.exe -nodos 4 -modo tcp_tailscale -maquina "demo: 4 PCs por Tailscale" -resultado resultados\experimento2.csv
+   .\bin\maestro.exe -nodos 3 -modo tcp_tailscale -maquina "demo: 3 PCs por Tailscale" -verificar=false
    ```
 
-   Narrar: "el maestro carga la muestra, calcula su huella y espera 4 nodos".
+   Narrar: "el maestro carga los 2,5 millones de ejemplos, calcula su huella y espera 3 nodos". `-verificar=false` evita el minuto de entrenamiento secuencial al final; la verificación ya está medida en el Experimento 2 y se muestra en la diapositiva 5.
 2. **Registro de los nodos.** En segundos aparecen las líneas `nodo luis registrado desde 100.x.y.z → partición 2/4, motor cuda (NVIDIA ...)`. Señalar:
    - las **IPs 100.x**: son PCs en casas distintas;
    - el **motor** de cada nodo: go o cuda;
    - la **partición**: cada nodo tiene estaciones distintas, sin solaparse.
 3. **(Opcional, 30 s) Rechazo por datos distintos.** Si se preparó un nodo con una muestra alterada, mostrar el `rechazado, su muestra tiene otra huella`. Mensaje: el maestro protege la corrección del resultado.
-4. **Entrenamiento.** Corre solo, en unos 10 s por internet. Leer una línea: "por época, el nodo más lento calcula X ms y la red se lleva Y ms".
+4. **Entrenamiento.** Corre solo, en unos 7 s por internet. Leer una línea: "por época, el nodo más lento calcula X ms y la red se lleva Y ms".
 5. **Nodo GPU.** El nodo GPU 1 comparte pantalla 20 s: `motor cuda validado contra el de Go: mismo gradiente`. Mensaje: antes de usar la GPU se comprueba que da lo mismo que la CPU.
 6. **Tabla final y verificación.** Volver al maestro:
    - tabla por nodo: quién calculó qué y cuánto tardó;
-   - `verificación: ... diferencia 2.6e-15 → OK, mismo modelo`;
-   - el speedup (o *slowdown*) frente al secuencial, que conecta con las lecciones.
-7. **Caída de un nodo.** El maestro relanza con `-epocas 2000`. A mitad, un nodo CPU cierra su ventana. El maestro aborta con `el nodo X se cayó; el modo síncrono no puede seguir sin su partición`. Mensaje: se detecta y no se cuelga. La tolerancia a fallos (redistribuir la partición o el modo asíncrono) es el siguiente paso, en el Experimento 4.
+   - señalar que angelo (CPU) tardó ~18 ms por época y augusto (GPU) ~1,3 ms: **el más lento marca el ritmo**, lo que conecta con las lecciones.
+7. **Caída de un nodo.** El maestro relanza con `-epocas 2000 -verificar=false`. A mitad, angelo presiona `Ctrl` + `C` **en su terminal** (el operador del maestro no toca su ventana). El maestro aborta con `el nodo X se cayó; el modo síncrono no puede seguir sin su partición`. Mensaje: se detecta y no se cuelga. La tolerancia a fallos (redistribuir la partición o el modo asíncrono) es el siguiente paso, en el Experimento 4.
 
 ## 5. Contenido sugerido de las diapositivas
 
@@ -64,34 +63,28 @@ Antes de empezar a hablar, **todos los nodos ya están con `nodo.ps1` abierto y 
 2. **Por qué se puede distribuir.** La fórmula ∇L = Σᵢ ∇ℓᵢ partida en Σ_{nodo 1} + Σ_{nodo 2} + …; la figura del *parameter server*. Conceptos del sílabo: **descomposición de datos** (semana 10) y **paso de mensajes** (semanas 3-4).
 3. **Arquitectura del clúster.** La figura de [cluster/README.md](cluster/README.md). Clasificación: **multicomputador MIMD de memoria distribuida, heterogéneo** (semana 2); dentro de cada nodo, memoria compartida o GPU SIMT. Protocolo: JSON por TCP (registro, partición, parámetros, gradiente, finalizado, baja).
 4. **De dónde venimos.** Experimento 1 (cargador, S(16) = 3,77) y 1b (entrenamiento con goroutines, S(8) = 6,11 con reducción; mutex y CAS más lentos que el secuencial). El clúster reutiliza la misma reducción.
-5. **Resultados del Experimento 2.**
+5. **Resultados del Experimento 2: clúster real por internet con todos los datos de NO2.**
 
-   | Configuración | p | T(p) | S(p) | % comunicación |
-   |---|---:|---:|---:|---:|
-   | Secuencial (1 PC) | 1 | 2,68 s | 1,00 | — |
-   | TCP local (procesos, 1 goroutine por nodo) | 2 | 1,65 s | 1,62 | 3 % |
-   | TCP local | 4 | 1,37 s | 1,96 | 4 % |
-   | TCP local | 8 | 1,07 s | 2,51 | 4-5 % |
-   | **Tailscale: 2 casas por internet** (15/10, 1 nodo Fedora de 16 hilos) | 1 | 2,06 s | 1,30* | **72 %** |
+   Muestra completa: **2 499 636 ejemplos** de entrenamiento (3,3 M en total, 337 MB). 200 épocas, mediana de 3 repeticiones, 15/10/2026. Maestro en Windows (Ryzen 5 3600); nodos en 3 casas distintas unidos por Tailscale, todos con conexión directa (`tailscale ping` de 5, 6 y 17 ms).
 
-   Mediana de 3 repeticiones, 200 épocas; maestro en un Ryzen 5 3600. Fuente: `resultados/experimento2.md`.
+   | Configuración | Nodos | T(p) | **Speedup** | Cálculo del más lento | Red y espera | % comunicación |
+   |---|---|---:|---:|---:|---:|---:|
+   | Secuencial (1 hilo de CPU, PC del maestro) | — | 41,5 s | 1,0 | 207 ms | — | — |
+   | **1 GPU** | augusto (RTX 3060 Ti) | **2,28 s** | **18,2** | 3,1 ms | 8,3 ms | 73 % |
+   | 2 GPUs | + josue (RTX 4060 Laptop) | 3,88 s | 10,7 | 5,3 ms | 14,2 ms | 73 % |
+   | 2 GPUs + 1 CPU | + angelo (Ryzen 7 7735HS, 16 hilos) | 6,85 s | 6,1 | **18,0 ms (angelo)** | 16,2 ms | 47 % |
 
-   **Por Tailscale** (maestro en Windows y nodo en Fedora, conexión directa, `tailscale ping` de 29 ms), cada época dura unos 10 ms:
+   En todas las corridas, la pérdida final fue **idéntica** a la secuencial (`0.132576`, diferencia ~1e-15). Fuente: `resultados/experimento2.md` y `.csv`.
 
-   | | ms por época |
-   |---|---:|
-   | Cálculo del nodo | 2,8 |
-   | Red (ida y vuelta) | 7,4 |
-   | **Total** | **10,3** |
+   **Comparación con la muestra de prueba** (146 mil ejemplos, 1 nodo CPU por Tailscale): 2,8 ms de cálculo y 7,4 ms de red por época, 72 % de comunicación y S = 1,3. Con 17 veces más datos, el cálculo por época en una CPU pasa de ~12 ms a ~207 ms mientras la red sigue en ~8 ms. **Ahí el clúster se justifica:** una sola GPU remota, por internet, entrena 18 veces más rápido que la CPU local. Resultados de la muestra de prueba: `resultados/experimento2_prueba.md`.
 
-   El **72 % del tiempo es comunicación**, y en una corrida con más jitter de internet llegó al 83 %. Pérdida final idéntica a la secuencial (diferencia 2,5e-15). La caída del nodo se detectó y el maestro abortó limpio en la época 239.
-
-   \* El S(1) = 1,30 **no** viene de distribuir. El nodo calcula con 16 hilos y el secuencial con 1: su CPU hace en 2,8 ms lo que el secuencial hace en ~12 ms, y la red se come casi toda esa ganancia. No se compara con la serie local, que usa 1 hilo por nodo.
-6. **Lecciones.**
-   - **Amdahl y Karp-Flatt:** localmente f ≈ 0,31, y el speedup máximo ronda 3,2.
-   - **Latencia:** por internet, la comunicación síncrona por época (decenas de ms) supera al cálculo (pocos ms). El clúster gana solo si el trabajo por época crece: todos los registros en lugar de una muestra, más variables con los rezagos.
-   - **Desbalance:** la partición por hash de estación no da partes iguales (con 4 nodos, entre 34 mil y 39 mil ejemplos). El nodo con más datos, o el más lento, marca el ritmo.
-   - **Heterogeneidad:** una GPU es mucho más rápida calculando, pero en modo síncrono espera al nodo CPU más lento. De ahí el **reparto proporcional al rendimiento** del Experimento 9.
+6. **Lecciones** (cada una sale de una fila de la tabla).
+   - **El tamaño del problema decide (Amdahl).** La red cuesta lo mismo con 146 mil que con 2,5 M ejemplos, porque por época solo viajan 13 números. Lo que crece es el cálculo. Con pocos datos, la parte no paralelizable (la comunicación síncrona) domina; con todos los datos, el cálculo distribuido gana.
+   - **Más nodos no siempre es más rápido.** Pasar de 1 a 2 GPUs **empeoró** el tiempo (2,3 s → 3,9 s). La GPU es tan rápida (~3 ms por época para 2,5 M ejemplos) que partir el trabajo ahorra apenas 1-2 ms, mientras que cada nodo extra agrega la espera de su red. El maestro siempre espera al nodo con peor conexión.
+   - **Heterogeneidad: el más lento marca el ritmo.** Con el nodo CPU, cada época espera a angelo (18 ms), aunque augusto termina su parte en ~1,3 ms. Las particiones son casi iguales (807 mil, 885 mil y 807 mil ejemplos), pero las máquinas no: la RTX 3060 Ti es ~14 veces más rápida que la CPU de angelo.
+   - **La solución: reparto proporcional al rendimiento (Experimento 9).** Si cada nodo recibiera ejemplos según su velocidad medida (casi todo a augusto, poco a angelo), el cálculo por época bajaría de ~18 ms a ~3,5 ms. Es el siguiente paso del proyecto y el tema de balanceo de carga de la semana 10 del sílabo.
+   - **Correctitud ante todo.** Con CPU, GPU, Windows, Linux, 1, 2 o 3 nodos, el modelo resultante es el mismo bit a bit (salvo redondeo ~1e-15), y la GPU se valida contra la CPU antes de usarse.
+   - **No se miden aquí:** Karp-Flatt y Amdahl clásicos. La base T(1) es un hilo de CPU y los nodos son GPUs, así que la "eficiencia" sale mayor al 100 % y esas fórmulas no aplican. Para eso está el Experimento 1b, en memoria compartida (f ≈ 0,31 en local).
 7. **Próximos pasos.** MPI (`MPI_Bcast` + `MPI_Allreduce`) frente a este TCP en Go (Experimento 7); ping-pong de latencia y ancho de banda (7a); CUDA con *warp shuffles* y punto de cruce CPU/GPU (8); clúster híbrido con reparto proporcional (9); tolerancia a la caída de nodos.
 
 ## 6. Plan B (si algo falla en vivo)
