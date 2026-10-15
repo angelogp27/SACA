@@ -1,0 +1,306 @@
+.presentacion {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.diapositiva {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 32px;
+  min-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.diapositiva > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+}
+
+.diapositiva h2 {
+  font-size: 30px;
+  letter-spacing: -0.4px;
+}
+
+.diapositiva .tema-silabo {
+  font-size: 12px;
+}
+
+.diapositiva-cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: 16px;
+}
+
+.diapositiva p.grande {
+  font-size: 19px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.dos-columnas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .dos-columnas {
+    grid-template-columns: 1fr;
+  }
+  .diapositiva {
+    padding: 20px 16px;
+  }
+  .diapositiva h2 {
+    font-size: 24px;
+  }
+}
+
+.cifras {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.cifras div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.cifras strong {
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cifras span {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.formula {
+  font-family: var(--mono);
+  font-size: 20px;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.pasos,
+.claves,
+.lecciones {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.lecciones {
+  font-size: 18px;
+  gap: 16px;
+}
+
+.claves.en-fila {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  list-style: none;
+  padding: 0;
+}
+
+.claves strong,
+.lecciones strong,
+.pasos strong {
+  color: var(--text-primary);
+}
+
+/* Diagramas */
+.diagrama {
+  width: 100%;
+  height: auto;
+  max-width: 520px;
+}
+
+.diagrama.ancho {
+  max-width: none;
+}
+
+.caja-maestro {
+  fill: var(--page);
+  stroke: var(--text-primary);
+  stroke-width: 1.5;
+}
+
+.caja-nodo,
+.caja-cpu {
+  fill: var(--page);
+  stroke: var(--serie-1);
+  stroke-width: 1.5;
+}
+
+.caja-gpu {
+  fill: var(--page);
+  stroke: var(--serie-3);
+  stroke-width: 2;
+}
+
+.caja-texto {
+  font-size: 14px;
+  font-weight: 600;
+  fill: var(--text-primary);
+  text-anchor: middle;
+}
+
+.caja-sub {
+  font-size: 11px;
+  fill: var(--text-secondary);
+  text-anchor: middle;
+}
+
+.etiqueta-nube,
+.etiqueta-flecha {
+  font-size: 12px;
+  fill: var(--text-muted);
+  text-anchor: middle;
+}
+
+.enlace {
+  stroke: var(--baseline);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+.flecha-baja {
+  stroke: var(--serie-1);
+  stroke-width: 1.5;
+}
+
+.flecha-sube {
+  stroke: var(--serie-2);
+  stroke-width: 1.5;
+}
+
+.punta-baja {
+  fill: var(--serie-1);
+}
+
+.punta-sube {
+  fill: var(--serie-2);
+}
+
+/* Tabla de temas */
+.tabla-temas {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-x: auto;
+}
+
+.tabla-temas table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.tabla-temas caption {
+  text-align: left;
+  font-weight: 600;
+  font-size: 15px;
+  padding-bottom: 6px;
+  color: var(--text-primary);
+}
+
+.tabla-temas th,
+.tabla-temas td {
+  text-align: left;
+  vertical-align: top;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gridline);
+}
+
+.tabla-temas th {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.estado-tema {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.estado-tema.hecho {
+  color: var(--status-good);
+}
+
+.estado-tema.go {
+  color: var(--serie-1);
+}
+
+.estado-tema.pendiente {
+  color: var(--text-muted);
+}
+
+/* Navegación */
+.navegacion {
+  position: sticky;
+  bottom: 12px;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.navegacion button {
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+/* Interruptor Presentación | Tablero */
+.vista-selector {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  align-self: flex-start;
+}
+
+.vista-selector button {
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.vista-selector button[aria-pressed='true'] {
+  background: var(--text-primary);
+  color: var(--surface);
+}
