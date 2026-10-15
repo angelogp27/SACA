@@ -1,7 +1,7 @@
 {
-  "experimento": "Experimento 2",
-  "descripcion": "Entrenamiento distribuido maestro-trabajador por TCP (local y por Tailscale)",
-  "generado": "2026-10-15T16:15:46-05:00",
+  "experimento": "Experimento 2 (muestra de prueba)",
+  "descripcion": "Entrenamiento distribuido por TCP con la muestra de prueba (146 mil ejemplos): local y por Tailscale",
+  "generado": "2026-10-15T17:46:45-05:00",
   "cpus_logicas": 12,
   "modo_base": "secuencial",
   "modo_paralelo": "tcp_local",
@@ -27,6 +27,7 @@
       "speedup": 1.034855255488634,
       "eficiencia": 1.034855255488634,
       "speedup_amdahl": 1,
+      "maquina": "DESKTOP-TLB2NU1 local",
       "fases": {
         "auc": 0.9953,
         "epocas": 200,
@@ -46,6 +47,7 @@
       "eficiencia": 0.8057606196296744,
       "karp_flatt": 0.24106338239711644,
       "speedup_amdahl": 1.5196452443835793,
+      "maquina": "DESKTOP-TLB2NU1 local",
       "fases": {
         "auc": 0.9953,
         "epocas": 200,
@@ -65,6 +67,7 @@
       "eficiencia": 0.48723015001829484,
       "karp_flatt": 0.35080604786222097,
       "speedup_amdahl": 2.0530825312217793,
+      "maquina": "DESKTOP-TLB2NU1 local",
       "fases": {
         "auc": 0.9953,
         "epocas": 200,
@@ -84,6 +87,7 @@
       "eficiencia": 0.3112669471715755,
       "karp_flatt": 0.3160966399176072,
       "speedup_amdahl": 2.490135577372604,
+      "maquina": "DESKTOP-TLB2NU1 local",
       "fases": {
         "auc": 0.9953,
         "epocas": 200,
@@ -105,6 +109,7 @@
         "speedup": 1.034855255488634,
         "eficiencia": 1.034855255488634,
         "speedup_amdahl": 1,
+        "maquina": "DESKTOP-TLB2NU1 local",
         "fases": {
           "auc": 0.9953,
           "epocas": 200,
@@ -124,6 +129,7 @@
         "eficiencia": 0.8057606196296744,
         "karp_flatt": 0.24106338239711644,
         "speedup_amdahl": 1.5196452443835793,
+        "maquina": "DESKTOP-TLB2NU1 local",
         "fases": {
           "auc": 0.9953,
           "epocas": 200,
@@ -143,6 +149,7 @@
         "eficiencia": 0.48723015001829484,
         "karp_flatt": 0.35080604786222097,
         "speedup_amdahl": 2.0530825312217793,
+        "maquina": "DESKTOP-TLB2NU1 local",
         "fases": {
           "auc": 0.9953,
           "epocas": 200,
@@ -162,6 +169,7 @@
         "eficiencia": 0.3112669471715755,
         "karp_flatt": 0.3160966399176072,
         "speedup_amdahl": 2.490135577372604,
+        "maquina": "DESKTOP-TLB2NU1 local",
         "fases": {
           "auc": 0.9953,
           "epocas": 200,
@@ -182,6 +190,7 @@
         "speedup": 1.296024137427612,
         "eficiencia": 1.296024137427612,
         "speedup_amdahl": 1,
+        "maquina": "ensayo: 1 PC Linux por Tailscale (29 ms)",
         "fases": {
           "auc": 0.9953,
           "epocas": 200,

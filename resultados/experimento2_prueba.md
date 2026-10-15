@@ -1,4 +1,4 @@
-## Experimento 2 — Entrenamiento distribuido maestro-trabajador por TCP (local y por Tailscale)
+## Experimento 2 (muestra de prueba) — Entrenamiento distribuido por TCP con la muestra de prueba (146 mil ejemplos): local y por Tailscale
 
 Máquina: 12 CPUs lógicas. T(1) = 2.663 s (modo secuencial, mediana).
 Fracción serial estimada con Karp-Flatt en el mayor p: f = 0.316 → speedup máximo de Amdahl = 3.16.
