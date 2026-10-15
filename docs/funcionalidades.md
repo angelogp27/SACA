@@ -132,17 +132,31 @@ Las tres estrategias dan **la misma pérdida final**. Si no coincide, hay un err
 | maestro | `-espera` | `2m` (cuánto se espera el gradiente de un nodo antes de abortar) |
 | maestro | `-verificar` | `true` (entrena también en secuencial: misma pérdida y speedup) |
 | maestro | `-resultado`, `-modo`, `-maquina` | CSV del Experimento 2; `tcp_sincrono`; texto libre |
+| maestro | `-web` | vacío. Con una dirección (p. ej. `127.0.0.1:8080`): **modo servidor**, con sala de espera y API para la página (ver abajo) |
+| maestro | `-capacidad` | `16` (modo servidor: máximo de nodos en la sala) |
 | trabajador | `-maestro` | `localhost:9000` (por Tailscale: `100.x.y.z:9000`) |
 | trabajador | `-id` | nombre de la PC + PID |
 | trabajador | `-muestra` | `data/muestra.gob` |
 | trabajador | `-motor` | `auto`: CUDA si existe `bin/gradiente_cuda.exe` y valida contra Go; si no, goroutines. También `go` o `cuda` |
 | trabajador | `-hilos` | `0` = todos los núcleos lógicos (motor go) |
+| trabajador | `-reconectar` | `false` (los scripts `nodo.*` lo activan): si se pierde la conexión con el maestro, vuelve a intentar |
 
 El trabajador no necesita MongoDB y reintenta la conexión si el maestro todavía no arrancó. Con Ctrl+C se despide con un mensaje `baja`. Mensajes: [contrato_protocolo_tcp.md](contrato_protocolo_tcp.md). Guías por rol para unir las PCs del grupo por internet: [cluster/README.md](cluster/README.md). Motor CUDA: [nativo/cuda/README.md](../nativo/cuda/README.md).
 
+**Modo servidor (`-web`).** El maestro queda encendido. Los nodos se conectan una vez y quedan en una sala; la página (`frontend`, panel "Clúster en vivo" y diapositiva 6 de la presentación) elige los nodos y lanza las corridas. API (en la dirección de `-web`; la página la usa por el proxy `/api` de Vite):
+
+| Ruta | Qué hace |
+|---|---|
+| `GET /api/estado` | Instantánea: sala, corrida en curso (series por época) e historial de la sesión |
+| `GET /api/eventos` | La misma instantánea en vivo (*Server-Sent Events*, como mucho una cada 150 ms) |
+| `POST /api/corridas` `{"nodos": [...], "epocas": 200, "verificar": false}` | Lanza una corrida; 409 si ya hay una |
+| `POST /api/corridas/cancelar` | Cancela la corrida; los nodos vuelven a la sala |
+| `POST /api/nodos/quitar` `{"id": "..."}` | Despide a un nodo libre (se cierra en su PC) |
+| `POST /api/sesion/terminar` | Despide a todos |
+
 Scripts:
 
-- `scripts/cluster-local.ps1` (o `.sh`): el maestro y N trabajadores en una PC; con `-Ventanas`, cada trabajador en su ventana.
+- `scripts/cluster-local.ps1` (o `.sh`): el maestro y N trabajadores en una PC; con `-Ventanas`, cada trabajador en su ventana; con `-Web`, el maestro en modo servidor para usarlo desde la página.
 - `scripts/nodo.ps1 -Maestro IP:9000 -Id nombre` (o `nodo.sh`): une una PC al clúster.
 - `scripts/experimento2.ps1`: el Experimento 2 con 1, 2, 4 y 8 nodos locales.
 

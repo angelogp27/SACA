@@ -47,11 +47,21 @@ Se fija por configuración del maestro al lanzar el entrenamiento, no por mensaj
 
 `filtro_mongo` es el criterio que el trabajador usa para quedarse con su porción: las estaciones cuyo hash FNV-32a de `estacion_id` módulo `mod` es `resto`. Así cada trabajador tiene un subconjunto disjunto y estable entre épocas. Pese al nombre, que se conserva para no romper el contrato, la implementación actual no consulta MongoDB: el trabajador filtra su copia local de la muestra (`distribuido.Filtrar`).
 
+### Modo servidor: sala de espera y varias corridas
+
+Con el maestro en modo servidor (`maestro -web`), el trabajador se registra y queda en una **sala de espera**: el maestro **no** le envía `particion_asignada` al registrarse, sino al comenzar cada corrida, con `mod` = cantidad de nodos elegidos para esa corrida y `resto` = la posición del nodo entre ellos. Así, la partición cambia de una corrida a otra según los nodos elegidos en la página.
+
+- `parametros` y `gradiente_parcial` llevan `corrida` (número de corrida). El trabajador repite el que recibió, y el maestro descarta un gradiente atrasado de una corrida anterior.
+- `entrenamiento_finalizado` lleva `continuar: true`: el trabajador **no se cierra** y vuelve a la sala a esperar otra `particion_asignada`. Si la corrida se canceló o abortó, el mismo mensaje lleva `motivo` (`corrida_cancelado` o `corrida_abortado`) y también `continuar: true`.
+- `baja` con `motivo: sesion_terminada` cierra al trabajador a propósito (botones **Quitar** y **Terminar sesión** de la página). Con `maestro_cerrando`, el trabajador lanzado con `-reconectar` vuelve a intentar hasta que el maestro regrese.
+- Con el maestro de una corrida (`maestro -nodos N`), `continuar` no se envía (es `false`) y el trabajador termina como siempre.
+
 ### `parametros` (maestro → trabajador)
 
 ```json
 {
   "tipo": "parametros",
+  "corrida": 3,
   "epoca": 7,
   "pesos": [0.12, -0.03, 0.44, "..."],
   "sesgo": -2.003
@@ -82,7 +92,7 @@ Se fija por configuración del maestro al lanzar el entrenamiento, no por mensaj
 ### `entrenamiento_finalizado` (maestro → trabajador)
 
 ```json
-{ "tipo": "entrenamiento_finalizado", "epoca_final": 40, "perdida_final": 0.312 }
+{ "tipo": "entrenamiento_finalizado", "epoca_final": 40, "perdida_final": 0.312, "continuar": true }
 ```
 
 ### `baja` (cualquiera → cualquiera)
@@ -109,4 +119,5 @@ Diseño para más adelante: el maestro da de baja al nodo del registro activo y 
   - rechazo por muestra distinta y aborto ante la caída de un nodo.
 
   Cada trabajador calcula con goroutines o con el motor CUDA (`nativo/cuda/gradiente_servidor.cu`), al que habla por stdin/stdout con el protocolo binario de `internal/distribuido/externo.go`. La pérdida final coincide con la del entrenamiento secuencial (diferencia ~1e-15).
+- 15 de octubre de 2026 (noche): modo servidor con sala de espera, partición por corrida, `corrida`, `continuar`, `sesion_terminada` y reconexión del trabajador (`-reconectar`). El motor externo admite la orden 2 (recargar otra partición). API HTTP y eventos en vivo para la página: ver `entrenamiento/cmd/maestro/web.go`.
 - Pendiente: modo asíncrono y redistribución de la partición de un nodo caído (Experimento 4).
