@@ -1,15 +1,17 @@
 // Maestro del clúster de entrenamiento (Parte B). Escucha en un puerto
-// TCP, registra a los nodos trabajadores (rechaza a los que tienen otra
-// muestra), le asigna a cada uno una partición disjunta de las estaciones
-// y, cuando están todos, entrena la regresión logística en modo síncrono:
-// en cada época difunde los parámetros, espera el gradiente parcial de
-// cada nodo, los suma y actualiza (docs/contrato_protocolo_tcp.md).
+// TCP y registra a los nodos trabajadores (rechaza a los que tienen otra
+// muestra). En cada corrida le asigna a cada nodo una partición disjunta
+// de las estaciones y entrena la regresión logística en modo síncrono: en
+// cada época difunde los parámetros, espera el gradiente parcial de cada
+// nodo, los suma y actualiza (docs/contrato_protocolo_tcp.md).
 //
-// Al terminar muestra una tabla por nodo (motor, dispositivo, ejemplos y
-// tiempo de cálculo), separa el tiempo de cálculo del de red y, con
-// -verificar, entrena también en secuencial para comprobar que el
-// resultado es el mismo y calcular el speedup. Con -resultado agrega las
-// filas al CSV del Experimento 2.
+// Dos modos:
+//   - De una corrida (por defecto): espera -nodos nodos, entrena una vez,
+//     muestra una tabla por nodo y el desglose cálculo/red, verifica contra
+//     el secuencial (-verificar) y agrega las filas al CSV (-resultado).
+//   - Servidor (-web 127.0.0.1:8080): queda encendido con una sala de
+//     espera; desde la página (frontend) se eligen los nodos, se lanzan
+//     corridas y se ven en vivo. Los nodos vuelven a la sala al terminar.
 package main
 
 import (
@@ -19,7 +21,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math"
 	"net"
 	"os"
 	"os/signal"
@@ -28,22 +29,31 @@ import (
 	"time"
 
 	"proyecto9/internal/distribuido"
-	"proyecto9/internal/entrenador"
-	"proyecto9/internal/logistica"
 )
+
+type configuracion struct {
+	epocas    int
+	tasa      float64
+	verificar bool
+	resultado string
+	modo      string
+	maquina   string
+}
 
 func main() {
 	direccion := flag.String("escuchar", ":9000", "dirección TCP donde escucha el maestro")
-	nodos := flag.Int("nodos", 2, "número de nodos trabajadores (una partición por nodo); el entrenamiento empieza cuando están todos")
+	nodos := flag.Int("nodos", 2, "modo de una corrida: número de nodos trabajadores; el entrenamiento empieza cuando están todos")
+	web := flag.String("web", "", "modo servidor: dirección HTTP de la API para la página, p. ej. 127.0.0.1:8080")
+	capacidad := flag.Int("capacidad", 16, "modo servidor: máximo de nodos en la sala")
 	rutaMuestra := flag.String("muestra", "data/muestra.gob", "muestra de entrenamiento; los nodos deben tener una copia idéntica")
 	mesCorte := flag.Int("mes-corte", 10, "los meses >= mes-corte se reservan para evaluar (partición temporal)")
 	tasa := flag.Float64("tasa", 0.1, "tasa de aprendizaje")
-	epocas := flag.Int("epocas", 200, "número de épocas")
+	epocas := flag.Int("epocas", 200, "número de épocas (en modo servidor, el valor inicial de la página)")
 	espera := flag.Duration("espera", 2*time.Minute, "cuánto se espera el gradiente de un nodo en cada época antes de abortar")
 	verificar := flag.Bool("verificar", true, "entrenar también en secuencial para comparar la pérdida y calcular el speedup")
-	resultado := flag.String("resultado", "", "CSV al que se agregan las filas de esta corrida, p. ej. resultados/experimento2.csv")
+	resultado := flag.String("resultado", "", "CSV al que se agregan las filas de cada corrida, p. ej. resultados/experimento2.csv")
 	modo := flag.String("modo", "tcp_sincrono", "nombre del modo en el CSV (p. ej. tcp_local o tcp_tailscale)")
-	maquina := flag.String("maquina", "", "texto libre que describe el clúster, p. ej. \"3 PCs por Tailscale, 1 GPU\"")
+	maquina := flag.String("maquina", "", "texto libre que describe el clúster; en modo servidor se arma solo con los nodos de cada corrida")
 	flag.Parse()
 
 	if *nodos < 1 {
@@ -64,14 +74,24 @@ func main() {
 	}
 	defer oyente.Close()
 	puerto := oyente.Addr().(*net.TCPAddr).Port
-	log.Printf("maestro escuchando en %s, esperando %d nodos", oyente.Addr(), *nodos)
+
+	cfgMaestro := distribuido.ConfigMaestro{Capacidad: *nodos, Datos: datos, Huella: huella, EsperaGradiente: *espera}
+	var difusor *difusor
+	if *web != "" {
+		difusor = nuevoDifusor()
+		cfgMaestro.Capacidad = *capacidad
+		cfgMaestro.Notificar = difusor.Publicar
+	}
+	m := distribuido.NuevoMaestro(cfgMaestro)
+
+	if *web != "" {
+		log.Printf("maestro en modo servidor: nodos en %s (sala de hasta %d)", oyente.Addr(), *capacidad)
+	} else {
+		log.Printf("maestro escuchando en %s, esperando %d nodos", oyente.Addr(), *nodos)
+	}
 	for _, ip := range direccionesLocales() {
 		log.Printf("  los nodos se conectan con: -maestro %s", net.JoinHostPort(ip, strconv.Itoa(puerto)))
 	}
-
-	m := distribuido.NuevoMaestro(distribuido.ConfigMaestro{
-		Nodos: *nodos, Datos: datos, Huella: huella, Tasa: *tasa, Epocas: *epocas, EsperaGradiente: *espera,
-	})
 	go func() {
 		for {
 			conn, err := oyente.Accept()
@@ -82,46 +102,36 @@ func main() {
 		}
 	}()
 
-	res, err := m.Entrenar(ctx)
+	cfg := configuracion{epocas: *epocas, tasa: *tasa, verificar: *verificar, resultado: *resultado, modo: *modo, maquina: *maquina}
+	if *web != "" {
+		if err := servir(ctx, *web, m, difusor, cfg); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	unaCorrida(ctx, m, cfg)
+}
+
+// unaCorrida es el modo clásico: espera los nodos, entrena una vez y sale.
+func unaCorrida(ctx context.Context, m *distribuido.Maestro, cfg configuracion) {
+	if err := m.EsperarNodos(ctx, m.Instantanea().Capacidad); err != nil {
+		m.Despedir(distribuido.MotivoMaestroCerrando)
+		log.Fatal("maestro detenido con Ctrl+C mientras esperaba nodos")
+	}
+	res, err := m.Correr(ctx, distribuido.OpcionesCorrida{Epocas: cfg.epocas, Tasa: cfg.tasa, Verificar: cfg.verificar, CerrarSala: true})
 	if err != nil {
-		m.Despedir("maestro_cerrando")
+		m.Despedir(distribuido.MotivoMaestroCerrando)
 		if errors.Is(err, context.Canceled) {
 			log.Fatal("maestro detenido con Ctrl+C en ESTA ventana (no fue un nodo). Si querías simular la caída, el Ctrl+C se presiona en la ventana del nodo")
 		}
 		log.Fatalf("entrenamiento abortado: %v", err)
 	}
-	// El entrenamiento terminó: no se aceptan más nodos (si no, uno que
-	// llegue tarde se registraría en una corrida que ya no va a entrenar).
-	oyente.Close()
-
-	evaluacion := entrenador.Evaluar(res.Modelo, datos.Prueba)
-	reportar(res, *epocas)
-	log.Printf("evaluación en prueba (meses %d-12): %s", *mesCorte, evaluacion)
-
-	filas := [][]string{fila(*modo, len(res.Nodos), *epocas, res.Duracion, res.TCalculo, res.TComunicacion, res.Perdidas, evaluacion.F1, evaluacion.AUC, *maquina)}
-	if *verificar {
-		X, y := datos.Entrenamiento.X, datos.Entrenamiento.Y
-		secuencial := logistica.NuevoModelo(len(X[0]))
-		log.Printf("verificando: entreno lo mismo en secuencial en esta PC para comparar (%d ejemplos; puede tardar ~1 min, no cierres la ventana)...", len(X))
-		inicio := time.Now()
-		perdidas := secuencial.Entrenar(X, y, *tasa, *epocas, datos.PesosClase)
-		tSec := time.Since(inicio)
-		final, finalSec := res.Perdidas[len(res.Perdidas)-1], perdidas[len(perdidas)-1]
-		dif := math.Abs(final - finalSec)
-		veredicto := "OK, mismo modelo"
-		if dif > 1e-9 {
-			veredicto = "DISTINTO: revisar"
+	reportar(res, cfg.epocas)
+	if cfg.resultado != "" {
+		if err := agregarCSV(cfg.resultado, filasCSV(res, cfg.modo, cfg.maquina, cfg.epocas)); err != nil {
+			log.Fatalf("no se pudo escribir %s: %v", cfg.resultado, err)
 		}
-		log.Printf("verificación: pérdida final distribuida %.9f, secuencial %.9f, diferencia %.1e → %s", final, finalSec, dif, veredicto)
-		log.Printf("secuencial en esta PC: %s → speedup S(%d) = %.2f", tSec.Round(time.Millisecond), len(res.Nodos), tSec.Seconds()/res.Duracion.Seconds())
-		evSec := entrenador.Evaluar(secuencial, datos.Prueba)
-		filas = append(filas, fila("secuencial", 1, *epocas, tSec, tSec, 0, perdidas, evSec.F1, evSec.AUC, *maquina))
-	}
-	if *resultado != "" {
-		if err := agregarCSV(*resultado, filas); err != nil {
-			log.Fatalf("no se pudo escribir %s: %v", *resultado, err)
-		}
-		log.Printf("resultados agregados a %s", *resultado)
+		log.Printf("resultados agregados a %s", cfg.resultado)
 	}
 }
 
@@ -140,6 +150,16 @@ func reportar(res *distribuido.Resultado, epocas int) {
 	}
 	log.Printf("T(%d nodos) = %s, %.2f ms por época: cálculo del más lento %.2f ms + red y espera %.2f ms (%.0f%% del tiempo es comunicación)",
 		len(res.Nodos), res.Duracion.Round(time.Millisecond), por(res.Duracion), por(res.TCalculo), por(res.TComunicacion), pctRed)
+	log.Printf("evaluación en prueba (meses de evaluación): %s", res.Evaluacion)
+	if v := res.Verificacion; v != nil {
+		final, finalSec := res.Perdidas[len(res.Perdidas)-1], v.Perdidas[len(v.Perdidas)-1]
+		veredicto := "OK, mismo modelo"
+		if v.Diferencia > 1e-9 {
+			veredicto = "DISTINTO: revisar"
+		}
+		log.Printf("verificación: pérdida final distribuida %.9f, secuencial %.9f, diferencia %.1e → %s", final, finalSec, v.Diferencia, veredicto)
+		log.Printf("secuencial en esta PC: %s → speedup S(%d) = %.2f", v.Duracion.Round(time.Millisecond), len(res.Nodos), v.Duracion.Seconds()/res.Duracion.Seconds())
+	}
 }
 
 func recortar(s string, n int) string {
@@ -150,6 +170,16 @@ func recortar(s string, n int) string {
 }
 
 var encabezado = []string{"modo", "goroutines", "epocas", "t_total_s", "t_epoca_ms", "t_calculo_ms", "t_comunicacion_ms", "perdida_final", "f1", "auc", "maquina"}
+
+// filasCSV arma la fila de la corrida distribuida y, si se verificó, la
+// del secuencial (el T(1) del análisis).
+func filasCSV(res *distribuido.Resultado, modo, maquina string, epocas int) [][]string {
+	filas := [][]string{fila(modo, len(res.Nodos), epocas, res.Duracion, res.TCalculo, res.TComunicacion, res.Perdidas, res.Evaluacion.F1, res.Evaluacion.AUC, maquina)}
+	if v := res.Verificacion; v != nil {
+		filas = append(filas, fila("secuencial", 1, epocas, v.Duracion, v.Duracion, 0, v.Perdidas, v.Evaluacion.F1, v.Evaluacion.AUC, maquina))
+	}
+	return filas
+}
 
 // fila sigue las columnas de entrenador (modo, goroutines, ..., auc) más
 // el desglose cálculo/comunicación y la máquina; "goroutines" es aquí el
