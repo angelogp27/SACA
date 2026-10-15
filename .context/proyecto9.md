@@ -305,7 +305,7 @@ Experimentos concretos. Todos se miden con 3 repeticiones, se resumen con la med
 |---|---|---|---|---|
 | 1 | Cargador | Go (goroutines) | 1, 2, 4, 8, 12, 16 goroutines; 1 agregadora frente a N agregadoras | ✅ |
 | 1b | Entrenamiento en memoria compartida | Go (goroutines) | 1-12 goroutines; reducción, mutex y CAS | ✅ |
-| 2 | Entrenamiento distribuido | Go (TCP) | 1, 2, 4, 8 nodos trabajadores | semana 12 |
+| 2 | Entrenamiento distribuido | Go (TCP), nodos CPU o CUDA | 1, 2, 4, 8 nodos trabajadores | ✅ local (procesos); clúster por Tailscale en el ensayo |
 | 3 | Sincronización del vector de parámetros del maestro | Go | mutex frente a atómicos (CAS) | semana 12 |
 | 4 | Agregación | Go (TCP) | síncrono frente a asíncrono | semana 12 |
 | 5 | Productor-consumidor | **Pthreads** frente a goroutines | hilos productores y consumidores; tamaño del buffer | semana 8-9 |

@@ -132,6 +132,37 @@ Fase 3 (semanas 9-12):
   - [docs/arquitectura.md](../docs/arquitectura.md): diagramas de componentes, datos y flujos;
   - [docs/funcionalidades.md](../docs/funcionalidades.md): catálogo de programas y opciones.
 
+## Clúster distribuido para la presentación virtual (15 de octubre de 2026)
+
+El grupo debe presentar el avance del clúster de forma **virtual**: las PCs están en casas distintas, y solo algunas tienen GPU NVIDIA. Se adelantaron los pasos 3-6 del protocolo, previstos para la semana 9.
+
+**Decisiones**
+- **TCP en Go y no MPI para la demo.** MPI entre casas por internet exige el mismo usuario y la misma versión en todas las PCs, más `smpd` y puertos abiertos en ambos sentidos: es frágil en vivo. En TCP solo los nodos se conectan al maestro. MPI sigue en el plan (Experimento 7) y se comparará contra este TCP.
+- **Tailscale** para unir las PCs: IPs `100.x` sin tocar el router. Basta con compartir el nodo del maestro.
+- **Los nodos no usan Mongo.** Cada uno carga `data/muestra.gob` y repite la preparación determinista (`entrenador.PrepararDesde`). La **huella SHA-256** de la muestra va en el registro, y el maestro rechaza a quien tenga otra.
+- **Heterogeneidad con un motor por nodo.** El motor `go` usa goroutines con reducción. El motor `cuda` es un proceso C++/CUDA (`nativo/cuda/gradiente_servidor.cu`) al que el trabajador habla por stdin/stdout en binario: los datos se copian a la GPU una vez y por época viajan 13 números. Antes de usarlo, el trabajador **valida** su gradiente contra el de Go; si no coincide, sigue con goroutines.
+- **Kernel CUDA:** reducción en árbol en memoria compartida por bloque, y la CPU suma los bloques en orden fijo. Es determinista y no necesita `atomicAdd(double)` (sm_60+); las variantes atomic/shuffle quedan para el Experimento 8.
+- **Sin locks en el modelo.** Las goroutines de cada conexión pasan los gradientes por un channel al bucle de entrenamiento, que es el único que toca los pesos.
+- **Modo síncrono y aborto ante una caída.** La redistribución y el modo asíncrono quedan para el Experimento 4.
+
+**Hallazgos**
+1. **La pérdida distribuida es igual a la secuencial:** diferencia de 2,6e-15 con la muestra real; solo cambia el orden de las sumas.
+2. **Experimento 2 local** (procesos en una PC, 1 goroutine por nodo, mediana de 3): S(2) = 1,62, S(4) = 1,96, S(8) = 2,51. La red por localhost es solo el 3-5 % de cada época. Lo que limita es el desbalance de la partición por hash (con 4 nodos, entre 34 mil y 39 mil ejemplos) y que hay 6 núcleos físicos. Karp-Flatt ≈ 0,31.
+3. **Motor CUDA probado sin GPU NVIDIA.** El `.cu` se compiló con g++ emulando CUDA en la CPU (`nativo/cuda/emulacion/`: un hilo por hilo CUDA, `std::barrier` como `__syncthreads`). Pasó la validación contra Go y el entrenamiento llegó a la misma pérdida. Falta compilarlo con `nvcc` en una PC del grupo con NVIDIA.
+4. **Condición de carrera encontrada por los tests.** Si un nodo se cae entre dos épocas, el maestro podía fallar al enviarle los parámetros antes de leer el aviso de caída, y el mensaje era confuso. Ahora ambos casos se reportan como "el nodo X se cayó". `go test -race -count=20` en verde.
+
+**Entregables**
+- Código: `internal/distribuido`, `entrenamiento/cmd/maestro` y `trabajador`, `nativo/cuda/`.
+- Scripts: `scripts/cluster-local.*`, `nodo.*`, `experimento2.ps1`.
+- Documentos: [docs/manual_cluster.md](../docs/manual_cluster.md) (paso a paso para el grupo) y [docs/guia_presentacion_cluster.md](../docs/guia_presentacion_cluster.md) (guion, demo, plan B y preguntas).
+- La prueba e2e (paso 12) ahora entrena distribuido y compara con el secuencial: **TODO OK**.
+
+**Pendiente antes de presentar**
+- Inventario y Tailscale en las PCs del grupo; ensayo general con la tabla de latencias.
+- Compilar el motor CUDA con `nvcc` en las 2 PCs con NVIDIA.
+- Correr el Experimento 2 por Tailscale (`-modo tcp_tailscale`) y actualizar la diapositiva 5.
+- Opcional: panel del clúster del frontend con los datos reales del Experimento 2 (hoy es una maqueta).
+
 ## Cómo retomar
 
 ```powershell
