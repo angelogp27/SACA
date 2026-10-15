@@ -120,7 +120,7 @@ export const diapositivas = [
     seccion: 'Resultados',
     titulo: 'Distribuir conviene solo si el cálculo domina a la red',
     tema: 'Sem. 1 y 13 · Amdahl y evaluación empírica',
-    notas: 'Modelo: T(p) = T_cálculo/p + T_red. Con la muestra de prueba (~13 ms de cálculo, ~7 ms de red) el techo es ~2×. Con todos los datos (~230 ms de cálculo) el techo sube a ~30×. Amdahl con la red como fracción serial; Gustafson: crecer el problema mejora el speedup. 60 s.',
+    notas: 'Modelo: T(p) = T_cálculo/p + T_red. Con la muestra de prueba (~13 ms de cálculo, ~7 ms de red) el techo es ~3×. Con todos los datos (~230 ms de cálculo) el techo sube a ~30×. Amdahl con la red como fracción serial; Gustafson: crecer el problema mejora el speedup. 60 s.',
   },
   {
     seccion: 'Conclusiones',
