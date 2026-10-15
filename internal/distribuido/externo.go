@@ -23,14 +23,19 @@ import (
 //	motor → Go:                 uint32 estado (0 = datos cargados; otro valor = error, detalle por stderr)
 //	Go → motor, cada época:     uint32 orden (1) | pesos[d] | sesgo
 //	motor → Go:                 grad[d] | grad_sesgo | perdida   (sumas sobre los n ejemplos)
+//	Go → motor, otra partición: uint32 orden (2) | los mismos datos que la carga inicial
+//	motor → Go:                 uint32 estado
 //	Go → motor, al terminar:    uint32 orden (0)
 //
 // Por época solo viajan d+1 números de ida y d+2 de vuelta: los datos se
-// copian a la GPU una sola vez.
+// copian a la GPU una vez por corrida. La orden 2 existe porque el maestro
+// en modo servidor lanza varias corridas con distintos nodos, y en cada
+// una a cada nodo le toca otra partición.
 const (
 	magiaMotor     = "SACA"
 	ordenTerminar  = 0
 	ordenGradiente = 1
+	ordenRecargar  = 2
 )
 
 // MotorExterno es un Motor implementado por otro proceso.
@@ -42,6 +47,7 @@ type MotorExterno struct {
 	w           *bufio.Writer
 	r           *bufio.Reader
 	d           int
+	cargado     bool
 }
 
 // IniciarExterno lanza el ejecutable y lee su presentación. No envía datos
@@ -104,6 +110,9 @@ func (m *MotorExterno) Dispositivo() string { return m.dispositivo }
 
 func (m *MotorExterno) Cargar(d int, X [][]float64, y []float64, pc logistica.PesosClase) error {
 	m.d = d
+	if m.cargado {
+		escribirU32(m.w, ordenRecargar)
+	}
 	escribirU32(m.w, uint32(d))
 	escribirU64(m.w, uint64(len(X)))
 	escribirF64(m.w, pc.Cero, pc.Uno)
@@ -124,6 +133,7 @@ func (m *MotorExterno) Cargar(d int, X [][]float64, y []float64, pc logistica.Pe
 	if estado != 0 {
 		return fmt.Errorf("el motor %s no pudo cargar los datos (estado %d, ver su salida de error)", m.nombre, estado)
 	}
+	m.cargado = true
 	return nil
 }
 
@@ -179,41 +189,34 @@ func ServirMotor(entrada io.Reader, salida io.Writer, dispositivo string) error 
 		return err
 	}
 
-	var d32 uint32
-	var n uint64
-	if err := binary.Read(r, binary.LittleEndian, &d32); err != nil {
+	d, X, y, pc, err := leerDatos(r)
+	if err != nil {
 		return err
-	}
-	if err := binary.Read(r, binary.LittleEndian, &n); err != nil {
-		return err
-	}
-	d := int(d32)
-	pc := make([]float64, 2)
-	plano := make([]float64, int(n)*d)
-	y := make([]float64, n)
-	for _, dst := range [][]float64{pc, plano, y} {
-		if err := leerF64(r, dst); err != nil {
-			return err
-		}
-	}
-	X := make([][]float64, n)
-	for i := range X {
-		X[i] = plano[i*d : (i+1)*d]
 	}
 	escribirU32(w, 0)
 	if err := w.Flush(); err != nil {
 		return err
 	}
 
-	params := make([]float64, d+1)
 	for {
 		var orden uint32
 		if err := binary.Read(r, binary.LittleEndian, &orden); err != nil {
 			return err
 		}
-		if orden == ordenTerminar {
+		switch orden {
+		case ordenTerminar:
 			return nil
+		case ordenRecargar:
+			if d, X, y, pc, err = leerDatos(r); err != nil {
+				return err
+			}
+			escribirU32(w, 0)
+			if err := w.Flush(); err != nil {
+				return err
+			}
+			continue
 		}
+		params := make([]float64, d+1)
 		if err := leerF64(r, params); err != nil {
 			return err
 		}
@@ -224,6 +227,32 @@ func ServirMotor(entrada io.Reader, salida io.Writer, dispositivo string) error 
 			return err
 		}
 	}
+}
+
+// leerDatos lee una partición: d, n, pesos de clase, X por filas e y.
+func leerDatos(r io.Reader) (d int, X [][]float64, y []float64, pc []float64, err error) {
+	var d32 uint32
+	var n uint64
+	if err = binary.Read(r, binary.LittleEndian, &d32); err != nil {
+		return
+	}
+	if err = binary.Read(r, binary.LittleEndian, &n); err != nil {
+		return
+	}
+	d = int(d32)
+	pc = make([]float64, 2)
+	plano := make([]float64, int(n)*d)
+	y = make([]float64, n)
+	for _, dst := range [][]float64{pc, plano, y} {
+		if err = leerF64(r, dst); err != nil {
+			return
+		}
+	}
+	X = make([][]float64, n)
+	for i := range X {
+		X[i] = plano[i*d : (i+1)*d]
+	}
+	return
 }
 
 func escribirU32(w *bufio.Writer, v uint32) {

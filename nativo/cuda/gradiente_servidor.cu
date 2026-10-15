@@ -10,10 +10,14 @@
 //   motor -> Go:                uint32 estado (0 = datos en la GPU)
 //   Go -> motor, cada época:    uint32 orden (1) | double pesos[d] | double sesgo
 //   motor -> Go:                double grad[d] | grad_sesgo | perdida
+//   Go -> motor, otra partición: uint32 orden (2) | los mismos datos que la carga inicial
+//   motor -> Go:                uint32 estado
 //   Go -> motor, al terminar:   uint32 orden (0)
 //
-// Los datos se copian a la GPU una sola vez; por época solo viajan d+1
-// números de ida y d+2 de vuelta.
+// Los datos se copian a la GPU una vez por corrida; por época solo viajan
+// d+1 números de ida y d+2 de vuelta. La orden 2 la usa el maestro en modo
+// servidor, que lanza varias corridas y en cada una reparte otras
+// particiones.
 //
 // Kernel: cada hilo acumula en registros el aporte de sus ejemplos
 // (grid-stride loop), el bloque reduce en memoria compartida con un árbol
@@ -118,6 +122,67 @@ __global__ void gradiente_bloques(const double *X, const double *y, long long n,
     }
 }
 
+// Partición cargada en la GPU y la configuración del kernel para ella.
+struct Particion {
+    int d = 0;
+    long long n = 0;
+    double pc[2] = {1, 1};
+    int hilos = HILOS_POR_BLOQUE, bloques = 1;
+    size_t bytesCompartida = 0;
+    double *dX = nullptr, *dy = nullptr, *dPesos = nullptr, *dParciales = nullptr;
+};
+
+static void liberar(Particion &p) {
+    cudaFree(p.dX);
+    cudaFree(p.dy);
+    cudaFree(p.dPesos);
+    cudaFree(p.dParciales);
+    p.dX = p.dy = p.dPesos = p.dParciales = nullptr;
+}
+
+// cargar lee una partición de stdin, la copia a la GPU y responde el
+// estado (0 = lista). Devuelve false si no se puede seguir.
+static bool cargar(Particion &p, const cudaDeviceProp &prop) {
+    uint32_t d32;
+    uint64_t n64;
+    if (!leer(&d32, 4) || !leer(&n64, 8) || !leer(p.pc, sizeof p.pc)) {
+        fprintf(stderr, "gradiente_cuda: no llegaron los datos\n");
+        return false;
+    }
+    p.d = (int)d32;
+    p.n = (long long)n64;
+    const int ancho = p.d + 2;
+    std::vector<double> X((size_t)p.n * p.d), y((size_t)p.n);
+    if (!leer(X.data(), X.size() * sizeof(double)) || !leer(y.data(), y.size() * sizeof(double))) {
+        fprintf(stderr, "gradiente_cuda: datos incompletos\n");
+        return false;
+    }
+
+    p.hilos = HILOS_POR_BLOQUE;
+    while (p.hilos > 32 && (size_t)p.hilos * ancho * sizeof(double) > prop.sharedMemPerBlock) p.hilos /= 2;
+    long long necesarios = (p.n + p.hilos - 1) / p.hilos;
+    p.bloques = (int)(necesarios < (long long)prop.multiProcessorCount * 8 ? necesarios : prop.multiProcessorCount * 8);
+    if (p.bloques < 1) p.bloques = 1;
+    p.bytesCompartida = (size_t)p.hilos * ancho * sizeof(double);
+
+    uint32_t estado = 0;
+    if (cudaMalloc(&p.dX, X.size() * sizeof(double) + 8) != cudaSuccess ||
+        cudaMalloc(&p.dy, y.size() * sizeof(double) + 8) != cudaSuccess ||
+        cudaMalloc(&p.dPesos, p.d * sizeof(double) + 8) != cudaSuccess ||
+        cudaMalloc(&p.dParciales, (size_t)p.bloques * ancho * sizeof(double)) != cudaSuccess ||
+        cudaMemcpy(p.dX, X.data(), X.size() * sizeof(double), cudaMemcpyHostToDevice) != cudaSuccess ||
+        cudaMemcpy(p.dy, y.data(), y.size() * sizeof(double), cudaMemcpyHostToDevice) != cudaSuccess) {
+        fprintf(stderr, "gradiente_cuda: no se pudieron copiar los datos a la GPU: %s\n",
+                cudaGetErrorString(cudaGetLastError()));
+        estado = 1;
+    }
+    escribir(&estado, 4);
+    fflush(stdout);
+    if (estado != 0) return false;
+    fprintf(stderr, "gradiente_cuda: %lld ejemplos x %d variables en la GPU (%d bloques x %d hilos)\n", p.n, p.d, p.bloques, p.hilos);
+    return true;
+}
+
 int main(int argc, char **argv) {
 #ifdef _WIN32
     // Sin esto, Windows traduce \n a \r\n y corrompe el protocolo binario.
@@ -149,51 +214,23 @@ int main(int argc, char **argv) {
     escribir(nombre, largo);
     fflush(stdout);
 
-    // Datos de la partición.
-    uint32_t d32;
-    uint64_t n64;
-    double pc[2];
-    if (!leer(&d32, 4) || !leer(&n64, 8) || !leer(pc, sizeof pc)) {
-        fprintf(stderr, "gradiente_cuda: no llegaron los datos\n");
-        return 4;
-    }
-    const int d = (int)d32;
-    const long long n = (long long)n64;
-    const int ancho = d + 2;
-    std::vector<double> X((size_t)n * d), y((size_t)n);
-    if (!leer(X.data(), X.size() * sizeof(double)) || !leer(y.data(), y.size() * sizeof(double))) {
-        fprintf(stderr, "gradiente_cuda: datos incompletos\n");
-        return 4;
-    }
-
-    int hilos = HILOS_POR_BLOQUE;
-    while (hilos > 32 && (size_t)hilos * ancho * sizeof(double) > prop.sharedMemPerBlock) hilos /= 2;
-    long long necesarios = (n + hilos - 1) / hilos;
-    int bloques = (int)(necesarios < (long long)prop.multiProcessorCount * 8 ? necesarios : prop.multiProcessorCount * 8);
-    if (bloques < 1) bloques = 1;
-    size_t bytesCompartida = (size_t)hilos * ancho * sizeof(double);
-
-    double *dX = nullptr, *dy = nullptr, *dPesos = nullptr, *dParciales = nullptr;
-    uint32_t estado = 0;
-    if (cudaMalloc(&dX, X.size() * sizeof(double) + 8) != cudaSuccess ||
-        cudaMalloc(&dy, y.size() * sizeof(double) + 8) != cudaSuccess ||
-        cudaMalloc(&dPesos, d * sizeof(double) + 8) != cudaSuccess ||
-        cudaMalloc(&dParciales, (size_t)bloques * ancho * sizeof(double)) != cudaSuccess ||
-        cudaMemcpy(dX, X.data(), X.size() * sizeof(double), cudaMemcpyHostToDevice) != cudaSuccess ||
-        cudaMemcpy(dy, y.data(), y.size() * sizeof(double), cudaMemcpyHostToDevice) != cudaSuccess) {
-        fprintf(stderr, "gradiente_cuda: no se pudieron copiar los datos a la GPU: %s\n",
-                cudaGetErrorString(cudaGetLastError()));
-        estado = 1;
-    }
-    escribir(&estado, 4);
-    fflush(stdout);
-    if (estado != 0) return 5;
-    fprintf(stderr, "gradiente_cuda: %lld ejemplos x %d variables en la GPU (%d bloques x %d hilos)\n", n, d, bloques, hilos);
-
-    std::vector<double> params(d + 1), parciales((size_t)bloques * ancho), res(ancho);
+    // Datos de la partición. Se vuelven a leer con la orden 2 (otra corrida).
+    Particion part;
+    if (!cargar(part, prop)) return 4;
     for (;;) {
         uint32_t orden;
         if (!leer(&orden, 4) || orden == 0) break;
+        if (orden == 2) {
+            liberar(part);
+            if (!cargar(part, prop)) return 4;
+            continue;
+        }
+        const int d = part.d, ancho = d + 2, bloques = part.bloques, hilos = part.hilos;
+        const long long n = part.n;
+        const size_t bytesCompartida = part.bytesCompartida;
+        double *dX = part.dX, *dy = part.dy, *dPesos = part.dPesos, *dParciales = part.dParciales;
+        const double *pc = part.pc;
+        std::vector<double> params(d + 1), parciales((size_t)bloques * ancho), res(ancho);
         if (!leer(params.data(), params.size() * sizeof(double))) break;
 
         std::fill(res.begin(), res.end(), 0.0);
@@ -209,9 +246,6 @@ int main(int argc, char **argv) {
         fflush(stdout);
     }
 
-    cudaFree(dX);
-    cudaFree(dy);
-    cudaFree(dPesos);
-    cudaFree(dParciales);
+    liberar(part);
     return 0;
 }
