@@ -155,3 +155,10 @@ func TestAPIControlaCorridas(t *testing.T) {
 		}
 	}
 }
+
+func TestCombinacionOrdenaLosNodos(t *testing.T) {
+	modo, maquina := combinacion("tcp_tailscale", []distribuido.InfoNodo{{ID: "josue", Motor: "cuda"}, {ID: "angelo", Motor: "go"}}, 10)
+	if modo != "tcp_tailscale:angelo+josue" || maquina != "angelo(go)+josue(cuda) · 10 ejemplos" {
+		t.Fatalf("combinacion = %q, %q", modo, maquina)
+	}
+}

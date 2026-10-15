@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -207,21 +208,35 @@ func (a *api) nuevaCorrida(w http.ResponseWriter, r *http.Request) {
 		if a.cfg.resultado == "" {
 			return
 		}
-		maquina := a.cfg.maquina
-		if maquina == "" {
-			partes := make([]string, len(res.Nodos))
-			for i, n := range res.Nodos {
-				partes[i] = n.ID + "(" + n.Motor + ")"
-			}
-			maquina = "web: " + strings.Join(partes, "+")
+		modo, maquina := combinacion(a.cfg.modo, res.Nodos, a.m.Instantanea().EjemplosEntrenamiento)
+		if a.cfg.maquina != "" {
+			maquina = a.cfg.maquina
 		}
-		if err := agregarCSV(a.cfg.resultado, filasCSV(res, a.cfg.modo, maquina, p.Epocas)); err != nil {
+		if err := agregarCSV(a.cfg.resultado, filasCSV(res, modo, maquina, p.Epocas)); err != nil {
 			log.Printf("no se pudo escribir %s: %v", a.cfg.resultado, err)
 		} else {
 			log.Printf("resultados agregados a %s", a.cfg.resultado)
 		}
 	}()
 	responder(w, http.StatusAccepted, map[string]any{"ok": true})
+}
+
+// combinacion nombra la corrida en el CSV por su combinación exacta de
+// nodos, en orden alfabético (p. ej. "tcp_tailscale:augusto-pc+josue" y
+// "augusto-pc(cuda)+josue(cuda) · 2499636 ejemplos"). Así el análisis
+// agrupa cada combinación por separado: dos corridas de 2 nodos con PCs
+// distintas no se mezclan. El tamaño de la muestra queda anotado: cada
+// muestra va en su propio CSV, porque su T(1) es distinto.
+func combinacion(base string, nodos []distribuido.InfoNodo, ejemplos int) (modo, maquina string) {
+	ordenados := append([]distribuido.InfoNodo(nil), nodos...)
+	sort.Slice(ordenados, func(i, j int) bool { return ordenados[i].ID < ordenados[j].ID })
+	ids := make([]string, len(ordenados))
+	partes := make([]string, len(ordenados))
+	for i, n := range ordenados {
+		ids[i] = n.ID
+		partes[i] = n.ID + "(" + n.Motor + ")"
+	}
+	return base + ":" + strings.Join(ids, "+"), fmt.Sprintf("%s · %d ejemplos", strings.Join(partes, "+"), ejemplos)
 }
 
 func (a *api) cancelarCorrida(w http.ResponseWriter, r *http.Request) {
