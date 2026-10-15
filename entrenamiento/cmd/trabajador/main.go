@@ -42,7 +42,7 @@ func main() {
 
 	datos, huella, err := distribuido.PrepararLocal(*rutaMuestra, *mesCorte)
 	if err != nil {
-		log.Fatalf("no se pudo preparar la muestra %s: %v (cópiala desde la PC del maestro, ver docs/manual_cluster.md)", *rutaMuestra, err)
+		log.Fatalf("no se pudo preparar la muestra %s: %v (descárgala del Drive del grupo: paso 'Copiar la muestra' de tu guía en docs/cluster/)", *rutaMuestra, err)
 	}
 	log.Printf("muestra %s cargada, huella %s", *rutaMuestra, distribuido.Corta(huella))
 
