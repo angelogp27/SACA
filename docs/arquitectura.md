@@ -55,7 +55,7 @@ flowchart LR
 | Parte | Responsabilidad | Modelo de paralelismo | Estado |
 |---|---|---|---|
 | A: cargador | Limpiar y unir los 4 CSV por (estación, hora) y guardarlos en MongoDB | Memoria compartida: goroutines + channels | ✅ |
-| B: entrenamiento | Regresión logística que predice si el NO2 cruzará 53 ppb en 1 hora | Memoria compartida (goroutines) y paso de mensajes (TCP) | ✅ secuencial y paralelo, maestro y registro de nodos; ⏳ entrenamiento distribuido (semana 9) |
+| B: entrenamiento | Regresión logística que predice si el NO2 cruzará 53 ppb en 1 hora | Memoria compartida (goroutines) y paso de mensajes (TCP) | ✅ secuencial, paralelo y distribuido síncrono por TCP (nodos con goroutines o CUDA); ⏳ modo asíncrono |
 | C: API | Predicciones y control de entrenamientos para el frontend | Una goroutine por petición (la pone Go) | ⏳ solo `/health` |
 | D: frontend | Mapa, serie con la predicción y panel de rendimiento | — | ✅ con datos reales exportados |
 | Núcleos nativos | Las mismas piezas en Pthreads, OpenMP, MPI y CUDA | Los del sílabo | ⏳ semanas 8-13 |
@@ -230,19 +230,27 @@ sequenceDiagram
     participant M as maestro (-nodos 2)
     participant W2 as trabajador w2
     participant W3 as trabajador w3
-    W1->>M: {"tipo":"registro","worker_id":"w1"}
+    W1->>M: {"tipo":"registro","worker_id":"w1","huella":"5e90…","motor":"go"}
     M-->>W1: {"tipo":"particion_asignada","filtro_mongo":{mod:2, resto:0}}
-    W2->>M: registro w2
+    W2->>M: registro w2 (motor cuda)
     M-->>W2: particion_asignada resto 1
-    Note over M: "clúster completo, listo para entrenar"
+    Note over M: "clúster completo: empieza el entrenamiento"
     W3->>M: registro w3
     M-->>W3: {"tipo":"baja","motivo":"registro_rechazado: ..."}
-    Note over W1: se cae o se cierra
-    M->>M: DarDeBaja(w1) → partición 0 libre
-    Note over M,W2: Semana 9: parametros → gradiente_parcial → agregación por época
+    loop cada época
+        M->>W1: parametros (época, pesos, sesgo)
+        M->>W2: parametros
+        W1-->>M: gradiente_parcial (sumas, n_muestras, t_calculo_ms)
+        W2-->>M: gradiente_parcial
+        Note over M: suma en orden de partición y actualiza los pesos
+    end
+    M->>W1: entrenamiento_finalizado
+    M->>W2: entrenamiento_finalizado
+    Note over M: si un nodo se cae a mitad, el maestro aborta (modo síncrono)
 ```
 
-- Cada conexión la atiende su propia goroutine. El registro de nodos (`internal/cluster`) es estado compartido protegido con `sync.Mutex`.
+- Cada conexión la atiende su propia goroutine (`distribuido.Maestro.Atender`), que le pasa los gradientes al bucle de entrenamiento por un **channel**. Así el modelo lo modifica una sola goroutine y no necesita locks. El registro de nodos (`internal/cluster`) es estado compartido protegido con `sync.Mutex`.
+- Cada trabajador calcula con goroutines o con el motor CUDA, un proceso aparte con el que habla por stdin/stdout ([nativo/cuda/README.md](../nativo/cuda/README.md)).
 - Contrato completo: [contrato_protocolo_tcp.md](contrato_protocolo_tcp.md).
 - En varias PCs: [guia_cluster.md](guia_cluster.md).
 

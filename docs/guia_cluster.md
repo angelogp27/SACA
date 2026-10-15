@@ -4,6 +4,8 @@ Cómo convertir las computadoras del grupo en un **clúster heterogéneo**: **2 
 
 Es la base de los Experimentos 2, 7 y 9 ([.context/proyecto9.md](../.context/proyecto9.md) §8) y de la demo final.
 
+> **Para ejecutar el clúster ya mismo** (Forma 1, incluso con PCs en casas distintas por Tailscale y con nodos CUDA), seguir el paso a paso de [manual_cluster.md](manual_cluster.md). Para la exposición: [guia_presentacion_cluster.md](guia_presentacion_cluster.md).
+
 ## 1. Por qué un clúster y qué enseña
 
 - El sílabo clasifica los computadores paralelos por su arquitectura (semana 2, sumilla: *"clasificación física de computadores paralelos"*). El clúster del grupo es un **multicomputador MIMD de memoria distribuida**: cada PC tiene su propia memoria y solo se comunican por la red. Dentro de cada PC hay además memoria compartida (varios núcleos) y, en dos de ellas, una GPU SIMT. Es la misma estructura jerárquica de los supercomputadores actuales, en pequeño.
@@ -76,7 +78,7 @@ Antes de configurar nada, cada integrante llena su fila. Sin esto no se puede ba
 
 ## 4. Forma 1: Go maestro-trabajador por TCP (la más simple)
 
-Ya funciona (semana 7) y no necesita instalar nada en los nodos: Go genera un ejecutable autocontenido.
+**Funciona desde el 15 de octubre de 2026 con entrenamiento distribuido completo.** No necesita instalar nada en los nodos, porque Go genera un ejecutable autocontenido. Cada nodo calcula con goroutines o, si tiene GPU NVIDIA, con el motor CUDA (`-motor auto`). Si las PCs no están en la misma red, se unen con **Tailscale** ([manual_cluster.md](manual_cluster.md), paso 2).
 
 ```powershell
 # En la PC principal: compilar los trabajadores para Windows y Linux
@@ -92,7 +94,7 @@ go run ./entrenamiento/cmd/maestro -nodos 6 -escuchar :9000
 ```
 
 - Mezclar Windows y Linux funciona sin problemas, porque el protocolo es JSON sobre TCP.
-- Desde la semana 9 el trabajador calcula su gradiente parcial. Es el Experimento 2 en un clúster real: 1, 2, 4 y 8 nodos físicos en lugar de contenedores en una sola PC.
+- Cada trabajador calcula su gradiente parcial sobre su partición, y el maestro verifica al final que la pérdida es la misma que en secuencial. Es el Experimento 2 en un clúster real: 1, 2, 4 y 8 nodos físicos en lugar de procesos en una sola PC (`scripts/experimento2.ps1`).
 
 ## 5. Forma 2: MPI entre PCs
 
