@@ -65,7 +65,7 @@ func main() {
 	nombre := flag.String("nombre", "Experimento 1", "nombre del experimento")
 	descripcion := flag.String("descripcion", "Cargador: ingesta de los 4 CSV horarios de la EPA", "descripción corta")
 	modoBase := flag.String("base", "secuencial", "modo que da T(1)")
-	modosParalelos := flag.String("paralelo", "concurrente", "modos (separados por coma) que se comparan contra T(1); el primero es la serie principal")
+	modosParalelos := flag.String("paralelo", "concurrente", "modos (separados por coma) que se comparan contra T(1); el primero es la serie principal. \"*\" = todos los del CSV (una serie por combinación de nodos)")
 	columnasSerial := flag.String("serial", "t_indexado_s,t_mongo_s", "columnas que suman la parte serial del T(1), para Amdahl; vacío para estimarla con Karp-Flatt")
 	flag.Parse()
 
@@ -76,12 +76,15 @@ func main() {
 
 	base := corridas[clave{*modoBase, 1}]
 	if len(base) == 0 {
-		log.Fatalf("no hay corridas del modo %q con 1 goroutine en %s", *modoBase, *entrada)
+		log.Fatalf("no hay corridas del modo %q con 1 goroutine en %s (para el Experimento 2 desde la página: lanza al menos una corrida con \"Verificar contra el secuencial\")", *modoBase, *entrada)
 	}
 	fasesBase := medianas(base)
 	t1 := fasesBase["t_total_s"]
 
 	modos := strings.Split(*modosParalelos, ",")
+	if *modosParalelos == "*" {
+		modos = todosLosModos(corridas, *modoBase)
+	}
 	series := map[string][]Punto{}
 	for _, modo := range modos {
 		if ps := puntos(corridas, maquinas, modo, t1); len(ps) > 0 {
@@ -169,6 +172,34 @@ func puntos(corridas map[clave][]map[string]float64, maquinas map[clave]string, 
 	}
 	sort.Slice(res, func(i, j int) bool { return res[i].Unidades < res[j].Unidades })
 	return res
+}
+
+// todosLosModos devuelve los modos del CSV salvo la base, ordenados por la
+// menor cantidad de unidades y luego por nombre. Con el maestro en modo
+// servidor, cada combinación de nodos es un modo (p. ej.
+// "tcp_tailscale:augusto-pc+josue"), así que cada una queda como su propia
+// serie y no se mezcla con otra del mismo tamaño.
+func todosLosModos(corridas map[clave][]map[string]float64, base string) []string {
+	menor := map[string]int{}
+	for k := range corridas {
+		if k.modo == base {
+			continue
+		}
+		if u, ok := menor[k.modo]; !ok || k.goroutines < u {
+			menor[k.modo] = k.goroutines
+		}
+	}
+	modos := make([]string, 0, len(menor))
+	for m := range menor {
+		modos = append(modos, m)
+	}
+	sort.Slice(modos, func(i, j int) bool {
+		if menor[modos[i]] != menor[modos[j]] {
+			return menor[modos[i]] < menor[modos[j]]
+		}
+		return modos[i] < modos[j]
+	})
+	return modos
 }
 
 type clave struct {
