@@ -21,6 +21,15 @@
 
 .app-shell.presentando {
   max-width: 1400px;
+  padding: 10px 20px;
+}
+
+.app-shell.presentando .app-header {
+  margin-bottom: 10px;
+}
+
+.app-shell.presentando .app-header h1 {
+  font-size: 18px;
 }
 
 .app-header h1 {

@@ -4,7 +4,7 @@
 // pantalla completa y T para reiniciar el cronómetro. La diapositiva
 // actual queda en la URL (#p3). El guion completo está en
 // docs/guion_exposicion.md.
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { cifras, conceptos, diapositivas, etiquetaEstado, integrantes, temasCurso } from '../data/presentacion'
 import { esGPU, useCluster } from '../data/cluster'
 import { ArbolReduccion, FlujoColectivas, GraficaSpeedup, ModeloCosto, NivelesParalelismo } from './Diagramas'
@@ -253,6 +253,39 @@ function Temas({ datos }) {
 
 // --- Plantilla y controles ---------------------------------------------
 
+// Ajustado escala su contenido para que quepa entero en el espacio de la
+// diapositiva (sin desplazarse hacia abajo en pantalla completa). Si cabe,
+// queda a tamaño normal. Se recalcula al cambiar el tamaño de la ventana o
+// del contenido (p. ej. cuando llegan datos en vivo).
+function Ajustado({ children }) {
+  const marco = useRef(null)
+  const contenido = useRef(null)
+  const [escala, setEscala] = useState(1)
+  useLayoutEffect(() => {
+    const calcular = () => {
+      const m = marco.current
+      const c = contenido.current
+      if (!m || !c || !c.scrollHeight) return
+      // scrollHeight/Width no cambian con transform: no hay ciclo.
+      const s = Math.min(1, m.clientHeight / c.scrollHeight, m.clientWidth / c.scrollWidth)
+      setEscala(Math.max(0.4, Math.floor(s * 100) / 100))
+    }
+    calcular()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const ro = new ResizeObserver(calcular)
+    ro.observe(marco.current)
+    ro.observe(contenido.current)
+    return () => ro.disconnect()
+  }, [])
+  return (
+    <div ref={marco} className="ajuste-marco">
+      <div ref={contenido} className="ajuste-contenido" style={{ transform: escala < 1 ? `scale(${escala})` : undefined }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
 function useCronometro() {
   const [inicio, setInicio] = useState(() => Date.now())
   const [ahora, setAhora] = useState(() => Date.now())
@@ -311,14 +344,21 @@ export default function Presentacion({ indice, setIndice, datos, estaciones, est
 
   return (
     <div className="presentacion">
-      <section className={`diapositiva ${indice === 1 ? 'es-portada' : ''}`}>
+      <section className={`diapositiva ${indice === 1 ? 'es-portada' : ''} ${indice === 7 ? 'es-demo' : ''}`}>
         <header className="diapositiva-cabecera">
           <span className="seccion">{dosDigitos(indice)} · {meta.seccion}</span>
           {meta.tema && <span className="tema-silabo">{meta.tema}</span>}
         </header>
         <h2 className="diapositiva-titulo">{meta.titulo}</h2>
         <div className="diapositiva-cuerpo">
-          <Protector key={indice}>{contenido}</Protector>
+          {/* La demo se desplaza dentro de la diapositiva; el resto se ajusta para caber entero. */}
+          {indice === 7 ? (
+            <Protector key={indice}>{contenido}</Protector>
+          ) : (
+            <Ajustado key={indice}>
+              <Protector>{contenido}</Protector>
+            </Ajustado>
+          )}
         </div>
         <footer className="diapositiva-pie">
           <div className="progreso-diapositivas"><div style={{ width: `${(100 * indice) / TOTAL_DIAPOSITIVAS}%` }} /></div>
