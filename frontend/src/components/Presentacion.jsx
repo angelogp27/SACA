@@ -10,6 +10,7 @@ import PanelLineaTiempo from './PanelLineaTiempo'
 import PanelRendimiento from './PanelRendimiento'
 import PanelCluster from './PanelCluster'
 import ResultadosCluster from './ResultadosCluster'
+import Protector from './Protector'
 import './Presentacion.css'
 
 const fmtN = new Intl.NumberFormat('es-PE')
@@ -156,7 +157,9 @@ function ElCluster() {
 function Demo({ datos }) {
   return (
     <Diapositiva titulo="Demo en vivo: elige los nodos y entrena" tema="Todo el curso, en vivo">
-      <PanelCluster datos={datos} grande />
+      <Protector>
+        <PanelCluster datos={datos} grande />
+      </Protector>
     </Diapositiva>
   )
 }

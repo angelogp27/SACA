@@ -4,6 +4,7 @@ import PanelLineaTiempo from './components/PanelLineaTiempo'
 import PanelCluster from './components/PanelCluster'
 import PanelRendimiento from './components/PanelRendimiento'
 import Presentacion, { TOTAL_DIAPOSITIVAS } from './components/Presentacion'
+import Protector from './components/Protector'
 import { useDatosReales, estacionesParaPaneles, serieDeEstacion } from './data/datosReales'
 import './App.css'
 
@@ -79,6 +80,7 @@ function App() {
       </header>
 
       {presentando ? (
+        <Protector key={`p${diapositiva}`}>
         <Presentacion
           indice={diapositiva}
           setIndice={irA}
@@ -88,6 +90,7 @@ function App() {
           setElegida={setElegida}
           serie={serie}
         />
+        </Protector>
       ) : (
         <main className="dashboard">
           <PanelMapa estaciones={estaciones} seleccionada={estacion?.id} onSeleccionar={setElegida} />
@@ -98,7 +101,9 @@ function App() {
             experimento2={datos.experimento2}
             experimento2Prueba={datos.experimento2_prueba}
           />
-          <PanelCluster datos={datos} />
+          <Protector>
+            <PanelCluster datos={datos} />
+          </Protector>
         </main>
       )}
     </div>

@@ -85,3 +85,11 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+
+.protector {
+  border-color: var(--status-critical);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}

@@ -11,6 +11,10 @@ import './PanelCluster.css'
 
 const COLORES = ['var(--serie-1)', 'var(--serie-4)', 'var(--serie-5)', 'var(--serie-3)', 'var(--serie-2)']
 const CALCULO = 'var(--serie-3)'
+
+// comoLista: una serie que puede faltar (corrida recién empezada) se trata
+// como vacía.
+const comoLista = (v) => (Array.isArray(v) ? v : [])
 const RED = 'var(--serie-2)'
 
 const fmt = (v, d = 1) =>
@@ -51,7 +55,7 @@ function Kpi({ etiqueta, valor, detalle, tema }) {
 // conceptos explica en una frase qué parte del curso está ocurriendo.
 function conceptos(inst, corrida, lento) {
   if (!corrida || (corrida.estado !== 'entrenando' && corrida.estado !== 'verificando')) {
-    const n = inst?.sala?.length ?? 0
+    const n = comoLista(inst?.sala).length
     return [
       { tema: 'Sem. 2 · MIMD de memoria distribuida', texto: `Sala de espera: ${n} nodo(s) conectados por la red. No comparten memoria; solo intercambian mensajes con el maestro.` },
     ]
@@ -75,7 +79,7 @@ function conceptos(inst, corrida, lento) {
 }
 
 function Sala({ inst, elegidos, setElegidos, ocupado, onError }) {
-  const sala = inst?.sala ?? []
+  const sala = comoLista(inst?.sala)
   const elegido = (id) => elegidos[id] ?? true
   if (!sala.length) {
     return (
@@ -119,7 +123,7 @@ function Sala({ inst, elegidos, setElegidos, ocupado, onError }) {
 function Controles({ inst, elegidos, onError }) {
   const [epocas, setEpocas] = useState(200)
   const [verificar, setVerificar] = useState(false)
-  const sala = inst?.sala ?? []
+  const sala = comoLista(inst?.sala)
   const ids = sala.filter((n) => (elegidos[n.id] ?? true) && n.estado === 'libre').map((n) => n.id)
   const ocupado = inst?.ocupado
   return (
@@ -152,8 +156,21 @@ function Controles({ inst, elegidos, onError }) {
   )
 }
 
-function Corrida({ inst, corrida }) {
-  const n = corrida.nodos.length
+// normalizar asegura que todas las series de la corrida sean listas.
+function normalizar(c) {
+  return {
+    ...c,
+    perdidas: comoLista(c.perdidas),
+    t_epoca_ms: comoLista(c.t_epoca_ms),
+    t_calculo_ms: comoLista(c.t_calculo_ms),
+    t_red_ms: comoLista(c.t_red_ms),
+    nodos: comoLista(c.nodos).map((n) => ({ ...n, calculo_ms: comoLista(n.calculo_ms) })),
+  }
+}
+
+function Corrida({ inst, corrida: cruda }) {
+  const corrida = normalizar(cruda)
+  const n = Math.max(corrida.nodos.length, 1)
   const t1 = inst.t1_epoca_ms
   const tEpoca = promedioFinal(corrida.t_epoca_ms)
   const sumaEpoca = corrida.t_epoca_ms.reduce((a, b) => a + b, 0)
@@ -247,11 +264,11 @@ function Corrida({ inst, corrida }) {
 }
 
 function Historial({ historial }) {
-  const filas = historial
+  const filas = comoLista(historial)
     .slice(-8)
     .map((h) => ({
       clave: String(h.id),
-      etiqueta: `#${h.id} · ${h.nodos.map((id, i) => `${id}${esGPU(h.motores[i]) ? '·GPU' : '·CPU'}`).join(' + ')}`,
+      etiqueta: `#${h.id} · ${comoLista(h.nodos).map((id, i) => `${id}${esGPU(comoLista(h.motores)[i]) ? '·GPU' : '·CPU'}`).join(' + ')}`,
       valores: { calculo: h.t_calculo_ms, red: h.t_comunicacion_ms },
       extra:
         h.estado === 'terminado'
@@ -288,7 +305,7 @@ export default function PanelCluster({ datos, grande = false }) {
         </div>
         {conectado && inst && (
           <p>
-            {inst.sala.length} nodo(s) en la sala · {fmtEjemplos(inst.ejemplos_entrenamiento)} ejemplos de entrenamiento · muestra {inst.huella.slice(0, 12)}
+            {comoLista(inst.sala).length} nodo(s) en la sala · {fmtEjemplos(inst.ejemplos_entrenamiento)} ejemplos de entrenamiento · muestra {(inst.huella ?? '').slice(0, 12)}
           </p>
         )}
       </figcaption>
