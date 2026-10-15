@@ -1,0 +1,160 @@
+.g-marco {
+  min-width: 0;
+}
+
+.g-cabecera {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.g-cabecera h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.g-marco svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.g-grid {
+  stroke: var(--gridline);
+  stroke-width: 1;
+}
+
+.g-tick-y {
+  font-size: 9px;
+  fill: var(--text-muted);
+  text-anchor: end;
+  dominant-baseline: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+.g-tick-x {
+  font-size: 9px;
+  fill: var(--text-muted);
+}
+
+.g-tick-x.g-fin {
+  text-anchor: end;
+}
+
+.g-linea {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.g-area {
+  opacity: 0.85;
+}
+
+.g-referencia {
+  stroke: var(--text-muted);
+  stroke-dasharray: 3 3;
+}
+
+.g-ref-texto {
+  font-size: 9px;
+  fill: var(--text-muted);
+  text-anchor: end;
+}
+
+.g-leyenda {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.g-leyenda li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.g-muestra {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.g-barras {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.g-barras li {
+  display: grid;
+  grid-template-columns: minmax(110px, 34%) 1fr auto;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 12px;
+}
+
+.g-barra-etiqueta {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.g-barra-pista {
+  display: flex;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--gridline);
+  overflow: hidden;
+}
+
+.g-barra-tramo {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.g-barra-valor {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.g-barra-extra {
+  grid-column: 2 / 4;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: -4px;
+}
+
+.g-barra-destacada .g-barra-etiqueta {
+  font-weight: 600;
+}
+
+/* Etiqueta del sílabo (semana y tema), compartida por todas las vistas. */
+.tema-silabo {
+  display: inline-block;
+  font-size: 10.5px;
+  line-height: 1.4;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  background: var(--page);
+  white-space: nowrap;
+}
