@@ -52,6 +52,8 @@ export function cifras(datos) {
     cargadorS: particionado ? f1(particionado.speedup, 2) : '3,77',
     cargadorP: particionado?.unidades ?? 16,
     cargadorF: e1 ? f1(e1.fraccion_serial, 2) : '0,80',
+    cargadorT1: e1 ? f1(e1.t1_s, 0) : '132',
+    cargadorTp: particionado ? f1(particionado.t_total_s, 0) : '35',
     reduccionS: reduccion8 ? f1(reduccion8.speedup, 2) : '6,11',
     mutexS: mutex8 ? f1(mutex8.speedup, 2) : '0,46',
     atomicoS: atomico8 ? f1(atomico8.speedup, 2) : '0,57',
@@ -192,3 +194,85 @@ export function temasCurso(datos) {
 }
 
 export const etiquetaEstado = { hecho: 'Hecho', go: 'Hecho en Go · nativo pendiente', pendiente: 'Pendiente' }
+
+// Integrantes del grupo, en capital case y ordenados por apellido.
+export const grupo = [
+  { apellidos: 'Cerna Sifuentes', nombres: 'Augusto Nicolas' },
+  { apellidos: 'Goitia Peves', nombres: 'Angelo Diego' },
+  { apellidos: 'Grijalva De La Cruz', nombres: 'Rony' },
+  { apellidos: 'Leon Garcia', nombres: 'Angel Gabriel' },
+  { apellidos: 'Martines Cancho', nombres: 'Josue' },
+  { apellidos: 'Vargas Chota', nombres: 'Piero Carlinho' },
+  { apellidos: 'Yanyachi Perez', nombres: 'Pedro' },
+  { apellidos: 'Zarate Vilchez', nombres: 'Axhell' },
+]
+
+export const docentes = ['Javier Antonio Prudencio Vidal']
+
+// Los tres niveles de paralelismo: tecnología, riesgo típico y solución.
+export const niveles = [
+  { nivel: 'Memoria compartida', tecnologia: 'goroutines, channels, sync', riesgo: 'Condición de carrera en el acumulador', solucion: 'Reducción con variables privadas + barrera (WaitGroup)' },
+  { nivel: 'Memoria distribuida', tecnologia: 'TCP maestro-trabajador (Tailscale)', riesgo: 'Latencia de red y nodos lentos', solucion: 'Barrera síncrona por época; solo 13 números por mensaje' },
+  { nivel: 'SIMT (GPU)', tecnologia: 'CUDA, memoria __shared__', riesgo: 'Jerarquía de memoria y divergencia', solucion: 'Reducción en árbol por bloque; datos en la GPU una sola vez' },
+]
+
+// Fragmentos reales de internal/logistica/paralelo.go (resumidos).
+export const codigo = {
+  mutex: `go func(k int) {
+  for i := ini; i < fin; i++ {
+    err, p := contribucion(pesos, X[i], y[i])
+    mu.Lock()   // sección crítica compartida
+    for j := range X[i] {
+      grad[j] += err * X[i][j]
+    }
+    mu.Unlock()
+  }
+}(k)`,
+  reduccion: `go func(k int) {
+  // cada goroutine suma en privado
+  g, s, p := GradienteParcial(pesos,
+      X[ini:fin], y[ini:fin])
+  parciales[k] = parcial{g, s, p}
+}(k)
+wg.Wait()   // barrera
+for _, p := range parciales { suma(p) }`,
+}
+
+// Los mensajes del protocolo maestro-trabajador (docs/contrato_protocolo_tcp.md).
+export const mensajes = [
+  { tipo: 'registro', sentido: 'nodo → maestro', contenido: 'id, huella SHA-256, motor (go o cuda)', cuando: 'al conectarse' },
+  { tipo: 'particion_asignada', sentido: 'maestro → nodo', contenido: 'mod y resto del hash de estación', cuando: 'scatter, al iniciar cada corrida' },
+  { tipo: 'parametros', sentido: 'maestro → nodo', contenido: 'corrida, época, 12 pesos + sesgo', cuando: 'broadcast, cada época' },
+  { tipo: 'gradiente_parcial', sentido: 'nodo → maestro', contenido: 'Σ gradiente, Σ pérdida, n, ms de cálculo', cuando: 'reduce, cada época' },
+  { tipo: 'entrenamiento_finalizado', sentido: 'maestro → nodo', contenido: 'pérdida final, continuar', cuando: 'al terminar' },
+  { tipo: 'baja', sentido: 'ambos', contenido: 'motivo', cuando: 'caída, Ctrl+C o fin de sesión' },
+]
+
+// Teoría del curso frente a lo medido.
+export function teoriaMedido(datos) {
+  const c = cifras(datos)
+  return [
+    { teoria: 'Amdahl: la parte serial pone techo', medido: `Con pocos datos, ${c.pctPrueba} del tiempo es red → S ≈ 1,3` },
+    { teoria: 'Gustafson: crecer el problema ayuda', medido: `17× más datos → una GPU logra S = ${c.gpu1S}` },
+    { teoria: 'Síncrono: espera al más lento', medido: `Con un nodo CPU, S baja de ${c.gpu1S} a ${c.mixto3S}` },
+    { teoria: 'Punto flotante no es asociativo', medido: 'Misma pérdida salvo ~1e-15 de redondeo' },
+  ]
+}
+
+export const proximos = [
+  { titulo: 'Reparto proporcional', detalle: 'Más datos a la GPU según su rendimiento medido', semana: 'Sem. 10 · Balanceo' },
+  { titulo: 'MPI', detalle: 'MPI_Bcast + MPI_Allreduce frente a este TCP', semana: 'Sem. 3-4 · Exp. 7' },
+  { titulo: 'CUDA avanzado', detalle: 'Warp shuffles y punto de cruce CPU/GPU', semana: 'Sem. 12 · Exp. 8' },
+  { titulo: 'Núcleos nativos', detalle: 'Pthreads y OpenMP en C con el mismo formato', semana: 'Sem. 5-7' },
+]
+
+// Tiempo de cálculo por época de cada nodo, medido en el Experimento 2.
+export function calculoPorNodo(datos) {
+  const series = datos?.experimento2?.series ?? {}
+  const de = (clave) => series[clave]?.[0]?.fases?.t_calculo_ms
+  return {
+    'augusto-pc': de('tcp_tailscale:augusto-pc'),
+    josue: de('tcp_tailscale:josue'),
+    angelo: de('tcp_tailscale:angelo+augusto-pc+josue'),
+  }
+}
