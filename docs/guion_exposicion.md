@@ -75,12 +75,12 @@ Atajos en la página:
 
 ## Diapositiva 2 · El problema (0:40)
 
-**En pantalla:** mapa, pregunta predictiva, AUC y, abajo, la **tubería de datos** en 6 pasos.
+**En pantalla:** mapa, pregunta predictiva, AUC, una **mini gráfica del Experimento 1** (cargador: N agregadoras frente a 1 agregadora) y, abajo, la **tubería de datos** en 6 pasos.
 
-**Qué hacer:** señala el mapa; luego recorre la tubería de izquierda a derecha con el puntero, sin leerla.
+**Qué hacer:** señala el mapa; luego la mini gráfica (la curva verde sube, la naranja se aplana) y recorre la tubería de izquierda a derecha, sin leerla.
 
 **Qué decir:**
-> "Usamos los datos reales de la red de monitoreo de Estados Unidos en 2025: casi 17 millones de mediciones horarias de cuatro contaminantes, en 1447 estaciones. La pregunta es de clasificación: ¿el NO₂ superará 53 partes por mil millones en la próxima hora? El modelo es una regresión logística, simple a propósito: alcanza un AUC de 0,995. El interés del curso está en cómo procesamos y entrenamos ese volumen en paralelo. Abajo está la tubería: el cargador concurrente, un worker pool con fan-out y fan-in, bajó la ingesta de 132 a 35 segundos, y al final está el entrenamiento distribuido."
+> "Usamos los datos reales de la red de monitoreo de Estados Unidos en 2025: casi 17 millones de mediciones horarias de cuatro contaminantes, en 1447 estaciones. La pregunta es de clasificación: ¿el NO₂ superará 53 partes por mil millones en la próxima hora? El modelo es una regresión logística, simple a propósito: alcanza un AUC de 0,995. El interés del curso está en cómo procesamos y entrenamos ese volumen en paralelo. Abajo está la tubería: el cargador concurrente, un worker pool con fan-out y fan-in, bajó la ingesta de 132 a 35 segundos. La gráfica muestra por qué: con una sola agregadora el speedup se aplana cerca de 1, por Amdahl; al particionar las agregadoras llega a 3,8. Al final de la tubería está el entrenamiento distribuido."
 
 **Transición:** "Para eso usamos tres niveles de paralelismo."
 
@@ -166,9 +166,9 @@ Es el panel de control del clúster. **Corrida 1** (unos 50 s):
 
 ## Diapositiva 9 · Conclusiones (0:50)
 
-**En pantalla:** 3 conclusiones con cifra, la tarjeta de balanceo, la tabla **"teoría del curso → lo que medimos"** y 4 tarjetas de próximos pasos con su semana.
+**En pantalla:** **3 tarjetas grandes** numeradas con su cifra (73 %, 18×, 18 → 6), la tarjeta de balanceo junto a la tabla **"teoría del curso → lo que medimos"** y, abajo, 4 tarjetas de próximos pasos con su semana.
 
-**Qué hacer:** señala las tres cifras de la izquierda; al final, recorre con el puntero las tarjetas de próximos pasos.
+**Qué hacer:** señala las tres tarjetas de izquierda a derecha mientras dices cada conclusión; al final, recorre las tarjetas de próximos pasos.
 
 **Qué decir:**
 > "Tres conclusiones. Primera: con pocos datos, la red domina y no conviene distribuir. Segunda: con todos los datos, el clúster sí gana, y el modelo es idéntico. Tercera: en un algoritmo síncrono, el nodo más lento marca el ritmo; agregar una CPU baja el speedup de 18 a 6. El siguiente paso es un **reparto proporcional al rendimiento**: medir cuánto rinde cada nodo y darle más datos a la GPU. Después vienen MPI, warp shuffles en CUDA y los núcleos nativos en Pthreads y OpenMP. La tabla de la derecha resume la idea de toda la exposición: cada ley del curso, Amdahl, Gustafson y la barrera síncrona, la medimos en el clúster real."
