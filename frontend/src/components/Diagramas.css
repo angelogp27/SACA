@@ -1,0 +1,219 @@
+.diagrama-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Niveles de paralelismo */
+.dg-nivel {
+  fill: var(--page);
+  stroke-width: 1.5;
+}
+
+.dg-nivel.distribuida {
+  stroke: var(--serie-1);
+}
+
+.dg-nivel.compartida {
+  stroke: var(--serie-4);
+}
+
+.dg-nivel.simt {
+  stroke: var(--serie-3);
+}
+
+.dg-titulo {
+  font-size: 16px;
+  font-weight: 650;
+  fill: var(--text-primary);
+}
+
+.dg-sub {
+  font-size: 12.5px;
+  fill: var(--text-secondary);
+}
+
+.dg-tecnica {
+  font-size: 12px;
+  fill: var(--text-muted);
+  font-style: italic;
+}
+
+.dg-cajita {
+  stroke: none;
+}
+
+.dg-cajita.pc {
+  fill: var(--serie-1);
+}
+
+.dg-cajita.hilo {
+  fill: var(--serie-4);
+}
+
+.dg-cajita.warp {
+  fill: var(--serie-3);
+}
+
+.dg-cajita-texto {
+  font-size: 11px;
+  font-weight: 600;
+  fill: #fff;
+  text-anchor: middle;
+}
+
+/* Flujo de colectivas */
+.dg-maestro,
+.dg-nodo {
+  fill: var(--page);
+  stroke-width: 1.5;
+}
+
+.dg-maestro {
+  stroke: var(--text-primary);
+}
+
+.dg-nodo {
+  stroke: var(--serie-1);
+}
+
+.dg-caja-titulo {
+  font-size: 14px;
+  font-weight: 650;
+  fill: var(--text-primary);
+  text-anchor: middle;
+}
+
+.dg-caja-sub {
+  font-size: 11.5px;
+  fill: var(--text-secondary);
+  text-anchor: middle;
+}
+
+.dg-flecha-baja {
+  stroke: var(--serie-1);
+  stroke-width: 1.5;
+}
+
+.dg-flecha-sube {
+  stroke: var(--serie-2);
+  stroke-width: 1.5;
+}
+
+.dg-punta.baja {
+  fill: var(--serie-1);
+}
+
+.dg-punta.sube {
+  fill: var(--serie-2);
+}
+
+.dg-etiqueta {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.dg-etiqueta.baja {
+  fill: var(--serie-1);
+  text-anchor: middle;
+}
+
+.dg-etiqueta.sube {
+  fill: var(--serie-2);
+  text-anchor: middle;
+}
+
+.dg-barrera {
+  stroke: var(--text-muted);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+
+/* Árbol de reducción */
+.dg-arista {
+  stroke: var(--baseline);
+  stroke-width: 1.5;
+}
+
+.dg-hoja {
+  fill: var(--page);
+  stroke: var(--serie-3);
+  stroke-width: 1.5;
+}
+
+.dg-raiz {
+  fill: var(--serie-3);
+}
+
+.dg-nodo-texto {
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--text-primary);
+  text-anchor: middle;
+}
+
+.dg-sync {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  fill: var(--text-muted);
+  text-anchor: end;
+}
+
+/* Modelo de costo */
+.dg-grilla {
+  stroke: var(--gridline);
+}
+
+.dg-eje-y {
+  font-size: 10.5px;
+  fill: var(--text-muted);
+  text-anchor: end;
+  dominant-baseline: middle;
+}
+
+.dg-eje-x {
+  font-size: 10.5px;
+  fill: var(--text-muted);
+  text-anchor: middle;
+}
+
+.dg-ideal {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-dasharray: 4 4;
+  stroke-width: 1.5;
+}
+
+.dg-curva {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.dg-curva.completa {
+  stroke: var(--serie-3);
+}
+
+.dg-curva.prueba {
+  stroke: var(--serie-2);
+}
+
+.dg-rotulo {
+  font-size: 12px;
+  font-weight: 600;
+  text-anchor: end;
+}
+
+.dg-rotulo.completa {
+  fill: var(--serie-3);
+}
+
+.dg-rotulo.prueba {
+  fill: var(--serie-2);
+}
+
+.dg-rotulo.ideal {
+  fill: var(--text-muted);
+  text-anchor: start;
+  font-weight: 400;
+}
