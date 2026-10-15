@@ -35,6 +35,12 @@ type Mensaje struct {
 	Tipo     string `json:"tipo"`
 	WorkerID string `json:"worker_id,omitempty"`
 
+	// registro: huella (SHA-256) de la muestra que cargó el nodo, para que
+	// el maestro rechace a quien tenga otros datos, y con qué calcula.
+	Huella      string `json:"huella,omitempty"`
+	Motor       string `json:"motor,omitempty"`
+	Dispositivo string `json:"dispositivo,omitempty"`
+
 	// particion_asignada
 	FiltroMongo *FiltroMongo `json:"filtro_mongo,omitempty"`
 
@@ -45,6 +51,12 @@ type Mensaje struct {
 	Gradiente      []float64 `json:"gradiente,omitempty"`
 	GradienteSesgo float64   `json:"gradiente_sesgo,omitempty"`
 	NMuestras      int       `json:"n_muestras,omitempty"`
+	// Perdida es la suma de la pérdida ponderada sobre la partición y
+	// TCalculoMs lo que tardó el nodo en calcular, sin la red: el maestro
+	// los usa para la pérdida de la época y para separar cálculo de
+	// comunicación.
+	Perdida    float64 `json:"perdida,omitempty"`
+	TCalculoMs float64 `json:"t_calculo_ms,omitempty"`
 
 	// entrenamiento_finalizado
 	EpocaFinal   int     `json:"epoca_final,omitempty"`

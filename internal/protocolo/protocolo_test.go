@@ -44,3 +44,24 @@ func TestParticionAsignadaSigueElContrato(t *testing.T) {
 		t.Fatalf("JSON = %s", buf[:n])
 	}
 }
+
+func TestCamposDelEntrenamientoDistribuido(t *testing.T) {
+	a, b := net.Pipe()
+	defer a.Close()
+	defer b.Close()
+	ca, cb := NuevaConexion(a), NuevaConexion(b)
+
+	go func() {
+		ca.Enviar(Mensaje{Tipo: TipoRegistro, WorkerID: "gpu1", Huella: "abc", Motor: "cuda", Dispositivo: "RTX 3060"})
+		ca.Enviar(Mensaje{Tipo: TipoGradienteParcial, WorkerID: "gpu1", Epoca: 3, Gradiente: []float64{1, 2}, Perdida: 0.5, TCalculoMs: 1.25, Motor: "cuda"})
+	}()
+
+	r, err := cb.Recibir()
+	if err != nil || r.Huella != "abc" || r.Motor != "cuda" || r.Dispositivo != "RTX 3060" {
+		t.Fatalf("registro = %+v (%v)", r, err)
+	}
+	g, err := cb.Recibir()
+	if err != nil || g.Perdida != 0.5 || g.TCalculoMs != 1.25 || g.Motor != "cuda" {
+		t.Fatalf("gradiente_parcial = %+v (%v)", g, err)
+	}
+}
