@@ -29,6 +29,13 @@ cd "C:\Users\piero\OneDrive\Documentos\Universidad\progra paralela\SACA"
 
 **Qué vas a hacer:** dejar `data\muestra.gob` en Drive para que todos los nodos tengan exactamente los mismos datos.
 
+Hay dos muestras:
+
+| Archivo | Contenido | Para qué |
+|---|---|---|
+| `data\muestra.gob` | **Todos** los registros con NO2 etiquetables: 3 342 599 ejemplos (2 499 636 de entrenamiento), 337 MB, huella `c2c8f8832a30` | **El clúster.** Es la que usan por defecto el maestro, los nodos y los scripts. Con ella el cálculo por época (~214 ms en un hilo) supera con creces a la red (~7 ms): es lo que justifica el clúster |
+| `data\muestra_prueba.gob` | 200 mil registros sorteados (146 715 de entrenamiento), 20 MB, huella `5e90db4b1158` | Pruebas rápidas y Experimento 1b. En el clúster se usa solo pasándola explícitamente (`-muestra` en el maestro, `-Muestra` en `nodo.ps1`) |
+
 **1.1 Comprobar que la tienes** y anotar su huella:
 
 ```powershell
@@ -36,20 +43,23 @@ Test-Path data\muestra.gob
 (Get-FileHash data\muestra.gob -Algorithm SHA256).Hash.Substring(0,12).ToLower()
 ```
 
-**Debes ver** `True` y `5e90db4b1158`.
+**Debes ver** `True` y `c2c8f8832a30`.
 
-**Si ves `False`**, genérala (necesita los CSV de la EPA y MongoDB, unos 3 minutos con la descarga ya hecha):
+**Si ves `False`**, genérala. Necesita MongoDB con los datos ya cargados (`scripts\pipeline.ps1 -MongoLocal`, si no lo hiciste) y tarda **unos 10 minutos**: arma la muestra con todos los registros, la guarda y entrena una vez en secuencial (eso da el T(1)):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\pipeline.ps1 -MongoLocal
+powershell -ExecutionPolicy Bypass -File scripts\mongo-local.ps1
+go run .\entrenamiento\cmd\secuencial -muestra 0 -cache data\muestra.gob
 ```
 
-Si regeneras la muestra, la huella **cambia**: anuncia la nueva en el grupo, porque las guías de los nodos dicen `5e90db4b1158`.
+**Debes ver**, entre otras líneas, `muestra: 3342599 ejemplos etiquetados desde MongoDB` y al final `T(1) entrenamiento secuencial (200 epocas): ~43s`.
+
+Si regeneras la muestra, la huella **puede cambiar**: anuncia la nueva en el grupo, porque las guías de los nodos dicen `c2c8f8832a30`.
 
 **1.2 Subirla a Drive:**
-1. Sube `data\muestra.gob` a la carpeta del grupo en Google Drive.
+1. Sube `data\muestra.gob` (337 MB) a la carpeta del grupo en Google Drive. Si ya habías subido la de prueba, **bórrala o renómbrala** en Drive para que nadie la confunda.
 2. Clic derecho → **Compartir** → **Acceso general: Cualquier persona con el enlace** → **Copiar enlace**.
-3. Publica en el grupo: el enlace y la huella `5e90db4b1158`.
+3. Publica en el grupo: el enlace y la huella `c2c8f8832a30`, y pide a quien tenga la anterior que la **reemplace**.
 
 - [ ] Muestra en Drive, con el enlace y la huella publicados.
 
@@ -136,12 +146,13 @@ powershell -ExecutionPolicy Bypass -File scripts\cluster-local.ps1 -Nodos 3 -Ven
 **Debes ver** que se abren 3 ventanas (`trabajador local1`, `local2` y `local3`) y que la tuya termina con:
 
 ```
-T(3 nodos) = 897ms, 4.48 ms por época: cálculo del más lento 4.25 ms + red y espera 0.24 ms (5% del tiempo es comunicación)
+T(3 nodos) = 10.554s, 52.77 ms por época: cálculo del más lento 51.75 ms + red y espera 1.02 ms (2% del tiempo es comunicación)
 ...
-verificación: pérdida final distribuida 0.125720142, secuencial 0.125720142, diferencia 2.6e-15 → OK, mismo modelo
+verificación: pérdida final distribuida 0.132576204, secuencial 0.132576204, diferencia 8.6e-16 → OK, mismo modelo
+secuencial en esta PC: 42.403s → speedup S(3) = 4.02
 ```
 
-Cierra las 3 ventanas de los trabajadores cuando termine.
+Tarda unos 2 minutos (la verificación secuencial final dura ~43 s) y usa ~6 GB de RAM: cada proceso carga la muestra (~1,5 GB). Cierra las 3 ventanas de los trabajadores cuando termine.
 
 Si cambiaste el código, actualiza también el Experimento 2 local (unos 2 minutos):
 
@@ -158,7 +169,7 @@ powershell -ExecutionPolicy Bypass -File scripts\experimento2.ps1
 **Qué vas a hacer:** la primera vez con todas las PCs conectadas. Unos 30 minutos.
 
 **6.1 Antes de la llamada** debes tener en el grupo el mensaje del paso "Enviar tus datos al grupo" de cada nodo. Completa el inventario de [README.md](README.md) y revisa que:
-- todos tengan la huella `5e90db4b1158`;
+- todos tengan la huella `c2c8f8832a30`;
 - todos tengan la misma `Version` que tu `git log -1 --oneline`;
 - todos tengan `Ensayo individual: OK`.
 
@@ -183,7 +194,7 @@ Di "¡ya!" a los nodos.
 
 | Línea | Significado |
 |---|---|
-| `muestra data/muestra.gob, huella 5e90db4b1158` | Tu huella: los nodos deben tener la misma |
+| `muestra data/muestra.gob, huella c2c8f8832a30` | Tu huella: los nodos deben tener la misma |
 | `los nodos se conectan con: -maestro 100.101.102.103:9000` | La línea con `100.` es tu IP de Tailscale |
 | `nodo ana registrado desde 100.70.12.34:52011 → partición 1/4, motor go (CPU ANA-LAPTOP, 8 goroutines)` | Se conectó un nodo: su IP, la parte de los datos que le tocó y con qué calcula |
 | `nodos activos 3/4 [...]` | Faltan nodos: espera |
@@ -250,7 +261,9 @@ git push
 
 Copia los números de la serie `tcp_tailscale` a la diapositiva 5.
 
-> No vuelvas a correr `scripts\experimento2.ps1` después de esto: **borra** `resultados\experimento2.csv` y lo regenera solo con las corridas locales. Si necesitas rehacer las corridas locales, primero guarda una copia del CSV.
+> `scripts\experimento2.ps1` (corridas locales) **conserva** las filas `tcp_tailscale` del CSV: solo reemplaza sus propias filas `tcp_local`. Con 8 nodos locales y la muestra completa necesita ~13 GB de RAM; en una PC de 16 GB usa `-Nodos 1,2,4`.
+>
+> Los resultados con la muestra de prueba (incluido el primer ensayo real por Tailscale, del 15/10) quedaron en `resultados\experimento2_prueba.*`.
 
 - [ ] Experimento 2 por Tailscale medido y publicado.
 
@@ -261,7 +274,7 @@ Copia los números de la serie `tcp_tailscale` a la diapositiva 5.
 **1 hora antes:**
 - [ ] `git push` hecho y "hagan `git pull`" avisado en el grupo.
 - [ ] `tailscale status`: tu PC conectada.
-- [ ] Ensayo rápido en tu PC: `scripts\cluster-local.ps1 -Nodos 2` con `OK`.
+- [ ] Ensayo rápido en tu PC: `scripts\cluster-local.ps1 -Nodos 1` con `OK`.
 - [ ] Suspensión desactivada (**Configuración → Sistema → Inicio/apagado → Nunca**), notificaciones silenciadas y OneDrive en pausa.
 - [ ] PowerShell con letra grande (`Ctrl` + rueda del mouse) y la carpeta del proyecto abierta.
 

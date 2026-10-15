@@ -66,7 +66,7 @@ Cada uno completa su fila con lo que pide el paso "Enviar tus datos al grupo" de
 
 | Integrante | Rol | Sistema | Procesador | RAM | GPU | IP de Tailscale | Huella | Ensayo individual |
 |---|---|---|---|---|---|---|---|---|
-| Piero | Maestro | Windows 11 | Ryzen 5 3600 | 16 GB | AMD RX 580 | 100.___.___.___ | 5e90db4b1158 | |
+| Piero | Maestro | Windows 11 | Ryzen 5 3600 | 16 GB | AMD RX 580 | 100.67.177.8 | c2c8f8832a30 | OK |
 | | | | | | | | | |
 | | | | | | | | | |
 | | | | | | | | | |

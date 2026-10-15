@@ -124,7 +124,7 @@ Antes de empezar a hablar, **todos los nodos ya están con `nodo.ps1` abierto y 
 
 **1 hora antes**
 - [ ] `git pull` y el mismo commit en todas las PCs
-- [ ] Huella `5e90db4b1158` en todas
+- [ ] Huella `c2c8f8832a30` en todas (la muestra completa de 337 MB)
 - [ ] Tailscale conectado; `tailscale ping` al maestro desde cada nodo
 - [ ] Suspensión desactivada, notificaciones silenciadas, OneDrive en pausa
 - [ ] Nodos GPU: `bin\gradiente_cuda.exe --info` funciona
