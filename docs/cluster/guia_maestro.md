@@ -2,7 +2,7 @@
 
 **Esta guía es solo para quien maneja el maestro**: la PC que reparte el trabajo, junta los resultados y comparte pantalla en la demo. Hoy es Piero (Ryzen 5 3600, Windows 11). Los demás integrantes siguen la guía de nodo que les toca ([README.md](README.md)).
 
-Como maestro tienes dos tareas:
+Como maestro tienes dos tareas (y desde el paso 8, todo se puede manejar desde la página):
 
 1. **Preparar** todo para que los nodos puedan seguir su guía sin ayuda: el código publicado, la muestra en Drive, la invitación de Tailscale y el puerto abierto.
 2. **Conducir** el ensayo general y la demo: lanzar el maestro, leer la salida y guardar los resultados.
@@ -269,30 +269,84 @@ Copia los números de la serie `tcp_tailscale` a la diapositiva 5.
 
 ---
 
-## Paso 8. El día de la presentación
+## Paso 8. Modo servidor: controlar el clúster desde la página
+
+**Qué vas a hacer:** dejar el maestro encendido como servidor y manejar todo desde la página. Los nodos se conectan **una sola vez** y quedan en una **sala de espera**. Desde la página eliges con casillas qué nodos usar, pulsas **Entrenar** y ves en vivo las épocas, la pérdida, el cálculo frente a la red de cada nodo, el speedup y el concepto del curso que está ocurriendo. Al terminar, los nodos vuelven a la sala y puedes lanzar otra combinación sin pedirle nada a nadie.
+
+**8.1 Arranca el maestro en modo servidor** (PowerShell 1):
+
+```powershell
+cd "C:\Users\piero\OneDrive\Documentos\Universidad\progra paralela\SACA"
+go build -o bin\maestro.exe .\entrenamiento\cmd\maestro
+.\bin\maestro.exe -web 127.0.0.1:8080 -modo tcp_tailscale -resultado resultados\experimento2.csv
+```
+
+**Debes ver:**
+
+```
+muestra data/muestra.gob, huella c2c8f8832a30 (los nodos deben mostrar la misma)
+maestro en modo servidor: nodos en [::]:9000 (sala de hasta 16)
+  los nodos se conectan con: -maestro 100.67.177.8:9000
+T(1) de referencia: una época en secuencial (1 hilo) en esta PC tarda ~210 ms
+API de la página en http://127.0.0.1:8080 (abre la página con: cd frontend; npm run dev)
+```
+
+**8.2 Abre la página** (PowerShell 2):
+
+```powershell
+cd "C:\Users\piero\OneDrive\Documentos\Universidad\progra paralela\SACA\frontend"
+npm install
+npm run dev
+```
+
+Abre en el navegador la dirección que muestra (`http://localhost:5173`). Pulsa **Presentación** para el recorrido de 10 diapositivas (la demo es la diapositiva 6), o quédate en **Tablero**: el panel "Clúster en vivo" está abajo.
+
+**8.3 Los nodos se conectan** con su comando de siempre, **una sola vez** (el de "Unirte al clúster" de su guía). Ya no se cierran al terminar cada corrida: quedan en la sala y, si se corta la conexión o reinicias el maestro, vuelven solos.
+
+**8.4 En la página:**
+- **Sala:** aparece cada nodo con GPU o CPU, su tarjeta, su IP y si está libre. Marca las casillas de los que quieras usar.
+- **Épocas** (200 por defecto) y **Verificar contra el secuencial**: añade ~40 s al final para comprobar que el modelo es idéntico. En la demo conviene dejarlo apagado; ya está medido en la diapositiva de resultados.
+- **Entrenar con N nodos:** lanza la corrida. Mientras corre verás la barra de época, 5 indicadores (tiempo por época, % de comunicación, speedup en vivo, throughput, pérdida), 4 gráficas que crecen época a época y la franja con el tema del curso que está ocurriendo.
+- **Cancelar corrida:** la detiene; los nodos vuelven a la sala.
+- **Quitar** (en cada nodo): despide a ese nodo; se cierra en su PC.
+- **Terminar sesión:** despide a todos (pide confirmación).
+- **Corridas de esta sesión:** al final del panel, una barra por corrida con su tiempo por época (cálculo y red), el speedup y la eficiencia. Si lanzaste el maestro con `-resultado`, cada corrida también se agrega al CSV del Experimento 2.
+
+**8.5 Para terminar:** `Ctrl` + `C` en la PowerShell del maestro. Despide a todos los nodos, que esperarán reintentando hasta que lo vuelvas a arrancar o cierren su ventana.
+
+**Ensayo en tu PC (sin compañeros):**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\cluster-local.ps1 -Nodos 2 -Web -Muestra data/muestra_prueba.gob
+```
+
+Abre la página en otra PowerShell (`cd frontend; npm run dev`). Usa la muestra de prueba para no cargar la RAM con 3 procesos de la muestra completa.
+
+---
+
+## Paso 9. El día de la presentación
 
 **1 hora antes:**
 - [ ] `git push` hecho y "hagan `git pull`" avisado en el grupo.
 - [ ] `tailscale status`: tu PC conectada.
-- [ ] Ensayo rápido en tu PC: `scripts\cluster-local.ps1 -Nodos 1` con `OK`.
+- [ ] Ensayo rápido en tu PC: `scripts\cluster-local.ps1 -Nodos 2 -Web -Muestra data/muestra_prueba.gob` y la página respondiendo.
 - [ ] Suspensión desactivada (**Configuración → Sistema → Inicio/apagado → Nunca**), notificaciones silenciadas y OneDrive en pausa.
-- [ ] PowerShell con letra grande (`Ctrl` + rueda del mouse) y la carpeta del proyecto abierta.
+- [ ] Navegador con la página en **Presentación**, en pantalla completa (`F11`).
 
-**5 minutos antes:** los nodos ejecutan su comando de "Unirte al clúster" y quedan reintentando. Tú tienes escrito, **sin ejecutar**:
+**15 minutos antes:**
+1. Arranca el maestro en modo servidor (paso 8.1) y la página (paso 8.2).
+2. Pide a los nodos que ejecuten su comando **una vez**. Comprueba en la página (diapositiva 5 o 6) que aparecen todos en la sala.
 
-```powershell
-.\bin\maestro.exe -nodos <N> -modo tcp_tailscale -maquina "demo: <N> PCs por Tailscale" -resultado resultados\experimento2.csv
-```
+**Durante la demo** (diapositiva 6; guion en la sección 4 de [../guia_presentacion_cluster.md](../guia_presentacion_cluster.md)):
+1. Marca **solo augusto** (1 GPU) → **Entrenar**. Narra las gráficas mientras corre (~2 s de entrenamiento).
+2. Marca **augusto + josue** (2 GPU) → **Entrenar**. Es más lento: la red de un nodo más pesa más que el cálculo que se reparte.
+3. Marca los **tres** (+ angelo, CPU) → **Entrenar**. En "Cálculo por época de cada nodo" se ve a angelo arriba: **marca el ritmo**.
+4. Muestra "Corridas de esta sesión": las 3 barras comparadas, medidas delante del docente.
+5. La caída: lanza una corrida con **2000 épocas** y pide a angelo que presione `Ctrl` + `C` **en su terminal**. La corrida aparece como abortada ("el nodo angelo se cayó"); el resto vuelve a la sala. Angelo relanza su comando y reaparece.
 
-**Durante la demo** (detalle en la sección 4 de [../guia_presentacion_cluster.md](../guia_presentacion_cluster.md)):
-1. Comparte tu pantalla y ejecuta el comando: los nodos entran solos.
-2. Señala las líneas `registrado desde 100.x... motor go/cuda`.
-3. Deja correr el entrenamiento y lee una línea de época.
-4. Pide al nodo con GPU que comparta su pantalla unos segundos (`motor cuda validado`).
-5. Muestra la tabla final y `OK, mismo modelo`.
-6. La caída: relanza con `.\bin\maestro.exe -nodos <N> -epocas 2000 -verificar=false`, los nodos repiten su comando (flecha ↑ y Enter) y el integrante acordado presiona `Ctrl` + `C` **en su terminal**. Tú no tocas tu ventana.
+**Plan B** si la red falla: `Ctrl` + `C` al maestro y ejecuta `powershell -ExecutionPolicy Bypass -File scripts\cluster-local.ps1 -Nodos 2 -Web -Muestra data/muestra_prueba.gob`. La página sigue igual y los nodos locales aparecen en la sala. Explica que son procesos que solo se hablan por TCP, igual que entre casas.
 
-**Plan B** si la red falla: ejecuta `powershell -ExecutionPolicy Bypass -File scripts\cluster-local.ps1 -Nodos 4 -Ventanas`, que hace el clúster completo en tu PC, y explica que son procesos que solo se hablan por TCP, igual que entre casas.
+**Modo de una corrida** (como en los pasos 6 y 7), por si la página fallara: `.\bin\maestro.exe -nodos <N> -modo tcp_tailscale -resultado resultados\experimento2.csv`; los nodos se conectan igual y la salida se lee en la terminal.
 
 ---
 
@@ -300,10 +354,14 @@ Copia los números de la serie `tcp_tailscale` a la diapositiva 5.
 
 | Lo que ves | Qué hacer |
 |---|---|
+| La página dice **"maestro sin conexión"** | El maestro no está en modo servidor o no está corriendo: paso 8.1. Si sí corre, revisa que la página se abrió con `npm run dev` (el proxy `/api` solo existe ahí y en `npm run preview`) |
+| `no se pudo abrir la API en 127.0.0.1:8080` | Ya hay otro maestro en modo servidor. Ciérralo (`Get-Process maestro \| Stop-Process`) |
+| El botón **Entrenar** está gris | No hay nodos libres marcados, o hay una corrida en curso |
+| `ya hay una corrida en curso` en la página | Espera a que termine o pulsa **Cancelar corrida** |
 | `no se pudo escuchar en :9000: ... Only one usage of each socket address` | Ya hay otro maestro abierto. Ciérralo o pega `Get-Process maestro -ErrorAction SilentlyContinue \| Stop-Process` |
 | Un nodo nunca aparece | Que ese nodo revise su guía: Tailscale conectado, invitación aceptada, IP y `:9000` bien escritos. Desde tu lado: `tailscale ping <IP-del-nodo>`. Si falla, revisa la regla del paso 4 |
 | `rechazado, su muestra tiene otra huella (...)` | Ese nodo tiene otro `muestra.gob`. Que lo descargue de nuevo (paso "Copiar la muestra" de su guía) |
-| `nodos activos 3/4` y no avanza | Pusiste más `-nodos` de los presentes. `Ctrl` + `C` y relanza con el número correcto |
+| `nodos en la sala 3/4` y no avanza (modo de una corrida) | Pusiste más `-nodos` de los presentes. `Ctrl` + `C` y relanza con el número correcto |
 | `registro de X rechazado: todas las particiones ya están asignadas` | Entró un nodo de más: no afecta la corrida actual |
 | `entrenamiento abortado: ... no enviaron su gradiente en 2m0s` | Un nodo se colgó (suspensión, wifi). Que lo reinicie y repite la corrida |
 | `entrenamiento abortado: ... el nodo X se cayó` sin que se lo pidieras | Ese nodo cerró su ventana o perdió internet. Relanza la corrida |
