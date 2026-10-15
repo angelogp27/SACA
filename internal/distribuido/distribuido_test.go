@@ -211,21 +211,33 @@ func levantarMaestro(t *testing.T, cfg ConfigMaestro) (*Maestro, string) {
 	return m, oyente.Addr().String()
 }
 
-func lanzarTrabajador(t *testing.T, wg *sync.WaitGroup, errs chan<- error, dir string, cfg ConfigTrabajador) {
+// lanzarTrabajador conecta un trabajador en una goroutine. Su error (si
+// no es nil ni ErrSesionTerminada) va a errs; al terminar cierra su motor.
+func lanzarTrabajador(t *testing.T, wg *sync.WaitGroup, errs chan<- error, dir string, cfg *ConfigTrabajador) {
 	t.Helper()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer cfg.Motor.Cerrar()
 		conn, err := net.Dial("tcp", dir)
 		if err != nil {
 			errs <- err
 			return
 		}
 		defer conn.Close()
-		if err := Trabajar(protocolo.NuevaConexion(conn), cfg); err != nil {
+		if err := Trabajar(protocolo.NuevaConexion(conn), cfg); err != nil && !errors.Is(err, ErrSesionTerminada) {
 			errs <- fmt.Errorf("%s: %w", cfg.ID, err)
 		}
 	}()
+}
+
+func comprobarErrores(t *testing.T, wg *sync.WaitGroup, errs chan error) {
+	t.Helper()
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
 }
 
 func TestEntrenamientoDistribuidoIgualQueSecuencial(t *testing.T) {
@@ -235,28 +247,23 @@ func TestEntrenamientoDistribuidoIgualQueSecuencial(t *testing.T) {
 	secuencial := logistica.NuevoModelo(len(datos.Entrenamiento.X[0]))
 	perdidasSec := secuencial.Entrenar(datos.Entrenamiento.X, datos.Entrenamiento.Y, tasa, epocas, datos.PesosClase)
 
-	maestro, dir := levantarMaestro(t, ConfigMaestro{Nodos: 3, Datos: datos, Huella: "h", Tasa: tasa, Epocas: epocas, EsperaGradiente: 10 * time.Second})
+	maestro, dir := levantarMaestro(t, ConfigMaestro{Capacidad: 3, Datos: datos, Huella: "h", EsperaGradiente: 10 * time.Second})
 
 	var wg sync.WaitGroup
 	errs := make(chan error, 10)
 	// Un nodo con goroutines, uno con el motor externo falso y uno con un
 	// motor que da mal: este último debe volver solo al motor de Go.
-	lanzarTrabajador(t, &wg, errs, dir, ConfigTrabajador{ID: "cpu1", Datos: datos, Huella: "h", Motor: NuevoMotorGo(2)})
-	respaldo := NuevoMotorGo(1)
-	lanzarTrabajador(t, &wg, errs, dir, ConfigTrabajador{ID: "gpu1", Datos: datos, Huella: "h", Motor: iniciarMotorFalso(t), Respaldo: respaldo})
-	lanzarTrabajador(t, &wg, errs, dir, ConfigTrabajador{ID: "roto", Datos: datos, Huella: "h", Motor: &motorRoto{MotorGo{Hilos: 1}}, Respaldo: NuevoMotorGo(1)})
+	lanzarTrabajador(t, &wg, errs, dir, &ConfigTrabajador{ID: "cpu1", Datos: datos, Huella: "h", Motor: NuevoMotorGo(2)})
+	lanzarTrabajador(t, &wg, errs, dir, &ConfigTrabajador{ID: "gpu1", Datos: datos, Huella: "h", Motor: iniciarMotorFalso(t), Respaldo: NuevoMotorGo(1)})
+	lanzarTrabajador(t, &wg, errs, dir, &ConfigTrabajador{ID: "roto", Datos: datos, Huella: "h", Motor: &motorRoto{MotorGo{Hilos: 1}}, Respaldo: NuevoMotorGo(1)})
 
 	ctx, cancelar := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelar()
-	res, err := maestro.Entrenar(ctx)
+	res, err := maestro.Entrenar(ctx, epocas, tasa)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wg.Wait()
-	close(errs)
-	for err := range errs {
-		t.Error(err)
-	}
+	comprobarErrores(t, &wg, errs)
 
 	if len(res.Perdidas) != epocas {
 		t.Fatalf("%d pérdidas, se esperaban %d", len(res.Perdidas), epocas)
@@ -278,16 +285,140 @@ func TestEntrenamientoDistribuidoIgualQueSecuencial(t *testing.T) {
 	}
 }
 
+// TestSalaVariasCorridas es el modo servidor: tres nodos se conectan una
+// vez y el maestro lanza corridas con distintos subconjuntos. Cada corrida
+// debe dar la pérdida del secuencial, y los nodos vuelven a la sala.
+func TestSalaVariasCorridas(t *testing.T) {
+	datos := datosSinteticos(t)
+	const tasa, epocas = 0.1, 25
+	secuencial := logistica.NuevoModelo(len(datos.Entrenamiento.X[0]))
+	perdidasSec := secuencial.Entrenar(datos.Entrenamiento.X, datos.Entrenamiento.Y, tasa, epocas, datos.PesosClase)
+
+	var mu sync.Mutex
+	var estados []string
+	notificar := func(i Instantanea) {
+		mu.Lock()
+		defer mu.Unlock()
+		if i.Corrida != nil {
+			estados = append(estados, fmt.Sprintf("%d:%s:%d", i.Corrida.ID, i.Corrida.Estado, i.Corrida.Epoca))
+		}
+	}
+	maestro, dir := levantarMaestro(t, ConfigMaestro{Capacidad: 5, Datos: datos, Huella: "h", EsperaGradiente: 10 * time.Second, Notificar: notificar})
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 10)
+	lanzarTrabajador(t, &wg, errs, dir, &ConfigTrabajador{ID: "a", Datos: datos, Huella: "h", Motor: NuevoMotorGo(1)})
+	lanzarTrabajador(t, &wg, errs, dir, &ConfigTrabajador{ID: "b", Datos: datos, Huella: "h", Motor: iniciarMotorFalso(t), Respaldo: NuevoMotorGo(1)})
+	lanzarTrabajador(t, &wg, errs, dir, &ConfigTrabajador{ID: "c", Datos: datos, Huella: "h", Motor: NuevoMotorGo(2)})
+
+	ctx, cancelar := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancelar()
+	if err := maestro.EsperarNodos(ctx, 3); err != nil {
+		t.Fatal(err)
+	}
+	maestro.MedirT1(2)
+
+	for _, eleccion := range [][]string{{"b"}, {"a", "b"}, {"c", "a", "b"}, {"b", "c"}} {
+		res, err := maestro.Correr(ctx, OpcionesCorrida{Nodos: eleccion, Epocas: epocas, Tasa: tasa, Continuar: true})
+		if err != nil {
+			t.Fatalf("corrida con %v: %v", eleccion, err)
+		}
+		if dif := math.Abs(res.Perdidas[epocas-1] - perdidasSec[epocas-1]); dif > 1e-12 {
+			t.Fatalf("corrida con %v: pérdida %.15f, secuencial %.15f", eleccion, res.Perdidas[epocas-1], perdidasSec[epocas-1])
+		}
+		if len(res.Nodos) != len(eleccion) {
+			t.Fatalf("corrida con %v usó %d nodos", eleccion, len(res.Nodos))
+		}
+	}
+
+	inst := maestro.Instantanea()
+	if len(inst.Sala) != 3 || len(inst.Historial) != 4 || inst.Ocupado {
+		t.Fatalf("sala=%d historial=%d ocupado=%v; se esperaban 3 nodos libres y 4 corridas", len(inst.Sala), len(inst.Historial), inst.Ocupado)
+	}
+	for _, n := range inst.Sala {
+		if n.Estado != "libre" {
+			t.Fatalf("nodo %s quedó %q", n.ID, n.Estado)
+		}
+	}
+	h := inst.Historial[1]
+	if h.Estado != EstadoTerminado || len(h.Nodos) != 2 || h.Speedup <= 0 || h.TEpocaMs <= 0 {
+		t.Fatalf("historial[1] = %+v", h)
+	}
+	if c := inst.Corrida; c == nil || c.Epoca != epocas || len(c.Perdidas) != epocas || len(c.Nodos[0].CalculoMs) != epocas {
+		t.Fatalf("la corrida de la instantánea no tiene las series completas: %+v", c)
+	}
+
+	// No se puede empezar con un nodo que no existe; tampoco dos a la vez.
+	if _, err := maestro.Iniciar(OpcionesCorrida{Nodos: []string{"zz"}, Epocas: 1}); !errors.Is(err, ErrNodoNoDisponible) {
+		t.Fatalf("err = %v; se esperaba ErrNodoNoDisponible", err)
+	}
+	reserva, err := maestro.Iniciar(OpcionesCorrida{Nodos: []string{"a"}, Epocas: 3, Tasa: tasa, Continuar: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := maestro.Iniciar(OpcionesCorrida{Nodos: []string{"b"}, Epocas: 1}); !errors.Is(err, ErrOcupado) {
+		t.Fatalf("err = %v; se esperaba ErrOcupado", err)
+	}
+	if _, err := reserva.Ejecutar(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	maestro.Despedir(MotivoSesionTerminada)
+	comprobarErrores(t, &wg, errs)
+
+	mu.Lock()
+	defer mu.Unlock()
+	visto := strings.Join(estados, " ")
+	for _, esperado := range []string{"1:entrenando:0", "1:entrenando:25", "1:terminado:25", "4:terminado:25"} {
+		if !strings.Contains(visto, esperado) {
+			t.Fatalf("las notificaciones no incluyen %q", esperado)
+		}
+	}
+}
+
+func TestCorridaCanceladaDevuelveLosNodosALaSala(t *testing.T) {
+	datos := datosSinteticos(t)
+	maestro, dir := levantarMaestro(t, ConfigMaestro{Capacidad: 2, Datos: datos, Huella: "h", EsperaGradiente: 10 * time.Second})
+	var wg sync.WaitGroup
+	errs := make(chan error, 10)
+	lanzarTrabajador(t, &wg, errs, dir, &ConfigTrabajador{ID: "a", Datos: datos, Huella: "h", Motor: NuevoMotorGo(1)})
+	lanzarTrabajador(t, &wg, errs, dir, &ConfigTrabajador{ID: "b", Datos: datos, Huella: "h", Motor: NuevoMotorGo(1)})
+	ctx, cancelar := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancelar()
+	if err := maestro.EsperarNodos(ctx, 2); err != nil {
+		t.Fatal(err)
+	}
+
+	ctxCorrida, cancelarCorrida := context.WithCancel(ctx)
+	time.AfterFunc(200*time.Millisecond, cancelarCorrida)
+	_, err := maestro.Correr(ctxCorrida, OpcionesCorrida{Epocas: 1000000, Tasa: 0.1, Continuar: true})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v; se esperaba la cancelación", err)
+	}
+	// Los mismos nodos sirven para la siguiente corrida.
+	if _, err := maestro.Correr(ctx, OpcionesCorrida{Epocas: 5, Tasa: 0.1, Continuar: true}); err != nil {
+		t.Fatalf("la corrida siguiente a la cancelada falló: %v", err)
+	}
+	if h := maestro.Instantanea().Historial; len(h) != 2 || h[0].Estado != EstadoCancelado || h[1].Estado != EstadoTerminado {
+		t.Fatalf("historial = %+v", h)
+	}
+	if err := maestro.Quitar("a"); err != nil {
+		t.Fatal(err)
+	}
+	maestro.Despedir(MotivoSesionTerminada)
+	comprobarErrores(t, &wg, errs)
+}
+
 func TestMaestroRechazaMuestraDistinta(t *testing.T) {
 	datos := datosSinteticos(t)
-	_, dir := levantarMaestro(t, ConfigMaestro{Nodos: 1, Datos: datos, Huella: "buena", Tasa: 0.1, Epocas: 1})
+	_, dir := levantarMaestro(t, ConfigMaestro{Capacidad: 1, Datos: datos, Huella: "buena"})
 
 	conn, err := net.Dial("tcp", dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	err = Trabajar(protocolo.NuevaConexion(conn), ConfigTrabajador{ID: "w1", Datos: datos, Huella: "otra", Motor: NuevoMotorGo(1)})
+	err = Trabajar(protocolo.NuevaConexion(conn), &ConfigTrabajador{ID: "w1", Datos: datos, Huella: "otra", Motor: NuevoMotorGo(1)})
 	if !errors.Is(err, ErrRechazado) || !strings.Contains(err.Error(), "muestra_distinta") {
 		t.Fatalf("err = %v; se esperaba un rechazo por muestra distinta", err)
 	}
@@ -295,11 +426,11 @@ func TestMaestroRechazaMuestraDistinta(t *testing.T) {
 
 func TestMaestroAbortaSiUnNodoSeCae(t *testing.T) {
 	datos := datosSinteticos(t)
-	maestro, dir := levantarMaestro(t, ConfigMaestro{Nodos: 2, Datos: datos, Huella: "h", Tasa: 0.1, Epocas: 1000, EsperaGradiente: 10 * time.Second})
+	maestro, dir := levantarMaestro(t, ConfigMaestro{Capacidad: 2, Datos: datos, Huella: "h", EsperaGradiente: 10 * time.Second})
 
 	var wg sync.WaitGroup
 	errs := make(chan error, 10)
-	lanzarTrabajador(t, &wg, errs, dir, ConfigTrabajador{ID: "sano", Datos: datos, Huella: "h", Motor: NuevoMotorGo(1)})
+	lanzarTrabajador(t, &wg, errs, dir, &ConfigTrabajador{ID: "sano", Datos: datos, Huella: "h", Motor: NuevoMotorGo(1)})
 
 	// Un nodo que se registra, responde dos épocas y corta la conexión.
 	conn, err := net.Dial("tcp", dir)
@@ -308,26 +439,29 @@ func TestMaestroAbortaSiUnNodoSeCae(t *testing.T) {
 	}
 	c := protocolo.NuevaConexion(conn)
 	c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoRegistro, WorkerID: "fragil", Huella: "h", Motor: "go"})
-	asignada, _ := c.Recibir()
-	X, y := Filtrar(datos.Entrenamiento, asignada.FiltroMongo.Mod, asignada.FiltroMongo.Resto)
 	go func() {
+		defer conn.Close()
+		asignada, err := c.Recibir()
+		if err != nil || asignada.FiltroMongo == nil {
+			return
+		}
+		X, y := Filtrar(datos.Entrenamiento, asignada.FiltroMongo.Mod, asignada.FiltroMongo.Resto)
 		for e := 0; e < 2; e++ {
 			p, err := c.Recibir()
 			if err != nil {
 				return
 			}
 			g, gs, pe := logistica.GradienteParcial(p.Pesos, p.Sesgo, X, y, datos.PesosClase)
-			c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoGradienteParcial, WorkerID: "fragil", Epoca: p.Epoca, Gradiente: g, GradienteSesgo: gs, Perdida: pe, NMuestras: len(X)})
+			c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoGradienteParcial, WorkerID: "fragil", Corrida: p.Corrida, Epoca: p.Epoca, Gradiente: g, GradienteSesgo: gs, Perdida: pe, NMuestras: len(X)})
 		}
-		conn.Close()
 	}()
 
 	ctx, cancelar := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelar()
-	_, err = maestro.Entrenar(ctx)
+	_, err = maestro.Entrenar(ctx, 1000, 0.1)
 	if err == nil || !strings.Contains(err.Error(), "fragil se cayó") {
 		t.Fatalf("err = %v; se esperaba que el maestro abortara por la caída de fragil", err)
 	}
-	maestro.Despedir("maestro_cerrando")
+	maestro.Despedir(MotivoMaestroCerrando)
 	wg.Wait()
 }
