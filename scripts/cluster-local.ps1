@@ -12,12 +12,13 @@ param(
     [int]$Puerto = 9000,
     [int]$Hilos = 0,
     [string]$Motor = "auto",
+    [string]$Muestra = "data/muestra.gob",
     [switch]$Ventanas
 )
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
 
-if (-not (Test-Path data/muestra.gob)) { throw "falta data/muestra.gob (ver docs/cluster/, paso 'Copiar la muestra' de tu guía)" }
+if (-not (Test-Path $Muestra)) { throw "falta $Muestra (ver docs/cluster/, paso 'Copiar la muestra' de tu guía)" }
 New-Item -ItemType Directory -Force bin, bin/logs | Out-Null
 go build -o bin/maestro.exe ./entrenamiento/cmd/maestro
 go build -o bin/trabajador.exe ./entrenamiento/cmd/trabajador
@@ -28,7 +29,7 @@ if ($Hilos -le 0) { $Hilos = [Math]::Max(1, [int]([Environment]::ProcessorCount 
 
 $trabajadores = @()
 for ($i = 1; $i -le $Nodos; $i++) {
-    $argumentos = "-maestro localhost:$Puerto -id local$i -hilos $Hilos -motor $Motor"
+    $argumentos = "-maestro localhost:$Puerto -id local$i -hilos $Hilos -motor $Motor -muestra $Muestra"
     if ($Ventanas) {
         $trabajadores += Start-Process powershell -PassThru -ArgumentList "-NoExit", "-Command", "`$host.UI.RawUI.WindowTitle='trabajador local$i'; .\bin\trabajador.exe $argumentos"
     } else {
@@ -38,7 +39,7 @@ for ($i = 1; $i -le $Nodos; $i++) {
 }
 
 Write-Host "== maestro con $Nodos nodos de $Hilos goroutines cada uno"
-& ./bin/maestro.exe -nodos $Nodos -escuchar ":$Puerto" -epocas $Epocas -modo tcp_local -maquina "$env:COMPUTERNAME local"
+& ./bin/maestro.exe -nodos $Nodos -escuchar ":$Puerto" -epocas $Epocas -muestra $Muestra -modo tcp_local -maquina "$env:COMPUTERNAME local"
 $codigo = $LASTEXITCODE
 
 if (-not $Ventanas) {

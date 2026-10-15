@@ -4,12 +4,14 @@
 #   powershell -ExecutionPolicy Bypass -File scripts/nodo.ps1 -Maestro 100.101.102.103:9000 -Id ana
 # Comprueba la muestra y la conexión con el maestro, elige el motor (CUDA si
 # hay GPU NVIDIA y bin/gradiente_cuda.exe; si no, goroutines) y lanza el
-# trabajador.
+# trabajador. -Muestra permite usar otra muestra (p. ej. data/muestra_prueba.gob
+# en una PC con poca RAM); debe ser la misma que la del maestro.
 param(
     [Parameter(Mandatory = $true)][string]$Maestro,
     [string]$Id = $env:COMPUTERNAME.ToLower(),
     [string]$Motor = "auto",
-    [int]$Hilos = 0
+    [int]$Hilos = 0,
+    [string]$Muestra = "data/muestra.gob"
 )
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
@@ -27,9 +29,9 @@ if (Get-Command go -ErrorAction SilentlyContinue) {
 }
 
 Write-Host "== 2/4 muestra de datos"
-if (-not (Test-Path data/muestra.gob)) { throw "falta data/muestra.gob: descárgala de la carpeta compartida del grupo (guía del nodo, paso 'Copiar la muestra')" }
-$huella = (Get-FileHash data/muestra.gob -Algorithm SHA256).Hash.ToLower()
-Write-Host "   huella $($huella.Substring(0, 12)) (debe ser igual a la que muestra el maestro)"
+if (-not (Test-Path $Muestra)) { throw "falta ${Muestra}: descárgala de la carpeta compartida del grupo (guía del nodo, paso 'Copiar la muestra')" }
+$huella = (Get-FileHash $Muestra -Algorithm SHA256).Hash.ToLower()
+Write-Host "   $Muestra, huella $($huella.Substring(0, 12)) (debe ser igual a la que muestra el maestro)"
 
 Write-Host "== 3/4 motor de cálculo"
 $nvidia = Get-Command nvidia-smi -ErrorAction SilentlyContinue
@@ -55,4 +57,4 @@ if (-not $prueba.TcpTestSucceeded) {
 }
 
 Write-Host "== nodo $Id en marcha (Ctrl+C para salir)"
-& ./bin/trabajador.exe -maestro $Maestro -id $Id -motor $Motor -hilos $Hilos
+& ./bin/trabajador.exe -maestro $Maestro -id $Id -motor $Motor -hilos $Hilos -muestra $Muestra

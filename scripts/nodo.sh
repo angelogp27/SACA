@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Une esta PC (Linux o macOS) al clúster como nodo trabajador (ver
 # docs/cluster/guia_nodo_sin_nvidia.md o guia_nodo_con_nvidia.md):
-#   bash scripts/nodo.sh 100.101.102.103:9000 ana
+#   bash scripts/nodo.sh 100.101.102.103:9000 ana [muestra]
+# El tercer argumento (opcional) permite usar otra muestra, p. ej.
+# data/muestra_prueba.gob en una PC con poca RAM; debe ser la del maestro.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-MAESTRO=${1:?uso: scripts/nodo.sh IP_MAESTRO:PUERTO [id]}
+MAESTRO=${1:?uso: scripts/nodo.sh IP_MAESTRO:PUERTO [id] [muestra]}
 ID=${2:-$(hostname | tr '[:upper:]' '[:lower:]')}
+MUESTRA=${3:-data/muestra.gob}
 MOTOR=${MOTOR:-auto}
 
 echo "== 1/4 programa del trabajador"
@@ -15,9 +18,9 @@ go build -o bin/trabajador ./entrenamiento/cmd/trabajador
 echo "   compilado bin/trabajador (commit $(git rev-parse --short HEAD))"
 
 echo "== 2/4 muestra de datos"
-[ -f data/muestra.gob ] || { echo "falta data/muestra.gob: descárgala de la carpeta compartida del grupo (ver la guía del nodo, paso 'Copiar la muestra')"; exit 1; }
-HUELLA=$( (sha256sum data/muestra.gob 2>/dev/null || shasum -a 256 data/muestra.gob) | cut -c1-12)
-echo "   huella $HUELLA (debe ser igual a la que muestra el maestro)"
+[ -f "$MUESTRA" ] || { echo "falta $MUESTRA: descárgala de la carpeta compartida del grupo (ver la guía del nodo, paso 'Copiar la muestra')"; exit 1; }
+HUELLA=$( (sha256sum "$MUESTRA" 2>/dev/null || shasum -a 256 "$MUESTRA") | cut -c1-12)
+echo "   $MUESTRA, huella $HUELLA (debe ser igual a la que muestra el maestro)"
 
 echo "== 3/4 motor de cálculo"
 if command -v nvidia-smi >/dev/null; then
@@ -46,4 +49,4 @@ case $CONECTA in
 esac
 
 echo "== nodo $ID en marcha (Ctrl+C para salir)"
-exec ./bin/trabajador -maestro "$MAESTRO" -id "$ID" -motor "$MOTOR"
+exec ./bin/trabajador -maestro "$MAESTRO" -id "$ID" -motor "$MOTOR" -muestra "$MUESTRA"

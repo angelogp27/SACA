@@ -10,8 +10,9 @@ NODOS=${1:-3}
 EPOCAS=${2:-200}
 PUERTO=${PUERTO:-9000}
 MOTOR=${MOTOR:-auto}
+MUESTRA=${MUESTRA:-data/muestra.gob}
 
-[ -f data/muestra.gob ] || { echo "falta data/muestra.gob (ver docs/cluster/, paso 'Copiar la muestra' de tu guía)"; exit 1; }
+[ -f "$MUESTRA" ] || { echo "falta $MUESTRA (ver docs/cluster/, paso 'Copiar la muestra' de tu guía)"; exit 1; }
 mkdir -p bin/logs
 go build -o bin/maestro ./entrenamiento/cmd/maestro
 go build -o bin/trabajador ./entrenamiento/cmd/trabajador
@@ -21,14 +22,14 @@ HILOS=${HILOS:-$(( CPUS / NODOS > 0 ? CPUS / NODOS : 1 ))}
 
 pids=()
 for i in $(seq 1 "$NODOS"); do
-  ./bin/trabajador -maestro "localhost:$PUERTO" -id "local$i" -hilos "$HILOS" -motor "$MOTOR" \
+  ./bin/trabajador -maestro "localhost:$PUERTO" -id "local$i" -hilos "$HILOS" -motor "$MOTOR" -muestra "$MUESTRA" \
     > "bin/logs/trabajador-local$i.log" 2>&1 &
   pids+=($!)
 done
 trap 'kill "${pids[@]}" 2>/dev/null || true' EXIT
 
 echo "== maestro con $NODOS nodos de $HILOS goroutines cada uno"
-./bin/maestro -nodos "$NODOS" -escuchar ":$PUERTO" -epocas "$EPOCAS" -modo tcp_local -maquina "$(hostname) local"
+./bin/maestro -nodos "$NODOS" -escuchar ":$PUERTO" -epocas "$EPOCAS" -muestra "$MUESTRA" -modo tcp_local -maquina "$(hostname) local"
 
 sleep 0.5
 echo
