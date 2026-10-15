@@ -82,11 +82,19 @@ func Preparar(ctx context.Context, c *Config) (*Datos, error) {
 		origen = "caché " + c.Cache
 	}
 	log.Printf("muestra: %d ejemplos etiquetados desde %s (%s)", muestra.Len(), origen, time.Since(inicio).Round(time.Millisecond))
+	return PrepararDesde(muestra, c.MesCorte)
+}
+
+// PrepararDesde aplica la partición temporal, la normalización y los pesos
+// de clase a una muestra ya cargada. Es determinista: los nodos del
+// entrenamiento distribuido la llaman cada uno con la misma muestra y
+// obtienen exactamente la misma normalización, sin comunicarse.
+func PrepararDesde(muestra *dataset.Muestra, mesCorte int) (*Datos, error) {
 	if muestra.Len() == 0 {
 		return nil, fmt.Errorf("no se encontraron ejemplos etiquetables, revisa la coleccion")
 	}
 
-	entrenamiento, prueba := muestra.DividirPorMes(c.MesCorte)
+	entrenamiento, prueba := muestra.DividirPorMes(mesCorte)
 	if entrenamiento.Len() == 0 || prueba.Len() == 0 {
 		return nil, fmt.Errorf("la partición temporal dejó un conjunto vacío (entrenamiento=%d, prueba=%d)", entrenamiento.Len(), prueba.Len())
 	}
@@ -96,8 +104,8 @@ func Preparar(ctx context.Context, c *Config) (*Datos, error) {
 
 	d := &Datos{Entrenamiento: entrenamiento, Prueba: prueba, PesosClase: logistica.CalcularPesosClase(entrenamiento.Y), Normalizador: normalizador}
 	log.Printf("entrenamiento (meses 1-%d): %d ejemplos, %.2f%% positivos | prueba (meses %d-12): %d ejemplos, %.2f%% positivos",
-		c.MesCorte-1, entrenamiento.Len(), 100*float64(entrenamiento.Positivos())/float64(entrenamiento.Len()),
-		c.MesCorte, prueba.Len(), 100*float64(prueba.Positivos())/float64(prueba.Len()))
+		mesCorte-1, entrenamiento.Len(), 100*float64(entrenamiento.Positivos())/float64(entrenamiento.Len()),
+		mesCorte, prueba.Len(), 100*float64(prueba.Positivos())/float64(prueba.Len()))
 	log.Printf("pesos de clase: clase 0=%.4f, clase 1=%.2f", d.PesosClase.Cero, d.PesosClase.Uno)
 	return d, nil
 }
