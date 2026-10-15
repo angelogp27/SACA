@@ -223,7 +223,9 @@ func (m *Maestro) Entrenar(ctx context.Context) (*Resultado, error) {
 		for _, n := range nodos {
 			err := n.Conexion.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoParametros, Epoca: e, Pesos: modelo.Pesos, Sesgo: modelo.Sesgo})
 			if err != nil {
-				return nil, fmt.Errorf("época %d: no se pudieron enviar los parámetros a %s: %w", e, n.ID, err)
+				// Si se cayó entre dos épocas, su conexión ya está cerrada
+				// aunque el aviso de caída aún no se haya leído.
+				return nil, errCaida(e, n.ID, "no se le pudieron enviar los parámetros: "+err.Error())
 			}
 		}
 
@@ -247,7 +249,7 @@ func (m *Maestro) Entrenar(ctx context.Context) (*Resultado, error) {
 			}
 			if ev.tipo == caida {
 				limite.Stop()
-				return nil, fmt.Errorf("época %d: el nodo %s se cayó (%s); el modo síncrono no puede seguir sin su partición", e, ev.id, ev.motivo)
+				return nil, errCaida(e, ev.id, ev.motivo)
 			}
 			if ev.tipo != gradiente || recibido[i] {
 				continue
@@ -300,6 +302,10 @@ func (m *Maestro) Entrenar(ctx context.Context) (*Resultado, error) {
 	m.mu.Unlock()
 	sort.Slice(res.Nodos, func(i, j int) bool { return res.Nodos[i].Particion < res.Nodos[j].Particion })
 	return res, nil
+}
+
+func errCaida(epoca int, id, motivo string) error {
+	return fmt.Errorf("época %d: el nodo %s se cayó (%s); el modo síncrono no puede seguir sin su partición", epoca, id, motivo)
 }
 
 // Despedir avisa a los nodos activos que el maestro se va.
