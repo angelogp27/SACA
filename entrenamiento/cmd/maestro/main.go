@@ -90,6 +90,9 @@ func main() {
 		}
 		log.Fatalf("entrenamiento abortado: %v", err)
 	}
+	// El entrenamiento terminó: no se aceptan más nodos (si no, uno que
+	// llegue tarde se registraría en una corrida que ya no va a entrenar).
+	oyente.Close()
 
 	evaluacion := entrenador.Evaluar(res.Modelo, datos.Prueba)
 	reportar(res, *epocas)
@@ -99,6 +102,7 @@ func main() {
 	if *verificar {
 		X, y := datos.Entrenamiento.X, datos.Entrenamiento.Y
 		secuencial := logistica.NuevoModelo(len(X[0]))
+		log.Printf("verificando: entreno lo mismo en secuencial en esta PC para comparar (%d ejemplos; puede tardar ~1 min, no cierres la ventana)...", len(X))
 		inicio := time.Now()
 		perdidas := secuencial.Entrenar(X, y, *tasa, *epocas, datos.PesosClase)
 		tSec := time.Since(inicio)
