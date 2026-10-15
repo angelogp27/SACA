@@ -44,7 +44,11 @@ type Mensaje struct {
 	// particion_asignada
 	FiltroMongo *FiltroMongo `json:"filtro_mongo,omitempty"`
 
-	// parametros y gradiente_parcial
+	// parametros y gradiente_parcial. Corrida identifica el entrenamiento
+	// (el maestro en modo servidor lanza varios con los mismos nodos): el
+	// trabajador la repite en su gradiente para que el maestro descarte uno
+	// atrasado de una corrida anterior.
+	Corrida        int       `json:"corrida,omitempty"`
 	Epoca          int       `json:"epoca,omitempty"`
 	Pesos          []float64 `json:"pesos,omitempty"`
 	Sesgo          float64   `json:"sesgo,omitempty"`
@@ -58,11 +62,14 @@ type Mensaje struct {
 	Perdida    float64 `json:"perdida,omitempty"`
 	TCalculoMs float64 `json:"t_calculo_ms,omitempty"`
 
-	// entrenamiento_finalizado
+	// entrenamiento_finalizado. Con Continuar el nodo vuelve a la sala de
+	// espera del maestro en modo servidor; sin él (maestro de una sola
+	// corrida) el nodo termina.
 	EpocaFinal   int     `json:"epoca_final,omitempty"`
 	PerdidaFinal float64 `json:"perdida_final,omitempty"`
+	Continuar    bool    `json:"continuar,omitempty"`
 
-	// baja
+	// baja y entrenamiento_finalizado (motivo de una corrida cancelada)
 	Motivo string `json:"motivo,omitempty"`
 }
 
