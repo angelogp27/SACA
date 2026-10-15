@@ -15,6 +15,7 @@ package main
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -84,6 +85,9 @@ func main() {
 	res, err := m.Entrenar(ctx)
 	if err != nil {
 		m.Despedir("maestro_cerrando")
+		if errors.Is(err, context.Canceled) {
+			log.Fatal("maestro detenido con Ctrl+C en ESTA ventana (no fue un nodo). Si querías simular la caída, el Ctrl+C se presiona en la ventana del nodo")
+		}
 		log.Fatalf("entrenamiento abortado: %v", err)
 	}
 
