@@ -101,7 +101,7 @@ func main() {
 		{"Cargador concurrente = secuencial (registros y valores)", pasoCargadorConcurrente},
 		{"Entrenamiento secuencial + modelo", pasoEntrenamiento},
 		{"Entrenamiento paralelo (3 estrategias) = secuencial", pasoEntrenamientoParalelo},
-		{"Clúster TCP: maestro + 3 trabajadores", pasoCluster},
+		{"Clúster TCP: entrenamiento distribuido = secuencial", pasoCluster},
 		{"Exportar datos para el frontend", pasoExportar},
 		{"Análisis de experimentos (resultados existentes)", pasoAnalisis},
 		{"Frontend: lint, build y servidor", pasoFrontend},
@@ -400,57 +400,108 @@ func pasoEntrenamientoParalelo(e *estado) (string, error) {
 	return "reducción, mutex y atómico dan la misma pérdida (±1e-6)", nil
 }
 
-// pasoCluster levanta el maestro con 2 particiones y 3 trabajadores: los
-// dos primeros deben recibir particiones distintas, el tercero debe ser
-// rechazado, y al matar uno el maestro debe darlo de baja.
+// pasoCluster prueba el entrenamiento distribuido con procesos reales que
+// solo se hablan por TCP. Primero, un maestro y 2 trabajadores entrenan
+// con la misma muestra que el paso secuencial, y la pérdida final debe ser
+// la misma. Después, con un entrenamiento largo en curso, un nodo sobrante
+// y uno con otra muestra deben ser rechazados, y al matar un trabajador el
+// maestro debe abortar en vez de colgarse.
 func pasoCluster(e *estado) (string, error) {
-	puerto, err := puertoLibre()
+	muestra := filepath.Join(e.tmp, "muestra.gob")
+	csvRes := filepath.Join(e.tmp, "cluster.csv")
+	direccion, err := direccionLibre()
 	if err != nil {
 		return "", err
 	}
-	direccion := fmt.Sprintf("127.0.0.1:%d", puerto)
-	maestro, err := arrancar("", e.programa("maestro"), "-nodos", "2", "-escuchar", direccion)
+	maestro, err := arrancar("", e.programa("maestro"), "-nodos", "2", "-escuchar", direccion, "-muestra", muestra,
+		"-epocas", "50", "-resultado", csvRes, "-modo", "tcp_e2e")
 	if err != nil {
 		return "", err
 	}
 	defer maestro.detener()
-	if err := maestro.esperar("maestro escuchando", 10*time.Second); err != nil {
+	if err := maestro.esperar("maestro escuchando", 20*time.Second); err != nil {
 		return "", err
 	}
-
-	var trabajadores []*procesoConLog
-	defer func() {
-		for _, t := range trabajadores {
-			t.detener()
-		}
-	}()
 	for _, id := range []string{"w1", "w2"} {
-		t, err := arrancar("", e.programa("trabajador"), "-maestro", direccion, "-id", id)
+		t, err := arrancar("", e.programa("trabajador"), "-maestro", direccion, "-id", id, "-muestra", muestra, "-motor", "go", "-hilos", "2")
 		if err != nil {
 			return "", err
 		}
-		trabajadores = append(trabajadores, t)
-		if err := t.esperar("registrado como "+id, 10*time.Second); err != nil {
+		defer t.detener()
+	}
+	if err := maestro.esperar("resultados agregados", 60*time.Second); err != nil {
+		return "", err
+	}
+	filas, err := leerCSV(csvRes)
+	if err != nil {
+		return "", err
+	}
+	distribuida := decimal(filas[0]["perdida_final"])
+	if d := math.Abs(distribuida - e.perdidaSecuencial); filas[0]["modo"] != "tcp_e2e" || d > 1e-6 {
+		return "", fmt.Errorf("pérdida distribuida %.6f (modo %s); la secuencial fue %.6f", distribuida, filas[0]["modo"], e.perdidaSecuencial)
+	}
+
+	// Segunda parte: rechazos y caída durante un entrenamiento largo.
+	if direccion, err = direccionLibre(); err != nil {
+		return "", err
+	}
+	largo, err := arrancar("", e.programa("maestro"), "-nodos", "2", "-escuchar", direccion, "-muestra", muestra,
+		"-epocas", "1000000", "-verificar=false")
+	if err != nil {
+		return "", err
+	}
+	defer largo.detener()
+	if err := largo.esperar("maestro escuchando", 20*time.Second); err != nil {
+		return "", err
+	}
+	var nodos []*procesoConLog
+	for _, id := range []string{"w1", "w2"} {
+		t, err := arrancar("", e.programa("trabajador"), "-maestro", direccion, "-id", id, "-muestra", muestra, "-motor", "go", "-hilos", "1")
+		if err != nil {
 			return "", err
 		}
+		defer t.detener()
+		nodos = append(nodos, t)
 	}
-	if err := maestro.esperar("listo para entrenar", 5*time.Second); err != nil {
+	if err := largo.esperar("empieza el entrenamiento", 30*time.Second); err != nil {
 		return "", err
 	}
-	if !strings.Contains(trabajadores[0].texto(), "partición 0 de 2") || !strings.Contains(trabajadores[1].texto(), "partición 1 de 2") {
-		return "", fmt.Errorf("las particiones asignadas no son 0 y 1:\n%s\n%s", trabajadores[0].texto(), trabajadores[1].texto())
+	salida, err := ejecutar("", e.programa("trabajador"), "-maestro", direccion, "-id", "w3", "-muestra", muestra, "-motor", "go")
+	if err == nil || !strings.Contains(salida, "todas las particiones ya están asignadas") {
+		return "", fmt.Errorf("el tercer trabajador debía ser rechazado por sobrante; salida:\n%s", ultimasLineas(salida, 5))
 	}
-
-	salida, err := ejecutar("", e.programa("trabajador"), "-maestro", direccion, "-id", "w3")
-	if err == nil || !strings.Contains(salida, "rechaz") {
-		return "", fmt.Errorf("el tercer trabajador debía ser rechazado; salida:\n%s", salida)
-	}
-
-	trabajadores[0].detener()
-	if err := maestro.esperar("nodo w1 dado de baja", 10*time.Second); err != nil {
+	otra := filepath.Join(e.tmp, "otra_muestra.gob")
+	if err := copiarConUnByteMas(muestra, otra); err != nil {
 		return "", err
 	}
-	return "2 registrados (particiones 0 y 1), 1 rechazado, caída detectada", nil
+	salida, err = ejecutar("", e.programa("trabajador"), "-maestro", direccion, "-id", "w4", "-muestra", otra, "-motor", "go")
+	if err == nil || !strings.Contains(salida, "muestra_distinta") {
+		return "", fmt.Errorf("el trabajador con otra muestra debía ser rechazado; salida:\n%s", ultimasLineas(salida, 5))
+	}
+	nodos[0].detener()
+	if err := largo.esperar("el nodo w1 se cayó", 20*time.Second); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("2 nodos: pérdida %.6f = secuencial; sobrante y muestra distinta rechazados; caída detectada", distribuida), nil
+}
+
+// direccionLibre devuelve 127.0.0.1:<puerto libre>.
+func direccionLibre() (string, error) {
+	puerto, err := puertoLibre()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("127.0.0.1:%d", puerto), nil
+}
+
+// copiarConUnByteMas copia la muestra agregando un byte al final: se sigue
+// pudiendo leer, pero su huella SHA-256 cambia.
+func copiarConUnByteMas(origen, destino string) error {
+	datos, err := os.ReadFile(origen)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(destino, append(datos, 0), 0o644)
 }
 
 func pasoExportar(e *estado) (string, error) {
