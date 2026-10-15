@@ -1,0 +1,178 @@
+{
+  "experimento": "Experimento 2",
+  "descripcion": "Entrenamiento distribuido maestro-trabajador por TCP (procesos en una PC)",
+  "generado": "2026-10-15T13:43:43-05:00",
+  "cpus_logicas": 12,
+  "modo_base": "secuencial",
+  "modo_paralelo": "tcp_local",
+  "t1_s": 2.68135,
+  "fases_base": {
+    "auc": 0.9953,
+    "epocas": 200,
+    "f1": 0.0221,
+    "perdida_final": 0.12572,
+    "t_calculo_ms": 13.40655,
+    "t_comunicacion_ms": 0,
+    "t_epoca_ms": 13.40655,
+    "t_total_s": 2.68135
+  },
+  "fraccion_serial": 0.31298999171526065,
+  "origen_fraccion_serial": "karp_flatt",
+  "speedup_maximo_amdahl": 3.194990339850034,
+  "puntos": [
+    {
+      "unidades": 1,
+      "repeticiones": 3,
+      "t_total_s": 2.5735,
+      "speedup": 1.041907907518943,
+      "eficiencia": 1.041907907518943,
+      "speedup_amdahl": 1,
+      "fases": {
+        "auc": 0.9953,
+        "epocas": 200,
+        "f1": 0.0221,
+        "perdida_final": 0.12572,
+        "t_calculo_ms": 12.2799,
+        "t_comunicacion_ms": 0.5745,
+        "t_epoca_ms": 12.8673,
+        "t_total_s": 2.5735
+      }
+    },
+    {
+      "unidades": 2,
+      "repeticiones": 3,
+      "t_total_s": 1.6526,
+      "speedup": 1.6225039331961757,
+      "eficiencia": 0.8112519665980878,
+      "karp_flatt": 0.2326626512764094,
+      "speedup_amdahl": 1.5232408568379452,
+      "fases": {
+        "auc": 0.9953,
+        "epocas": 200,
+        "f1": 0.0221,
+        "perdida_final": 0.12572,
+        "t_calculo_ms": 7.9511,
+        "t_comunicacion_ms": 0.278,
+        "t_epoca_ms": 8.2631,
+        "t_total_s": 1.6526
+      }
+    },
+    {
+      "unidades": 4,
+      "repeticiones": 3,
+      "t_total_s": 1.3665,
+      "speedup": 1.9622027076472741,
+      "eficiencia": 0.49055067691181853,
+      "karp_flatt": 0.34617512322772725,
+      "speedup_amdahl": 2.0629509746272676,
+      "fases": {
+        "auc": 0.9953,
+        "epocas": 200,
+        "f1": 0.0221,
+        "perdida_final": 0.12572,
+        "t_calculo_ms": 6.548,
+        "t_comunicacion_ms": 0.2463,
+        "t_epoca_ms": 6.8325,
+        "t_total_s": 1.3665
+      }
+    },
+    {
+      "unidades": 8,
+      "repeticiones": 3,
+      "t_total_s": 1.0695,
+      "speedup": 2.5071061243571764,
+      "eficiencia": 0.31338826554464705,
+      "karp_flatt": 0.31298999171526065,
+      "speedup_amdahl": 2.5071061243571764,
+      "fases": {
+        "auc": 0.9953,
+        "epocas": 200,
+        "f1": 0.0221,
+        "perdida_final": 0.12572,
+        "t_calculo_ms": 5.0986,
+        "t_comunicacion_ms": 0.23,
+        "t_epoca_ms": 5.3474,
+        "t_total_s": 1.0695
+      }
+    }
+  ],
+  "series": {
+    "tcp_local": [
+      {
+        "unidades": 1,
+        "repeticiones": 3,
+        "t_total_s": 2.5735,
+        "speedup": 1.041907907518943,
+        "eficiencia": 1.041907907518943,
+        "speedup_amdahl": 1,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_calculo_ms": 12.2799,
+          "t_comunicacion_ms": 0.5745,
+          "t_epoca_ms": 12.8673,
+          "t_total_s": 2.5735
+        }
+      },
+      {
+        "unidades": 2,
+        "repeticiones": 3,
+        "t_total_s": 1.6526,
+        "speedup": 1.6225039331961757,
+        "eficiencia": 0.8112519665980878,
+        "karp_flatt": 0.2326626512764094,
+        "speedup_amdahl": 1.5232408568379452,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_calculo_ms": 7.9511,
+          "t_comunicacion_ms": 0.278,
+          "t_epoca_ms": 8.2631,
+          "t_total_s": 1.6526
+        }
+      },
+      {
+        "unidades": 4,
+        "repeticiones": 3,
+        "t_total_s": 1.3665,
+        "speedup": 1.9622027076472741,
+        "eficiencia": 0.49055067691181853,
+        "karp_flatt": 0.34617512322772725,
+        "speedup_amdahl": 2.0629509746272676,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_calculo_ms": 6.548,
+          "t_comunicacion_ms": 0.2463,
+          "t_epoca_ms": 6.8325,
+          "t_total_s": 1.3665
+        }
+      },
+      {
+        "unidades": 8,
+        "repeticiones": 3,
+        "t_total_s": 1.0695,
+        "speedup": 2.5071061243571764,
+        "eficiencia": 0.31338826554464705,
+        "karp_flatt": 0.31298999171526065,
+        "speedup_amdahl": 2.5071061243571764,
+        "fases": {
+          "auc": 0.9953,
+          "epocas": 200,
+          "f1": 0.0221,
+          "perdida_final": 0.12572,
+          "t_calculo_ms": 5.0986,
+          "t_comunicacion_ms": 0.23,
+          "t_epoca_ms": 5.3474,
+          "t_total_s": 1.0695
+        }
+      }
+    ]
+  }
+}
