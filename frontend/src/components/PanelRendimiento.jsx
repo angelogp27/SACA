@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { experimentoOMock } from '../data/datosReales'
+import ResultadosCluster from './ResultadosCluster'
 import './PanelRendimiento.css'
 
 const ANCHO = 240
@@ -17,11 +18,12 @@ const SERIES = {
 }
 
 const PESTANAS = [
-  { clave: 'experimento1', titulo: 'Cargador', unidad: 'goroutines' },
-  { clave: 'experimento1b', titulo: 'Entrenamiento', unidad: 'goroutines' },
+  { clave: 'experimento1', titulo: 'Cargador', unidad: 'goroutines', tema: 'Sem. 5-6 · Worker pool, channels' },
+  { clave: 'experimento1b', titulo: 'Entrenamiento', unidad: 'goroutines', tema: 'Sem. 5-7 · Reducción, mutex, CAS' },
+  { clave: 'cluster', titulo: 'Clúster (Exp. 2)', unidad: 'nodos', tema: 'Sem. 3-4 · Paso de mensajes' },
 ]
 
-function Grafica({ titulo, series, unidades, valor, referencia, maxY, formatoY, aria }) {
+function GraficaRendimiento({ titulo, series, unidades, valor, referencia, maxY, formatoY, aria }) {
   const escalaX = (i) => PAD.left + (unidades.length === 1 ? 0 : (i / (unidades.length - 1)) * (ANCHO - PAD.left - PAD.right))
   const escalaY = (v) => ALTO - PAD.bottom - (v / maxY) * (ALTO - PAD.top - PAD.bottom)
   const indice = (u) => unidades.indexOf(u)
@@ -59,9 +61,39 @@ function Grafica({ titulo, series, unidades, valor, referencia, maxY, formatoY, 
   )
 }
 
-export default function PanelRendimiento({ experimento1, experimento1b }) {
-  const [pestana, setPestana] = useState('experimento1')
+export default function PanelRendimiento({ experimento1, experimento1b, experimento2, experimento2Prueba, inicial = 'experimento1' }) {
+  const [pestana, setPestana] = useState(inicial)
   const [verTabla, setVerTabla] = useState(false)
+  if (pestana === 'cluster') {
+    return (
+      <figure className="panel panel-rendimiento">
+        <figcaption>
+          <h3>Rendimiento</h3>
+          <p>Experimento 2: entrenamiento distribuido entre las PCs del grupo por internet (Tailscale), mediana de 3 repeticiones.</p>
+        </figcaption>
+        <Pestanas pestana={pestana} setPestana={setPestana} />
+        <ResultadosCluster experimento2={experimento2} experimento2Prueba={experimento2Prueba} />
+      </figure>
+    )
+  }
+  return <Graficas pestana={pestana} setPestana={setPestana} verTabla={verTabla} setVerTabla={setVerTabla} experimento1={experimento1} experimento1b={experimento1b} />
+}
+
+function Pestanas({ pestana, setPestana }) {
+  const actual = PESTANAS.find((p) => p.clave === pestana)
+  return (
+    <div className="pestanas" role="tablist">
+      {PESTANAS.map((p) => (
+        <button key={p.clave} role="tab" aria-selected={pestana === p.clave} className="pestana" onClick={() => setPestana(p.clave)}>
+          {p.titulo}
+        </button>
+      ))}
+      {actual?.tema && <span className="tema-silabo pestana-tema">{actual.tema}</span>}
+    </div>
+  )
+}
+
+function Graficas({ pestana, setPestana, verTabla, setVerTabla, experimento1, experimento1b }) {
   const exp = experimentoOMock(pestana === 'experimento1' ? experimento1 : experimento1b)
   const series = Object.entries(exp.series ?? {}).sort(([a], [b]) => (a === exp.modo_paralelo ? -1 : b === exp.modo_paralelo ? 1 : a.localeCompare(b)))
   const unidades = [...new Set(series.flatMap(([, ps]) => ps.map((p) => p.unidades)))].sort((a, b) => a - b)
@@ -82,13 +114,7 @@ export default function PanelRendimiento({ experimento1, experimento1b }) {
         </p>
       </figcaption>
 
-      <div className="pestanas" role="tablist">
-        {PESTANAS.map((p) => (
-          <button key={p.clave} role="tab" aria-selected={pestana === p.clave} className="pestana" onClick={() => setPestana(p.clave)}>
-            {p.titulo}
-          </button>
-        ))}
-      </div>
+      <Pestanas pestana={pestana} setPestana={setPestana} />
 
       <ul className="leyenda-series">
         {series.map(([modo]) => (
@@ -99,7 +125,7 @@ export default function PanelRendimiento({ experimento1, experimento1b }) {
       </ul>
 
       <div className="graficas-rendimiento">
-        <Grafica
+        <GraficaRendimiento
           titulo="Speedup S(p)"
           series={series}
           unidades={unidades}
@@ -109,7 +135,7 @@ export default function PanelRendimiento({ experimento1, experimento1b }) {
           formatoY={(v) => `${v.toFixed(1)}×`}
           aria="Speedup por número de goroutines frente al ideal y a la ley de Amdahl"
         />
-        <Grafica
+        <GraficaRendimiento
           titulo="Eficiencia E(p)"
           series={series}
           unidades={unidades}

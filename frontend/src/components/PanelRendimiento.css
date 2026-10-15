@@ -132,3 +132,8 @@
 .tabla-contenedor td:first-child {
   text-align: left;
 }
+
+.pestana-tema {
+  margin-left: auto;
+  align-self: center;
+}

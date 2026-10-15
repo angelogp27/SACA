@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { estaciones as estacionesMock, lineaTiempoMock, experimentoSpeedupMock } from './mock'
 
-const ARCHIVOS = ['estaciones', 'series', 'resumen', 'experimento1', 'experimento1b']
+const ARCHIVOS = ['estaciones', 'series', 'resumen', 'experimento1', 'experimento1b', 'experimento2', 'experimento2_prueba']
 
 async function cargar(nombre) {
   const resp = await fetch(`${import.meta.env.BASE_URL}datos/${nombre}.json`)
