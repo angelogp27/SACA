@@ -1,15 +1,16 @@
 # Guion de la exposición: SACA en 10 minutos
 
-Guion para **un solo expositor** (Piero Carlinho Vargas Chota), que maneja la página y el maestro.
+Expone: Piero Carlinho Vargas Chota, que maneja la página y el maestro.
 
 **Grupo** (orden por apellido): Cerna Sifuentes, Augusto Nicolas · Goitia Peves, Angelo Diego · Grijalva De La Cruz, Rony · Leon Garcia, Angel Gabriel · Martines Cancho, Josue · Vargas Chota, Piero Carlinho · Yanyachi Perez, Pedro · Zarate Vilchez, Axhell. Docente: Javier Antonio Prudencio Vidal.
 
-Las diapositivas tienen **más contenido del que se dice**, a propósito: tablas, código y cifras de respaldo. **No los leas.** Di la idea central, señala el elemento y deja que la pantalla sostenga el detalle. Si el docente pregunta, la respuesta ya está a la vista. La presentación es la página del proyecto en modo **Presentación**: 9 diapositivas y la demo del clúster en vivo.
+## Cómo usar este guion
 
-En cada diapositiva tienes tres cosas:
-- **Qué hacer:** clics y qué señalar en la pantalla.
-- **Qué decir:** texto casi literal, para leerlo en voz alta en los ensayos y luego decirlo con tus palabras.
-- **Transición:** la frase que lleva a la siguiente diapositiva.
+- **No lo aprendas de memoria.** En cada diapositiva tienes la idea que no puede faltar, las cifras que hay que decir y un ejemplo de cómo sonaría. Léelo en voz alta dos o tres veces y después cuéntalo a tu manera. Si te sale con otras palabras, mejor: así suena tuyo.
+- **Habla como si se lo explicaras a un compañero.** Frases cortas. Si te trabas, sigue; nadie tiene tu guion.
+- **No leas la pantalla.** Tiene más detalle del que vas a decir (tablas, código, cifras). Señala, di la idea y sigue. Si el profe pregunta, la respuesta ya está ahí.
+- **Haz pausas.** Después de cada cifra importante (18 veces, 0,46, el 73 %) quédate callado un segundo. Eso hace que se queden con el número.
+- **Mira a la cámara**, no a tus notas, al empezar y al terminar.
 
 Atajos en la página:
 
@@ -37,7 +38,7 @@ Atajos en la página:
 | 8 | Resultados: Amdahl | 1:00 | 8:40 |
 | 9 | Conclusiones y cierre | 1:20 | 10:00 |
 
-**Si vas atrasado al llegar a la demo** (más de 5:00 en el cronómetro), haz solo 2 corridas (1 GPU y los tres), y en la diapositiva 9 di solo las tres conclusiones y la frase final.
+**Si vas atrasado al llegar a la demo** (más de 5:00 en el cronómetro): haz solo dos corridas (una GPU y luego los tres). En la 9 di solo las tres conclusiones y despídete.
 
 ---
 
@@ -49,183 +50,234 @@ Atajos en la página:
    .\bin\maestro.exe -web 127.0.0.1:8080 -modo tcp_tailscale -resultado resultados\experimento2.csv
    ```
 2. **Página** (PowerShell 2): `cd frontend; npm run dev`, abrir `http://localhost:5173` y pulsar **Presentación**.
-3. **Nodos:** avisa por WhatsApp a augusto, josue y angelo que ejecuten su comando una vez. Comprueba en la diapositiva 6 que aparecen los tres "conectados ahora".
-4. **Ensayo de 10 s:** en la diapositiva 7, entrena con augusto y 20 épocas para confirmar que todo responde. Esa corrida queda en el historial de la sesión; no importa.
+3. **Nodos:** avisa por WhatsApp a Augusto, Josué y Angelo que ejecuten su comando. Comprueba en la diapositiva 6 que salen los tres "conectados ahora".
+4. **Prueba rápida:** en la diapositiva 7, entrena con augusto y 20 épocas para ver que todo responde. Esa corrida queda en el historial; no pasa nada.
 5. Vuelve a la diapositiva 1, pulsa `F` (pantalla completa) y `T` (cronómetro a cero).
-6. Cierra el navegador de otras pestañas, silencia las notificaciones y pon la PC en "no suspender".
+6. Cierra las otras pestañas, silencia las notificaciones y pon la PC en "no suspender".
 
-**Plan B** (si internet o Tailscale fallan):
-- `Ctrl` + `C` al maestro y ejecutar `powershell -ExecutionPolicy Bypass -File scripts\cluster-local.ps1 -Nodos 2 -Web -Muestra data/muestra_prueba.gob`.
-- La demo sigue igual, con 2 nodos locales.
-- Frase: "Son procesos que solo se hablan por TCP, exactamente como entre casas; lo único que cambia es la latencia."
+**Plan B** (si se cae internet o Tailscale):
+- `Ctrl` + `C` al maestro y ejecuta `powershell -ExecutionPolicy Bypass -File scripts\cluster-local.ps1 -Nodos 2 -Web -Muestra data/muestra_prueba.gob`.
+- La demo sigue igual, con 2 nodos en tu PC.
+- Qué decir: "Se nos cayó la conexión, así que lo corro acá mismo. Son procesos que solo se hablan por TCP, igual que entre casas; lo único que cambia es la latencia."
 
 ---
 
 ## Diapositiva 1 · Portada (0:20)
 
-**En pantalla:** título, 3 cifras, los 8 integrantes y el docente.
+**Idea:** qué es SACA y a dónde vamos a llegar.
+**Cifra:** 18 veces más rápido con una GPU.
+**Qué hacer:** mira a la cámara; al decir "el grupo", señala la lista de integrantes.
 
-**Qué hacer:** mira al público; al decir "el grupo", señala la lista de integrantes.
+> Buenos días. Les voy a presentar el avance de SACA, el proyecto que venimos trabajando con el grupo.
+>
+> La idea es simple: queremos saber, con una hora de anticipación, si el aire en una estación va a pasar el nivel de alerta de NO₂. Pero lo que nos interesa para el curso es cómo lo entrenamos: en paralelo, con hilos, con varias computadoras conectadas por internet y con GPUs.
+>
+> Para que vean a dónde vamos: con una sola GPU, en la casa de un compañero, entrenamos unas 18 veces más rápido que con una CPU. Y el modelo sale exactamente igual.
 
-**Qué decir:**
-> "Buenos días. En nombre del grupo, presento el avance de SACA, un sistema de alerta temprana de contaminación del aire. Predice si el NO₂ de una estación superará el umbral de alerta en la próxima hora, y lo entrena en paralelo en tres niveles: hilos en una PC, varias PCs en red y GPUs. El resultado central: con una GPU remota, por internet, el entrenamiento es unas 18 veces más rápido que en una CPU, con exactamente el mismo modelo."
-
-**Transición:** "Empiezo por el problema."
+**Pase:** "Primero, ¿con qué datos trabajamos?"
 
 ## Diapositiva 2 · El problema (0:40)
 
-**En pantalla:** mapa, pregunta predictiva, AUC, una **mini gráfica del Experimento 1** (cargador: N agregadoras frente a 1 agregadora) y, abajo, la **tubería de datos** en 6 pasos.
+**Idea:** son muchos datos, y ya en la carga apareció Amdahl.
+**Cifras:** 17 millones de mediciones · de 132 a 35 segundos · se quedaba en 1 y subió a 3,8.
+**Qué hacer:** señala el mapa, luego la gráfica chiquita (la verde sube, la naranja se queda plana) y pasa la mano por la tubería de abajo, sin leerla.
 
-**Qué hacer:** señala el mapa; luego la mini gráfica (la curva verde sube, la naranja se aplana) y recorre la tubería de izquierda a derecha, sin leerla.
+> Usamos datos reales de la agencia ambiental de Estados Unidos, todo el 2025. Son casi 17 millones de mediciones, hora por hora, de unas mil cuatrocientas estaciones.
+>
+> El modelo es una regresión logística, nada del otro mundo, y aun así acierta bastante: el AUC sale 0,995. Pero acá el modelo es lo de menos; lo que nos importa es cómo movemos todo ese volumen.
+>
+> Miren la tubería de abajo. Solo cargar los datos tomaba 132 segundos; con un cargador concurrente lo bajamos a 35. Y en la gráfica se ve algo que nos pasó: al inicio había una sola goroutine juntando los resultados, y por más hilos que pusiéramos, no pasábamos de 1. Ese era el cuello de botella; Amdahl puro. Cuando repartimos esa parte, subió a 3,8.
 
-**Qué decir:**
-> "Usamos los datos reales de la red de monitoreo de Estados Unidos en 2025: casi 17 millones de mediciones horarias de cuatro contaminantes, en 1447 estaciones. La pregunta es de clasificación: ¿el NO₂ superará 53 partes por mil millones en la próxima hora? El modelo es una regresión logística, simple a propósito: alcanza un AUC de 0,995. El interés del curso está en cómo procesamos y entrenamos ese volumen en paralelo. Abajo está la tubería: el cargador concurrente, un worker pool con fan-out y fan-in, bajó la ingesta de 132 a 35 segundos. La gráfica muestra por qué: con una sola agregadora el speedup se aplana cerca de 1, por Amdahl; al particionar las agregadoras llega a 3,8. Al final de la tubería está el entrenamiento distribuido."
-
-**Transición:** "Para eso usamos tres niveles de paralelismo."
+**Pase:** "Y para entrenar usamos paralelismo en tres niveles."
 
 ## Diapositiva 3 · Tres niveles de paralelismo (0:50)
 
-**En pantalla:** diagrama de 3 niveles, tarjeta de Flynn y, abajo, la tabla **nivel → tecnología → riesgo → solución**.
-
+**Idea:** distribuida, compartida y GPU; cada nivel con su propio problema.
 **Qué hacer:** recorre el diagrama de arriba abajo; al final señala la columna "Riesgo típico" de la tabla.
 
-**Qué decir:**
-> "Según la taxonomía de Flynn, el clúster completo es un multicomputador **MIMD de memoria distribuida**: cuatro PCs en cuatro casas que no comparten memoria y solo se envían mensajes por TCP. Dentro de cada PC hay **memoria compartida**: goroutines que trabajan sobre las mismas variables. Y en dos PCs hay GPUs NVIDIA, que son **SIMT**: miles de hilos ejecutando la misma instrucción sobre datos distintos. Cada nivel tiene su riesgo propio, y la tabla de abajo resume cómo lo resolvemos: la condición de carrera con una reducción, la latencia con una barrera síncrona y mensajes mínimos, y la jerarquía de memoria de la GPU con una reducción en memoria compartida."
+> Si lo vemos con la clasificación de Flynn, el clúster completo es MIMD de memoria distribuida: son cuatro PCs, cada una en una casa distinta, y no comparten nada; solo se mandan mensajes por TCP.
+>
+> Si bajamos un nivel, dentro de cada PC sí hay memoria compartida: varias goroutines trabajando sobre las mismas variables.
+>
+> Y abajo del todo están las GPUs, que son SIMT: miles de hilos haciendo la misma instrucción con datos distintos.
+>
+> Cada nivel trae su propio problema, y los tienen en la tabla: con memoria compartida, las condiciones de carrera; entre PCs, la latencia de la red; y en la GPU, aprovechar bien su memoria. Les cuento cómo resolvimos cada uno.
 
-**Transición:** "Empiezo por la memoria compartida."
+**Pase:** "Empiezo por la memoria compartida."
 
 ## Diapositiva 4 · Memoria compartida (1:00)
 
-**En pantalla:** curvas de speedup, 3 cifras (reducción, mutex, Karp-Flatt) y, abajo, **el código real lado a lado**: mutex (rojo) frente a reducción (verde).
+**Idea:** el mutex es correcto pero lento; la reducción es la que escala.
+**Cifras:** mutex 0,46 con 8 hilos · reducción 6,1.
+**Qué hacer:** señala las curvas (la verde sube, las otras caen); luego `mu.Lock()` en el código rojo y `wg.Wait()` en el verde.
 
-**Qué hacer:** señala las curvas (la verde sube, la naranja y la morada caen); luego señala `mu.Lock()` en el código rojo y `wg.Wait()` en el verde.
+> Entrenar, al final, es sumar el gradiente de cada ejemplo. Si pongo varias goroutines a sumar en la misma variable, tengo una condición de carrera: dos leen el mismo valor, cada una suma lo suyo, y una de las dos escrituras se pierde.
+>
+> Lo primero que a uno se le ocurre es ponerle un mutex, o una operación atómica como CAS. Y sí, el resultado sale bien. Pero miren la curva: con 8 hilos, el mutex va a 0,46. O sea, es más lento que no paralelizar, porque todos hacen cola para entrar.
+>
+> Lo que sí funciona es la reducción: cada goroutine suma en su propia variable, sin compartir nada, y recién al final se juntan. Es lo mismo que el reduction de OpenMP. Así llegamos a 6,1 con 8 hilos.
+>
+> En el código se nota la diferencia: a la izquierda, el lock está dentro del bucle, se bloquea en cada ejemplo. A la derecha no hay ningún lock; solo se esperan una vez, al final.
 
-**Qué decir:**
-> "Entrenar es sumar el gradiente de cada ejemplo. Si varias goroutines suman en el mismo acumulador hay una **condición de carrera**: dos leen el mismo valor, cada una suma su parte y una de las escrituras se pierde. La solución clásica es una sección crítica, con un **mutex** o con **CAS**, una operación atómica. Funciona, pero serializa: con 8 hilos el mutex es 0,46 veces el secuencial, más lento que no paralelizar. La solución correcta es una **reducción**: cada goroutine suma en su variable privada, y al final, tras una barrera, se combinan. Es el `reduction(+)` de OpenMP, y llega a 6,1 de speedup con 8 hilos. En el código se ve la diferencia: a la izquierda, el `Lock` dentro del bucle, por cada ejemplo; a la derecha, cada goroutine trabaja sola y solo se sincroniza una vez, en la barrera."
-
-**Transición:** "Esa misma idea de reducción la llevamos a varias computadoras."
+**Pase:** "Esa misma idea la llevamos a varias computadoras."
 
 ## Diapositiva 5 · Distribución: colectivas (1:00)
 
-**En pantalla:** diagrama de colectivas, 2 cifras y, abajo, la **tabla de los 6 mensajes** del protocolo.
+**Idea:** scatter, broadcast y reduce con barrera, y el modelo sale igual al secuencial.
+**Cifras:** 13 pesos por época · coincide hasta el decimal 15.
+**Qué hacer:** sigue con el puntero los pasos 1, 2 y 3 y la línea de la barrera; luego señala en la tabla `parametros` y `gradiente_parcial`.
 
-**Qué hacer:** sigue con el puntero los pasos 1 (scatter), 2 (broadcast) y 3 (reduce) y la línea de la barrera; luego señala en la tabla `parametros` y `gradiente_parcial`.
+> Como el gradiente es una suma, se puede partir: cada nodo suma su pedazo y el maestro junta todo. Son las colectivas que vimos en las semanas 3 y 4.
+>
+> Primero hay un scatter: a cada nodo le toca un grupo de estaciones. Después, en cada época, un broadcast: el maestro manda los 13 pesos del modelo. Cada nodo calcula y hace el reduce: devuelve su suma y el maestro las junta. Y hay una barrera: la época no avanza hasta que llegan todos. Viene a ser un MPI_Bcast con un Allreduce.
+>
+> Algo que para nosotros era clave: el modelo sale igual que el secuencial. La pérdida final coincide hasta el decimal quince, y esa diferencia es solo redondeo por sumar en otro orden.
+>
+> Abajo están los mensajes del protocolo. En cada época solo viajan dos: los pesos de ida y el gradiente de vuelta.
 
-**Qué decir:**
-> "El gradiente es una suma sobre ejemplos independientes, así que se puede partir: cada nodo suma sobre su grupo de estaciones y el maestro suma los resultados. Son las **operaciones colectivas** de las semanas 3 y 4. **Scatter**: cada nodo recibe su partición, por hash de la estación. **Broadcast**: en cada época, el maestro envía los 13 pesos. **Reduce**: cada nodo devuelve su suma parcial y el maestro las suma, tras una **barrera síncrona**. Es equivalente a MPI_Bcast más MPI_Allreduce. Lo importante: el modelo es idéntico al secuencial; la pérdida final coincide hasta 10 a la menos 15, que es solo el redondeo por sumar en otro orden. Abajo están los seis mensajes del protocolo: los que importan en cada época son `parametros`, el broadcast, y `gradiente_parcial`, el reduce."
-
-**Transición:** "Así se ve el clúster real."
+**Pase:** "Y así se ve el clúster de verdad."
 
 ## Diapositiva 6 · El clúster y CUDA (0:50)
 
-**En pantalla:** tarjetas de los nodos con su **tiempo de cálculo por época medido**, el árbol de reducción CUDA y los 4 pasos del kernel.
+**Idea:** las máquinas no son iguales (y eso se va a notar en la demo); en la GPU se reduce en árbol.
+**Cifras:** GPU unos 4 ms por época · CPU de Angelo 18 ms con un tercio de los datos.
+**Qué hacer:** señala las tarjetas de los nodos (los ms) y luego el árbol.
 
-**Qué hacer:** señala las tarjetas de los nodos (las cifras en ms) y luego el árbol de reducción.
+> Estas son las PCs que están conectadas ahorita. La de Augusto y la de Josué tienen GPU; la de Angelo va con CPU. Las une Tailscale, que es una red privada encima de internet.
+>
+> Fíjense en los tiempos. La 3060 Ti procesa sus dos millones y medio de ejemplos en unos 4 milisegundos. La CPU de Angelo, con un tercio de los datos, se demora 18. Acuérdense de eso, porque lo van a ver en la demo.
+>
+> En la GPU, el gradiente lo calcula un kernel CUDA. Cada hilo procesa sus ejemplos, y los hilos de un mismo bloque juntan sus resultados en memoria compartida, en forma de árbol: en cada paso trabaja la mitad, con un syncthreads entre paso y paso.
+>
+> Y un detalle: antes de usar la GPU, el nodo compara su resultado con el de la CPU. Si no cuadra, no la usa.
 
-**Qué decir:**
-> "Estas son las PCs conectadas en este momento: augusto y josue con GPU, angelo con CPU, unidas por Tailscale, una red privada sobre internet. Cada tarjeta muestra lo que tarda en calcular una época: la RTX 3060 Ti procesa los 2,5 millones de ejemplos en unos 4 ms; la CPU de angelo tarda 18 ms con solo un tercio. Esa diferencia la van a ver en la demo. En las GPUs, el gradiente se calcula con un kernel CUDA: cada hilo procesa ejemplos; los hilos de un **bloque** acumulan en **memoria compartida** y la reducen en **árbol**, la mitad de hilos en cada nivel, sincronizados con `__syncthreads`, en log₂ n pasos. La CPU suma los resultados de los bloques en orden fijo, así el resultado es determinista. Y antes de usar una GPU, el nodo compara su gradiente con el de la CPU: si no coincide, no la usa."
-
-**Transición:** "Lo muestro en vivo."
+**Pase:** "Ya, vamos a verlo en vivo."
 
 ## Diapositiva 7 · Demo en vivo (3:00)
 
-Es el panel de control del clúster. **Corrida 1** (unos 50 s):
+Es el panel de control del clúster. Mientras corre, no te quedes callado, pero tampoco hables sin parar: di la frase, señala y deja que vean.
+
+**Corrida 1 · una GPU** (unos 50 s)
 - **Qué hacer:** marca solo **augusto-pc** → **Entrenar** (200 épocas, sin verificar).
-- **Qué decir mientras corre** (2-3 s):
-  > "Una sola GPU. Miren 'Tiempo por época': unos 3 ms de cálculo y unos 8 de red. El speedup en vivo ronda 18 frente al secuencial. Abajo, la página va diciendo qué concepto ocurre: broadcast y reduce en cada época, CUDA en el nodo."
 
-**Corrida 2** (unos 50 s):
+> Arranco con una sola GPU, la de Augusto. Miren el tiempo por época: más o menos 3 milisegundos calculando y unos 8 en la red. El speedup va por 18. Y abajo la página va marcando lo que está pasando: el broadcast, el reduce, CUDA en el nodo.
+
+**Corrida 2 · dos GPUs** (unos 50 s)
 - **Qué hacer:** marca **augusto-pc + josue** → **Entrenar**.
-- **Qué decir:**
-  > "Con dos GPUs uno esperaría el doble. Pero es más lento: el cálculo ya era de 3 ms, repartirlo ahorra 1 ms, y ahora la barrera espera la red del nodo con peor conexión. Es Amdahl: la comunicación es la parte serial."
 
-**Corrida 3** (unos 60 s):
+> Ahora le sumo la GPU de Josué. Uno pensaría que va a ir el doble de rápido… y no, sale más lento.
+>
+> ¿Por qué? Porque el cálculo ya era de 3 milisegundos. Partirlo en dos me ahorra uno, pero ahora tengo que esperar la red del que tiene peor conexión. La red es la parte que no se paraleliza. Eso es Amdahl.
+
+**Corrida 3 · los tres** (unos 60 s)
 - **Qué hacer:** marca **los tres** → **Entrenar**. Señala la gráfica "Cálculo por época de cada nodo".
-- **Qué decir:**
-  > "Agrego la CPU de angelo. Su línea queda arriba: unos 18 ms por época, contra 1 a 3 de las GPUs. En modo síncrono, la barrera hace que todos esperen al más lento. Es un problema de **balanceo de carga**: los datos están repartidos en partes iguales, pero las máquinas no son iguales."
 
-**Cierre de la demo** (10 s):
+> Y ahora los tres, con la CPU de Angelo. Miren esta gráfica: su línea está allá arriba, en 18 milisegundos, y las GPUs en 1 o 3. Como hay barrera, todos se quedan esperándolo.
+>
+> Los datos están repartidos parejo, pero las máquinas no son iguales. Eso es un problema de balanceo de carga.
+
+**Para cerrar la demo** (10 s)
 - **Qué hacer:** baja a "Corridas de esta sesión".
-- **Qué decir:**
-  > "Aquí quedan las tres corridas medidas delante de ustedes, con su speedup y su eficiencia."
 
-**Opcional, solo si vas sobrado de tiempo: la caída.** Con los tres y 2000 épocas → Entrenar, y pides a angelo "¡ahora!" para que presione `Ctrl` + `C`.
-> "El maestro detecta la caída y aborta limpio; los demás vuelven a la sala. Tolerar la falla sin abortar es un siguiente paso."
+> Y acá quedan las tres corridas que acaban de ver, con su speedup y su eficiencia.
 
-**Transición:** "¿Por qué pasa esto? El modelo de costo lo explica."
+**Solo si te sobra tiempo: la caída.** Marca los tres con 2000 épocas → Entrenar y dile a Angelo "¡ahora!" para que presione `Ctrl` + `C`.
+
+> El maestro se da cuenta de que se cayó, corta la corrida y los demás vuelven a la sala. Que siga entrenando sin él es algo que todavía nos falta.
+
+**Pase:** "¿Y por qué pasa todo esto? Para eso armamos un modelo de costo."
 
 ## Diapositiva 8 · Resultados: Amdahl (1:00)
 
-**Qué hacer:** señala las dos curvas del modelo y luego las barras medidas a la derecha.
+**Idea:** la red es la parte serial; con más datos pesa menos (Gustafson).
+**Cifras:** muestra 13 ms contra 7 de red, techo menor a 3 · completo 230 ms, techo de unas 30 · 73 % era red · una GPU, 18 veces.
+**Qué hacer:** señala la curva naranja, luego la verde, luego las barras de la derecha.
 
-**Qué decir:**
-> "Cada época cuesta el cálculo dividido entre los nodos más la red, que no se divide. La red es la **fracción serial** de Amdahl. Con la muestra de prueba, 13 ms de cálculo frente a 7 de red: el techo es menos de 3 veces, por muchos nodos que agregue; la curva naranja. Con todos los datos, unos 230 ms de cálculo frente a los mismos 7 de red: el techo sube a unas 30 veces; la curva verde. Es lo que dice **Gustafson**: crecer el problema reduce el peso de la parte serial. A la derecha, lo medido: con la muestra pequeña el 73 % del tiempo era red; con todos los datos, una GPU llega a 18 veces."
+> La cuenta es sencilla. Cada época cuesta el cálculo, que se reparte entre los nodos, más la red, que no se reparte. Esa red es la parte serial de Amdahl.
+>
+> Con la muestra de prueba teníamos 13 milisegundos de cálculo contra 7 de red. Con eso, ponga los nodos que ponga, no paso de 3 veces; es la curva naranja.
+>
+> Con todos los datos, el cálculo sube a 230 y la red sigue en 7, y el techo se va a unas 30 veces; es la verde. Eso es Gustafson: si el problema crece, la parte serial pesa cada vez menos.
+>
+> Y a la derecha está lo que medimos: con la muestra chica, casi tres cuartos del tiempo se iba en la red. Con los datos completos, una GPU llega a 18.
 
-**Transición:** "Cierro con lo aprendido."
+**Pase:** "Para cerrar, tres cosas que nos llevamos."
 
 ## Diapositiva 9 · Conclusiones y cierre (1:20)
 
-**En pantalla:** **3 tarjetas grandes** numeradas con su cifra (73 %, 18×, 18 → 6), la tarjeta de balanceo junto a la tabla **"teoría del curso → lo que medimos"** y, abajo, 4 tarjetas de próximos pasos con su semana.
+**Idea:** las tres conclusiones, lo que sigue y la despedida.
+**Cifras:** 73 % · 18 veces · de 18 a 6.
+**Qué hacer:** señala las tres tarjetas de izquierda a derecha mientras dices cada conclusión; después pasa por las de próximos pasos. Para despedirte, mira a la cámara.
 
-**Qué hacer:** señala las tres tarjetas de izquierda a derecha mientras dices cada conclusión; al final, recorre las tarjetas de próximos pasos.
+> Primero: con pocos datos no conviene distribuir, porque la red se come todo.
+>
+> Segundo: con los datos completos el clúster sí gana, y el modelo sale idéntico.
+>
+> Y tercero: en un esquema síncrono manda el más lento. Meter una CPU entre las GPUs nos bajó el speedup de 18 a 6.
+>
+> Por eso lo que sigue es repartir según lo que rinde cada máquina: medir cuánto aguanta cada una y darle más datos a la GPU. Después vienen MPI, los warp shuffles en CUDA y las versiones en Pthreads y OpenMP.
 
-**Qué decir:**
-> "Tres conclusiones. Primera: con pocos datos, la red domina y no conviene distribuir. Segunda: con todos los datos, el clúster sí gana, y el modelo es idéntico. Tercera: en un algoritmo síncrono, el nodo más lento marca el ritmo; agregar una CPU baja el speedup de 18 a 6. El siguiente paso es un **reparto proporcional al rendimiento**: medir cuánto rinde cada nodo y darle más datos a la GPU. Después vienen MPI, warp shuffles en CUDA y los núcleos nativos en Pthreads y OpenMP. La tabla de la derecha resume la idea de toda la exposición: cada ley del curso, Amdahl, Gustafson y la barrera síncrona, la medimos en el clúster real."
+**Despedida** (con calma, mirando a la cámara):
 
-**Cierre** (señala la tabla "teoría → lo medido" y mira al público):
-> "En resumen: cada concepto del curso que aplicamos, desde Flynn y las colectivas hasta Amdahl, el balanceo y CUDA, no solo está implementado: está **medido** en un clúster real. Muchas gracias en nombre de todo el grupo; quedo atento a sus preguntas."
+> Si me quedo con una sola idea, es esta: lo que vimos en el curso, Amdahl, Gustafson, la barrera, la reducción, no lo dejamos en la teoría; lo medimos en un clúster de verdad, con nuestras propias máquinas.
+>
+> Eso sería todo de parte del grupo. Muchas gracias, y si tienen alguna pregunta, con gusto.
 
-**Qué hacer después:** deja la diapositiva 9 en pantalla durante las preguntas; si piden un detalle, vuelve con `←` a la diapositiva que corresponda.
+**Después:** deja la diapositiva 9 en pantalla. Si preguntan por algo puntual, vuelve con `←` a la diapositiva que corresponda.
 
-## Preguntas probables (respuestas cortas que muestran dominio)
+---
 
-**¿Qué es el speedup y la eficiencia? ¿Por qué la eficiencia supera el 100 %?**
-S(p) = T₁ / Tₚ y E = S / p. Aquí T₁ es un hilo de CPU y los nodos son GPUs: no es el mismo procesador, así que E > 100 % no es un speedup superlineal "clásico". Mide cuánto gana el sistema frente a la línea base. Para una eficiencia comparable, el Experimento 1b compara goroutines contra un hilo en la misma CPU (E = 76 % con 8).
+## Preguntas probables
+
+Responde corto: primero la respuesta directa en una frase, y después, si hace falta, el porqué. Si no sabes algo, dilo tal cual ("eso no lo medimos, pero lo que esperaríamos es…"); queda mucho mejor que inventar.
+
+**¿Qué es el speedup y la eficiencia? ¿Por qué la eficiencia pasa del 100 %?**
+> El speedup es el tiempo secuencial entre el tiempo en paralelo, y la eficiencia es eso dividido entre el número de nodos. Pasa del 100 % porque comparamos contra un hilo de CPU, y los nodos son GPUs; no es el mismo procesador, así que no es un superlineal de verdad. Si quiere una eficiencia justa, está el experimento con goroutines en la misma CPU: ahí da 76 % con 8 hilos.
 
 **¿Cuál es la diferencia entre Amdahl y Gustafson?**
-Amdahl fija el tamaño del problema: S ≤ 1 / (f + (1 − f)/p), y el techo es 1/f. Gustafson escala el problema con los recursos: S = p − f(p − 1), y la parte serial pesa menos. Lo vimos: con la muestra de prueba el techo era menos de 3×; con 17 veces más datos, ~30×.
+> Amdahl deja el problema fijo: la parte serial pone un techo, uno entre f. Gustafson dice que si crece el problema junto con los recursos, la parte serial pesa menos. Nosotros lo vimos: con la muestra, el techo era menos de 3; con 17 veces más datos, unas 30.
 
 **¿Qué es Karp-Flatt y para qué sirve?**
-Es la fracción serial experimental: e = (1/S − 1/p) / (1 − 1/p). Si e se mantiene constante al crecer p, el límite es la parte serial; si crece, hay sobrecarga de sincronización o de comunicación. En el cargador con agregadoras particionadas se mantuvo en ~0,21.
+> Es la fracción serial pero medida, sacada del speedup real. Si se queda constante cuando agrego hilos, el límite es la parte serial; si sube, es sobrecarga de sincronización o de comunicación. En el cargador se mantuvo en 0,21, más o menos.
 
-**¿Qué es una condición de carrera? ¿La encontraron?**
-Dos hilos hacen leer-modificar-escribir sobre la misma variable sin exclusión mutua, y se pierden actualizaciones. Usamos `go test -race` en todo el código. Además encontramos una **condición de carrera lógica**: estaciones con varios monitores para el mismo gas. El resultado dependía del orden en que llegaban las goroutines. `-race` no la detecta, porque no hay acceso simultáneo a memoria; la resolvimos con una regla determinista (gana el monitor de POC más bajo).
+**¿Qué es una condición de carrera? ¿Encontraron alguna?**
+> Es cuando dos hilos leen, modifican y escriben la misma variable a la vez y se pierden actualizaciones. Pasamos `go test -race` por todo el código. Pero encontramos una más tramposa, una lógica: había estaciones con varios monitores para el mismo gas, y el resultado dependía de qué goroutine llegaba primero. El detector no la ve porque no hay acceso a memoria al mismo tiempo. La arreglamos con una regla fija: gana el monitor de número más bajo.
 
 **¿Mutex o CAS? ¿Cuál es mejor?**
-El mutex bloquea al hilo que espera. CAS es optimista: lee, calcula y reintenta si otro escribió antes. Con alta contención, como un acumulador por ejemplo, los dos serializan, y CAS además desperdicia reintentos. La respuesta correcta es evitar compartir: una reducción con variables privadas.
+> El mutex bloquea al que espera; CAS intenta y, si alguien escribió antes, reintenta. Cuando todos pelean por la misma variable, los dos terminan haciendo cola, y CAS encima gasta reintentos. Lo mejor es no compartir: una reducción con variables privadas.
 
 **¿Por qué síncrono y no asíncrono?**
-El síncrono tiene una barrera por época y da exactamente el modelo secuencial, pero espera al más lento. El asíncrono no espera, aunque usa gradientes calculados con pesos viejos (*stale*) y el resultado ya no es determinista. Es el Experimento 4.
+> Porque el síncrono da exactamente el mismo modelo que el secuencial. El precio es que espera al más lento. El asíncrono no espera, pero trabaja con pesos un poco viejos y ya no da siempre el mismo resultado. Eso lo vamos a comparar en el experimento 4.
 
 **¿Su reduce es igual a MPI_Allreduce?**
-El resultado es el mismo. La implementación es centralizada: el maestro recibe p mensajes y difunde p, O(p) en el maestro. MPI_Allreduce usa algoritmos en anillo o en árbol, O(log p) pasos, sin un cuello de botella central. Con 3 nodos no importa; con muchos, sí.
+> El resultado sí, la forma no. El nuestro es centralizado: el maestro recibe de todos y les reenvía a todos. MPI usa anillo o árbol, en log de p pasos, sin un cuello de botella en el centro. Con tres nodos no se nota; con muchos, sí.
 
 **¿Cuánto cuesta la red? ¿Latencia o ancho de banda?**
-Modelo de Hockney: T = α + β·n. Por época viajan 13 números (~100 bytes), así que β·n es despreciable y domina la **latencia** α (~5-17 ms por internet, medida con `tailscale ping`). Por eso más datos no aumentan el costo de red: solo el cálculo.
+> Latencia. Por época mandamos 13 números, unos cien bytes; eso no es nada de ancho de banda. Lo que pesa es la latencia de internet, entre 5 y 17 milisegundos. Por eso, aunque metamos más datos, la red cuesta lo mismo; solo crece el cálculo.
 
-**¿Cómo usan la jerarquía de memoria de la GPU?**
-Los datos se copian una vez a la memoria global. Cada hilo acumula en registros. El bloque reduce en memoria compartida (`__shared__`, rápida y por bloque) con `__syncthreads` entre niveles. Solo d + 2 números vuelven a la CPU por bloque. Una versión con *warp shuffles* evitaría la memoria compartida en los últimos 32 valores: es el Experimento 8.
+**¿Cómo usan la memoria de la GPU?**
+> Los datos se copian una vez a la memoria global. Cada hilo acumula en sus registros, y el bloque reduce en memoria compartida, que es la rápida, con un syncthreads entre nivel y nivel. A la CPU solo vuelven unos pocos números por bloque. Con warp shuffles nos ahorraríamos la memoria compartida al final; está en los próximos pasos.
 
 **¿Hay divergencia en el kernel?**
-Poca. El peso de la clase depende de la etiqueta (`y == 1`), y en la reducción los hilos con `threadIdx.x ≥ s` quedan inactivos en cada nivel. Es divergencia controlada; los shuffles la reducen.
+> Un poco: el peso depende de si la etiqueta es 1 o 0, y en el árbol, en cada nivel, la mitad de los hilos se queda sin hacer nada. Es controlada; con shuffles bajaría.
 
 **¿Cómo saben que la GPU calcula bien?**
-Antes de entrenar, el nodo compara el gradiente de la GPU con el de la CPU en dos puntos (pesos en cero y al azar), con tolerancia relativa 1e-8. Si no coincide, calcula con la CPU y lo avisa. Además, la pérdida final de cada corrida es idéntica a la secuencial.
+> Antes de entrenar, el nodo calcula el gradiente en la GPU y en la CPU, en dos puntos distintos, y los compara. Si no coinciden, usa la CPU y lo avisa. Y además, la pérdida final de cada corrida sale igual a la secuencial.
 
-**¿Por qué no da exactamente igual, bit a bit?**
-La suma de punto flotante no es asociativa: sumar en otro orden cambia el redondeo, del orden de 1e-15. El resto es idéntico.
+**¿Por qué no da exactamente igual, bit por bit?**
+> Porque sumar decimales en otro orden cambia el redondeo; la suma en punto flotante no es asociativa. La diferencia está en el decimal quince.
 
-**¿Balanceo estático o dinámico?**
-Hoy es estático: una partición por hash de la estación, igual para todos. Los datos quedan balanceados, pero el tiempo no, porque las máquinas son distintas. El reparto proporcional al rendimiento medido sigue siendo estático pero informado. Uno dinámico, con trozos pequeños y *work stealing*, se adapta durante la ejecución a cambio de más mensajes.
+**¿El balanceo es estático o dinámico?**
+> Hoy es estático: cada nodo recibe la misma cantidad de estaciones. Los datos quedan parejos, pero el tiempo no, porque las máquinas son distintas. Lo siguiente es repartir según lo que rinde cada una. Uno dinámico, con robo de trabajo, se adaptaría en el camino, pero mandaría más mensajes.
 
 **¿Por qué TCP en Go y no MPI?**
-Las PCs están en casas distintas. MPI exige el mismo sistema operativo y la misma versión en todas, más SSH o `smpd` y puertos abiertos en todas. Nuestro TCP solo necesita que los nodos lleguen al maestro. MPI se compara contra este TCP en el Experimento 7.
+> Porque las PCs están en casas distintas. MPI pide el mismo sistema y la misma versión en todas, más SSH y puertos abiertos. Con nuestro TCP basta con que cada nodo llegue al maestro. Igual vamos a comparar contra MPI en el experimento 7.
 
 **Muéstrenme el código de la reducción.**
-Diapositiva 4, abajo a la derecha (`internal/logistica/paralelo.go`, `gradienteReduccion`): cada goroutine llama a `GradienteParcial` sobre su bloque de ejemplos y guarda el resultado en su casilla de `parciales`. `wg.Wait()` es la barrera, y después la goroutine principal suma las casillas. No hay ningún lock en el bucle.
+> Vuelve a la diapositiva 4, al código verde. "Cada goroutine calcula sobre su bloque de ejemplos y guarda el resultado en su propia casilla. Este `wg.Wait()` es la barrera, y recién después se suman las casillas. Dentro del bucle no hay ningún lock." (Está en `internal/logistica/paralelo.go`, `gradienteReduccion`.)
 
 **¿Qué viaja exactamente en cada mensaje?**
-Diapositiva 5, tabla de abajo. Por época: `parametros` lleva la corrida, la época y 13 números (12 pesos + sesgo); `gradiente_parcial` lleva 12 + 1 sumas de gradiente, la suma de la pérdida, n y los ms de cálculo. Son JSON de una línea por TCP: unos cientos de bytes, por eso domina la latencia y no el ancho de banda.
+> Vuelve a la diapositiva 5, a la tabla. "Por época van dos mensajes: de ida, los 13 pesos; de vuelta, las sumas del gradiente, la pérdida, cuántos ejemplos procesó y cuánto se demoró. Es JSON de una línea por TCP, unos cientos de bytes."
 
 **¿Qué pasa si un nodo se cae?**
-El maestro lo detecta (conexión cerrada o 2 minutos sin gradiente), aborta la corrida limpio y devuelve los demás nodos a la sala. Redistribuir su partición, o el modo asíncrono, es el siguiente paso.
+> El maestro se da cuenta, porque se cierra la conexión o pasan dos minutos sin respuesta, corta la corrida y devuelve a los demás a la sala. Repartir su parte entre los que quedan es lo que sigue.
