@@ -116,7 +116,7 @@ export const diapositivas = [
     seccion: 'Demo',
     titulo: 'Demo en vivo: elijo los nodos y entreno',
     tema: 'Todo el curso en vivo',
-    notas: 'Marcar augusto → Entrenar (señalar speedup ~18× y la franja de conceptos). Marcar augusto + josue → más lento: más red. Marcar los tres → la línea de angelo arriba: marca el ritmo. Bajar a "Corridas de esta sesión". 3 min máximo.',
+    notas: 'Marcar augusto → Entrenar (señalar speedup ~18× y la franja de conceptos). Marcar augusto + josue → más lento: más red. Marcar los tres → la línea de angelo arriba: marca el ritmo. Bajar a "Corridas de esta sesión". 2 min 40 s.',
   },
   {
     seccion: 'Resultados',
@@ -125,10 +125,16 @@ export const diapositivas = [
     notas: 'Modelo: T(p) = T_cálculo/p + T_red. Con la muestra de prueba (~13 ms de cálculo, ~7 ms de red) el techo es ~3×. Con todos los datos (~230 ms de cálculo) el techo sube a ~30×. Amdahl con la red como fracción serial; Gustafson: crecer el problema mejora el speedup. 60 s.',
   },
   {
+    seccion: 'Tecnologías y avance',
+    titulo: 'Go, CUDA y React, y un avance por delante del cronograma',
+    tema: 'Semanas 3 a 16 del proyecto',
+    notas: 'Izquierda: qué lenguaje hace qué (Go el núcleo, CUDA C++ en la GPU, React la página; C con Pthreads, OpenMP y MPI en curso). Derecha: semanas 3-7 completas; distribuido, clúster real y CUDA adelantados (eran de las semanas 9-12); pendiente: núcleos en C, MPI, asíncrono, API. 50 s.',
+  },
+  {
     seccion: 'Conclusiones',
     titulo: 'El nodo más lento marca el ritmo del clúster',
     tema: 'Sem. 10 · Balanceo de carga',
-    notas: 'Tres conclusiones con su cifra; la tabla une cada ley del curso con lo medido. Próximo paso: reparto proporcional al rendimiento. Cerrar: "Muchas gracias en nombre del grupo; quedo atento a sus preguntas." 1 min 20 s.',
+    notas: 'Tres conclusiones con su cifra; la tabla une cada ley del curso con lo medido. Próximo paso: reparto proporcional al rendimiento. Cerrar: "Muchas gracias en nombre del grupo; quedo atento a sus preguntas." 1 min.',
   },
 ]
 
@@ -269,4 +275,38 @@ export function calculoPorNodo(datos) {
     josue: de('tcp_tailscale:josue'),
     angelo: de('tcp_tailscale:angelo+augusto-pc+josue'),
   }
+}
+
+// Lenguajes y tecnologías del proyecto, con las líneas de código de cada uno.
+export const lenguajes = [
+  { nombre: 'Go', lineas: '7,7 mil', uso: 'Cargador, entrenamiento, maestro y nodos TCP, API', paralelismo: 'goroutines, channels, sync, atomic', tono: 'azul' },
+  { nombre: 'CUDA C++', lineas: '250', uso: 'Kernel del gradiente en las GPUs NVIDIA', paralelismo: 'bloques, __shared__, __syncthreads', tono: 'verde' },
+  { nombre: 'JavaScript · React', lineas: '2,4 mil', uso: 'Esta página: mapa, panel del clúster en vivo', paralelismo: 'eventos del servidor (SSE)', tono: 'morado' },
+  { nombre: 'C · Pthreads, OpenMP, MPI', lineas: 'en curso', uso: 'Las mismas piezas con las herramientas del sílabo', paralelismo: 'pthread_create, reduction, MPI_Allreduce', tono: 'naranja' },
+]
+
+export const herramientas = ['MongoDB', 'Tailscale', 'PowerShell', 'Docker', 'Vite', 'go test -race']
+
+// Cronograma del proyecto (semanas del ciclo) y su estado real hoy.
+export const cronograma = [
+  { semana: '3', hito: 'Datos EPA (17 M filas) y contratos', estado: 'hecho' },
+  { semana: '4', hito: 'Línea base secuencial: T(1)', estado: 'hecho' },
+  { semana: '5-6', hito: 'Cargador concurrente: worker pool', estado: 'hecho' },
+  { semana: '7', hito: 'Experimento 1 y maestro TCP', estado: 'hecho' },
+  { semana: '8', hito: 'Núcleos en C: Pthreads, OpenMP, MPI', estado: 'curso', hoy: true },
+  { semana: '9', hito: 'Entrenamiento distribuido', estado: 'adelantado' },
+  { semana: '10', hito: 'Clúster real de 4 PCs · MPI', estado: 'parcial' },
+  { semana: '11', hito: 'Kernel CUDA validado', estado: 'adelantado' },
+  { semana: '12', hito: 'CUDA en memoria compartida · experimentos', estado: 'parcial' },
+  { semana: '13', hito: 'Integración, Thrust, docker compose', estado: 'pendiente' },
+  { semana: '14', hito: 'Prueba de carga y ensayo de la demo', estado: 'pendiente' },
+  { semana: '15', hito: 'Exposición final', estado: 'pendiente' },
+]
+
+export const estadoCronograma = {
+  hecho: 'Hecho',
+  adelantado: 'Hecho antes de tiempo',
+  parcial: 'Parte hecha',
+  curso: 'En curso',
+  pendiente: 'Pendiente',
 }

@@ -10,10 +10,14 @@ import {
   cifras,
   codigo,
   conceptos,
+  cronograma,
   diapositivas,
   docentes,
+  estadoCronograma,
   grupo,
+  herramientas,
   integrantes,
+  lenguajes,
   mensajes,
   niveles,
   proximos,
@@ -336,6 +340,44 @@ function Resultados({ c, datos }) {
   )
 }
 
+function Tecnologias() {
+  const hechas = cronograma.filter((h) => h.estado === 'hecho' || h.estado === 'adelantado').length
+  return (
+    <div className="dos-columnas tecnologias">
+      <div className="pila">
+        <span className="concepto-rotulo">Lenguajes · qué hace cada uno</span>
+        <div className="lenguajes">
+          {lenguajes.map((l) => (
+            <div key={l.nombre} className={`lenguaje ${l.tono}`}>
+              <div className="lenguaje-cabecera">
+                <strong>{l.nombre}</strong>
+                <span className="lenguaje-lineas">{l.lineas}{/\d/.test(l.lineas) ? ' líneas' : ''}</span>
+              </div>
+              <span>{l.uso}</span>
+              <code>{l.paralelismo}</code>
+            </div>
+          ))}
+        </div>
+        <div className="herramientas">
+          {herramientas.map((h) => <span key={h}>{h}</span>)}
+        </div>
+      </div>
+      <div className="pila">
+        <span className="concepto-rotulo">Cronograma · {hechas} de {cronograma.length} hitos ya hechos</span>
+        <ol className="cronograma">
+          {cronograma.map((h) => (
+            <li key={h.semana} className={`hito ${h.estado} ${h.hoy ? 'hoy' : ''}`}>
+              <span className="hito-semana">Sem. {h.semana}</span>
+              <span className="hito-texto">{h.hito}</span>
+              <span className="hito-estado">{h.hoy ? 'Hoy · ' : ''}{estadoCronograma[h.estado]}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  )
+}
+
 function Conclusiones({ c, datos }) {
   const puntos = [
     { cifra: `${c.pctPrueba}`, titulo: 'Con pocos datos, la red domina', texto: 'La comunicación síncrona es la fracción serial: no conviene distribuir.', tono: 'alerta' },
@@ -495,7 +537,8 @@ export default function Presentacion({ indice, setIndice, datos, estaciones, est
     6: <ElCluster datos={datos} />,
     7: <Demo datos={datos} />,
     8: <Resultados c={c} datos={datos} />,
-    9: <Conclusiones c={c} datos={datos} />,
+    9: <Tecnologias />,
+    10: <Conclusiones c={c} datos={datos} />,
   }[indice]
 
   return (
