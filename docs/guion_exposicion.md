@@ -28,17 +28,18 @@ Atajos en la página:
 
 | Diapositiva | Tema | Tiempo | Acumulado |
 |---|---|---:|---:|
-| 1 | Portada | 0:20 | 0:20 |
-| 2 | El problema | 0:40 | 1:00 |
+| 1 | Portada | 0:25 | 0:25 |
+| 2 | El problema | 0:35 | 1:00 |
 | 3 | Tres niveles de paralelismo | 0:50 | 1:50 |
 | 4 | Memoria compartida | 1:00 | 2:50 |
 | 5 | Distribución: colectivas | 1:00 | 3:50 |
 | 6 | El clúster y CUDA | 0:50 | 4:40 |
-| 7 | **Demo en vivo** | 3:00 | 7:40 |
-| 8 | Resultados: Amdahl | 1:00 | 8:40 |
-| 9 | Conclusiones y cierre | 1:20 | 10:00 |
+| 7 | **Demo en vivo** | 2:40 | 7:20 |
+| 8 | Resultados: Amdahl | 1:00 | 8:20 |
+| 9 | Lenguajes y cronograma | 0:40 | 9:00 |
+| 10 | Conclusiones y cierre | 1:00 | 10:00 |
 
-**Si vas atrasado al llegar a la demo** (más de 5:00 en el cronómetro): haz solo dos corridas (una GPU y luego los tres). En la 9 di solo las tres conclusiones y despídete.
+**Si vas atrasado al llegar a la demo** (más de 5:00 en el cronómetro): haz solo dos corridas (una GPU y luego los tres). En la 9 di solo la frase del cronograma, y en la 10, las tres conclusiones y la despedida.
 
 ---
 
@@ -62,7 +63,7 @@ Atajos en la página:
 
 ---
 
-## Diapositiva 1 · Portada (0:20)
+## Diapositiva 1 · Portada (0:25)
 
 **Idea:** qué es SACA y a dónde vamos a llegar.
 **Cifra:** 18 veces más rápido con una GPU.
@@ -72,11 +73,13 @@ Atajos en la página:
 >
 > La idea es simple: queremos saber, con una hora de anticipación, si el aire en una estación va a pasar el nivel de alerta de NO₂. Pero lo que nos interesa para el curso es cómo lo entrenamos: en paralelo, con hilos, con varias computadoras conectadas por internet y con GPUs.
 >
+> Todo está hecho por nosotros: el núcleo en Go, la parte de GPU en CUDA y esta misma página, que es la que controla el clúster, en React.
+>
 > Para que vean a dónde vamos: con una sola GPU, en la casa de un compañero, entrenamos unas 18 veces más rápido que con una CPU. Y el modelo sale exactamente igual.
 
 **Pase:** "Primero, ¿con qué datos trabajamos?"
 
-## Diapositiva 2 · El problema (0:40)
+## Diapositiva 2 · El problema (0:35)
 
 **Idea:** son muchos datos, y ya en la carga apareció Amdahl.
 **Cifras:** 17 millones de mediciones · de 132 a 35 segundos · se quedaba en 1 y subió a 3,8.
@@ -153,7 +156,7 @@ Atajos en la página:
 
 **Pase:** "Ya, vamos a verlo en vivo."
 
-## Diapositiva 7 · Demo en vivo (3:00)
+## Diapositiva 7 · Demo en vivo (2:40)
 
 Es el panel de control del clúster. Mientras corre, no te quedes callado, pero tampoco hables sin parar: di la frase, señala y deja que vean.
 
@@ -201,9 +204,21 @@ Es el panel de control del clúster. Mientras corre, no te quedes callado, pero 
 >
 > Y a la derecha está lo que medimos: con la muestra chica, casi tres cuartos del tiempo se iba en la red. Con los datos completos, una GPU llega a 18.
 
+**Pase:** "Antes de cerrar, les cuento con qué lo hicimos y cómo vamos con el cronograma."
+
+## Diapositiva 9 · Lenguajes y cronograma (0:40)
+
+**Idea:** qué lenguaje hace qué, y que vamos adelantados en lo central.
+**Cifras:** semanas 3 a 7 completas · lo distribuido, el clúster real y CUDA eran de las semanas 9 a 12.
+**Qué hacer:** pasa la mano por las cuatro tarjetas de la izquierda; luego baja por el cronograma y detente en la fila naranja ("Hoy").
+
+> Rápido, con qué está hecho. Casi todo es Go: el cargador, el entrenamiento, el maestro y los nodos. Lo elegimos porque las goroutines y los channels hacen muy natural la concurrencia. Lo de la GPU es CUDA C++, y la página es React. Y lo que estamos haciendo ahora son las mismas piezas en C, con Pthreads, OpenMP y MPI, para compararlas con Go.
+>
+> Y del cronograma: de la semana 3 a la 7 está todo cumplido. Estamos en la 8. Y lo verde es lo que adelantamos: el entrenamiento distribuido, el clúster con las PCs reales y CUDA, que tocaban recién entre la semana 9 y la 12. Lo que falta está abajo: MPI, el modo asíncrono, la API y la integración final.
+
 **Pase:** "Para cerrar, tres cosas que nos llevamos."
 
-## Diapositiva 9 · Conclusiones y cierre (1:20)
+## Diapositiva 10 · Conclusiones y cierre (1:00)
 
 **Idea:** las tres conclusiones, lo que sigue y la despedida.
 **Cifras:** 73 % · 18 veces · de 18 a 6.
@@ -215,7 +230,7 @@ Es el panel de control del clúster. Mientras corre, no te quedes callado, pero 
 >
 > Y tercero: en un esquema síncrono manda el más lento. Meter una CPU entre las GPUs nos bajó el speedup de 18 a 6.
 >
-> Por eso lo que sigue es repartir según lo que rinde cada máquina: medir cuánto aguanta cada una y darle más datos a la GPU. Después vienen MPI, los warp shuffles en CUDA y las versiones en Pthreads y OpenMP.
+> Por eso lo siguiente es repartir según lo que rinde cada máquina: medir cuánto aguanta cada una y darle más datos a la GPU.
 
 **Despedida** (con calma, mirando a la cámara):
 
@@ -223,7 +238,7 @@ Es el panel de control del clúster. Mientras corre, no te quedes callado, pero 
 >
 > Eso sería todo de parte del grupo. Muchas gracias, y si tienen alguna pregunta, con gusto.
 
-**Después:** deja la diapositiva 9 en pantalla. Si preguntan por algo puntual, vuelve con `←` a la diapositiva que corresponda.
+**Después:** deja la diapositiva 10 en pantalla. Si preguntan por algo puntual, vuelve con `←` a la diapositiva que corresponda.
 
 ---
 
@@ -269,6 +284,12 @@ Responde corto: primero la respuesta directa en una frase, y después, si hace f
 
 **¿El balanceo es estático o dinámico?**
 > Hoy es estático: cada nodo recibe la misma cantidad de estaciones. Los datos quedan parejos, pero el tiempo no, porque las máquinas son distintas. Lo siguiente es repartir según lo que rinde cada una. Uno dinámico, con robo de trabajo, se adaptaría en el camino, pero mandaría más mensajes.
+
+**¿Por qué Go y no C para todo?**
+> Porque Go trae la concurrencia en el lenguaje: goroutines, channels, y el detector de carreras con `-race`. Nos dejó tener rápido el sistema completo, con red y todo. Pero el curso pide las herramientas clásicas, así que las mismas piezas las estamos haciendo en C con Pthreads, OpenMP y MPI, con el mismo formato de datos, para comparar tiempos con Go.
+
+**¿Van al día con el cronograma?**
+> Sí, y en lo central, adelantados. Las semanas 3 a 7 están completas. Lo distribuido, el clúster físico y CUDA tocaban en las semanas 9 a 12 y ya funcionan. Lo que está en curso son los núcleos en C para esta semana; lo pendiente es MPI en el clúster, el modo asíncrono y la API.
 
 **¿Por qué TCP en Go y no MPI?**
 > Porque las PCs están en casas distintas. MPI pide el mismo sistema y la misma versión en todas, más SSH y puertos abiertos. Con nuestro TCP basta con que cada nodo llegue al maestro. Igual vamos a comparar contra MPI en el experimento 7.
