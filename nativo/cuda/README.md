@@ -62,7 +62,31 @@ gradiente_cuda: 48... ejemplos x 12 variables en la GPU (224 bloques x 256 hilos
 motor cuda validado contra el de Go: mismo gradiente (tolerancia relativa 1e-8)
 ```
 
+## Experimento 8: los tres kernels (`gradiente/gradiente.cu`)
+
+Programa aparte del motor del clúster: entrena la regresión logística completa en la GPU y deja una fila por corrida en un CSV. `--kernel` elige cómo se suman los aportes de los hilos:
+
+| Kernel | Semana | Idea |
+|---|---|---|
+| `atomic` | 11 | un hilo por ejemplo y `atomicAdd` directo al gradiente global (d+2 sumas atómicas por ejemplo); el ingenuo |
+| `shared` | 12 | acumulador por hilo en `__shared__` y reducción en árbol por bloque |
+| `shuffle` | 12 | acumulador en registros y reducción por warp con `__shfl_down_sync` |
+
+```sh
+nvcc -O3 -o bin/gradiente_cuda_exp nativo/cuda/gradiente/gradiente.cu
+bin/gradiente_cuda_exp --kernel shuffle --hilos 256 --ejemplos 10000000 --resultado resultados/experimento8.csv
+```
+
+- `--ejemplos N` recorta o repite la muestra hasta N ejemplos (10³ a 10⁷). Va anotado en la columna `maquina`.
+- Antes de medir compara el gradiente de la época 0 con el de la CPU; si no coincide dentro de 1e-8, no mide.
+- Hasta 14 variables (`D_REG`); hoy hay 12.
+- `sh scripts/nativo.sh exp8` corre los tres kernels contra OpenMP para todos los tamaños.
+
 ## Probar sin GPU NVIDIA (emulación)
+
+Para `gradiente.cu` (Linux): `nativo/cuda/emulacion/compilar.sh` y `bin/gradiente_cuda_emulado --kernel shuffle --hilos 64 --ejemplos 20000 --epocas 3`. Es lentísimo y los tiempos no significan nada: solo comprueba que los tres kernels dan el mismo gradiente que la CPU.
+
+### Emulación del motor del clúster
 
 `emulacion/` compila el mismo `.cu` con g++ de MSYS2. Emula cada hilo CUDA con un hilo del sistema operativo y `__syncthreads` con una barrera. Es lenta, pero sirve para comprobar el protocolo y la reducción en cualquier PC:
 

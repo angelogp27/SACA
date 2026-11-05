@@ -4,6 +4,8 @@ import (
 	"io"
 	"net"
 	"testing"
+
+	"proyecto9/internal/hardware"
 )
 
 func TestIdaYVuelta(t *testing.T) {
@@ -52,12 +54,12 @@ func TestCamposDelEntrenamientoDistribuido(t *testing.T) {
 	ca, cb := NuevaConexion(a), NuevaConexion(b)
 
 	go func() {
-		ca.Enviar(Mensaje{Tipo: TipoRegistro, WorkerID: "gpu1", Huella: "abc", Motor: "cuda", Dispositivo: "RTX 3060"})
+		ca.Enviar(Mensaje{Tipo: TipoRegistro, WorkerID: "gpu1", Huella: "abc", Motor: "cuda", Dispositivo: "RTX 3060", Hardware: &hardware.Info{CPU: "Ryzen", Hilos: 12, GPU: "RTX 3060"}})
 		ca.Enviar(Mensaje{Tipo: TipoGradienteParcial, WorkerID: "gpu1", Epoca: 3, Gradiente: []float64{1, 2}, Perdida: 0.5, TCalculoMs: 1.25, Motor: "cuda"})
 	}()
 
 	r, err := cb.Recibir()
-	if err != nil || r.Huella != "abc" || r.Motor != "cuda" || r.Dispositivo != "RTX 3060" {
+	if err != nil || r.Huella != "abc" || r.Motor != "cuda" || r.Dispositivo != "RTX 3060" || r.Hardware == nil || r.Hardware.GPU != "RTX 3060" || r.Hardware.Hilos != 12 {
 		t.Fatalf("registro = %+v (%v)", r, err)
 	}
 	g, err := cb.Recibir()

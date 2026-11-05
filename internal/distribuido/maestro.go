@@ -15,8 +15,10 @@ import (
 
 	"proyecto9/internal/cluster"
 	"proyecto9/internal/entrenador"
+	"proyecto9/internal/hardware"
 	"proyecto9/internal/logistica"
 	"proyecto9/internal/metricas"
+	"proyecto9/internal/particion"
 	"proyecto9/internal/protocolo"
 )
 
@@ -60,11 +62,16 @@ type OpcionesCorrida struct {
 	// CerrarSala: al terminar el entrenamiento no se aceptan más nodos (modo
 	// de una corrida: uno que llegue tarde no se registra en vano).
 	CerrarSala bool
+	// Pesos reparte la muestra en proporción al peso de cada nodo (por id)
+	// en vez de en partes iguales (Experimento 9). Debe tener un peso
+	// positivo para cada nodo de la corrida; nil = reparto igual.
+	Pesos map[string]float64
 }
 
 // InfoNodo describe a un nodo de una corrida para el reporte final.
 type InfoNodo struct {
 	ID, Motor, Dispositivo, Remoto string
+	Hardware                       *hardware.Info
 	Particion, N                   int
 	TCalculo                       time.Duration // suma de todas las épocas
 }
@@ -219,13 +226,16 @@ func (m *Maestro) Atender(conn net.Conn) {
 	m.mu.Lock()
 	m.llegadas++
 	m.nodos[msg.WorkerID] = &nodoSala{
-		vista:    NodoVista{ID: msg.WorkerID, Motor: msg.Motor, Dispositivo: msg.Dispositivo, Remoto: remoto, Estado: "libre", ConectadoDesde: time.Now()},
+		vista:    NodoVista{ID: msg.WorkerID, Motor: msg.Motor, Dispositivo: msg.Dispositivo, Hardware: msg.Hardware, Remoto: remoto, Estado: "libre", ConectadoDesde: time.Now()},
 		conexion: c,
 		orden:    m.llegadas,
 	}
 	enSala := len(m.nodos)
 	m.mu.Unlock()
 	log.Printf("nodo %s conectado desde %s, motor %s (%s) → en la sala (%d de %d)", msg.WorkerID, remoto, msg.Motor, msg.Dispositivo, enSala, m.cfg.Capacidad)
+	if msg.Hardware != nil {
+		log.Printf("nodo %s, hardware: %s", msg.WorkerID, msg.Hardware.Resumen())
+	}
 	m.senalar()
 	m.publicar()
 
@@ -402,7 +412,7 @@ func (m *Maestro) Iniciar(op OpcionesCorrida) (*Corrida, error) {
 	for i, n := range nodos {
 		activa.indice[n.vista.ID] = i
 		m.ocupados[n.vista.ID] = true
-		estado.Nodos = append(estado.Nodos, NodoCorrida{ID: n.vista.ID, Motor: n.vista.Motor, Dispositivo: n.vista.Dispositivo, Remoto: n.vista.Remoto, Particion: i})
+		estado.Nodos = append(estado.Nodos, NodoCorrida{ID: n.vista.ID, Motor: n.vista.Motor, Dispositivo: n.vista.Dispositivo, Hardware: n.vista.Hardware, Remoto: n.vista.Remoto, Particion: i})
 	}
 	m.activa = activa
 	m.estado = estado
@@ -449,11 +459,16 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 	n := len(c.nodos)
 	log.Printf("corrida %d: empieza el entrenamiento con %d nodos [%s] (%d épocas, tasa %g)", c.activa.id, n, strings.Join(c.ids(), " "), op.Epocas, op.Tasa)
 
-	// Scatter: a cada nodo su parte de las estaciones.
+	// Scatter: a cada nodo su parte de las estaciones, igual para todos o
+	// proporcional a su peso.
+	filtros, err := c.filtros()
+	if err != nil {
+		return nil, err
+	}
 	for i, nodo := range c.nodos {
 		err := nodo.conexion.Enviar(protocolo.Mensaje{
 			Tipo: protocolo.TipoParticionAsignada, WorkerID: nodo.vista.ID,
-			FiltroMongo: &protocolo.FiltroMongo{Mod: n, Resto: i},
+			FiltroMongo: filtros[i],
 		})
 		if err != nil {
 			return nil, errCaida(0, nodo.vista.ID, "no se le pudo enviar la partición: "+err.Error())
@@ -575,7 +590,7 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 		if motorNodo[i] != "" {
 			motor = motorNodo[i]
 		}
-		res.Nodos = append(res.Nodos, InfoNodo{ID: nodo.vista.ID, Motor: motor, Dispositivo: nodo.vista.Dispositivo, Remoto: nodo.vista.Remoto, Particion: i, N: nNodo[i], TCalculo: tCalcNodo[i]})
+		res.Nodos = append(res.Nodos, InfoNodo{ID: nodo.vista.ID, Motor: motor, Dispositivo: nodo.vista.Dispositivo, Hardware: nodo.vista.Hardware, Remoto: nodo.vista.Remoto, Particion: i, N: nNodo[i], TCalculo: tCalcNodo[i]})
 	}
 	res.Evaluacion = entrenador.Evaluar(modelo, m.cfg.Datos.Prueba)
 
@@ -605,6 +620,36 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 	}
 	c.terminar(EstadoTerminado, "", res)
 	return res, nil
+}
+
+// filtros arma la partición de cada nodo: una cubeta del hash cada uno
+// (reparto igual) o varias, proporcionales a los pesos de la corrida.
+func (c *Corrida) filtros() ([]*protocolo.FiltroMongo, error) {
+	n := len(c.nodos)
+	filtros := make([]*protocolo.FiltroMongo, n)
+	if len(c.op.Pesos) == 0 {
+		for i := range filtros {
+			filtros[i] = &protocolo.FiltroMongo{Mod: n, Resto: i}
+		}
+		return filtros, nil
+	}
+	pesos := make([]float64, n)
+	for i, nodo := range c.nodos {
+		p, ok := c.op.Pesos[nodo.vista.ID]
+		if !ok {
+			return nil, fmt.Errorf("falta el peso del nodo %s para el reparto proporcional", nodo.vista.ID)
+		}
+		pesos[i] = p
+	}
+	restos, err := particion.RepartirProporcional(pesos, particion.BucketsReparto)
+	if err != nil {
+		return nil, err
+	}
+	for i := range filtros {
+		filtros[i] = &protocolo.FiltroMongo{Mod: particion.BucketsReparto, Restos: restos[i]}
+		log.Printf("reparto proporcional: %s (peso %g) recibe %d de %d cubetas", c.nodos[i].vista.ID, pesos[i], len(restos[i]), particion.BucketsReparto)
+	}
+	return filtros, nil
 }
 
 func (c *Corrida) ids() []string {

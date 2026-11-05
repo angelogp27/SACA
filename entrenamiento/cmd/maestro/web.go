@@ -235,6 +235,9 @@ func combinacion(base string, nodos []distribuido.InfoNodo, ejemplos int) (modo,
 	for i, n := range ordenados {
 		ids[i] = n.ID
 		partes[i] = n.ID + "(" + n.Motor + ")"
+		if n.Hardware != nil {
+			partes[i] += "[" + n.Hardware.Resumen() + "]"
+		}
 	}
 	return base + ":" + strings.Join(ids, "+"), fmt.Sprintf("%s · %d ejemplos", strings.Join(partes, "+"), ejemplos)
 }

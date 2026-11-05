@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"proyecto9/internal/entrenador"
+	"proyecto9/internal/hardware"
 	"proyecto9/internal/protocolo"
 )
 
@@ -25,6 +26,9 @@ type ConfigTrabajador struct {
 	Huella   string
 	Motor    Motor
 	Respaldo *MotorGo
+	// Hardware es la huella de esta máquina que se manda al registrarse;
+	// si es nil, Trabajar la detecta.
+	Hardware *hardware.Info
 
 	validado bool
 }
@@ -48,7 +52,11 @@ var (
 // corrida termina al recibir "entrenamiento_finalizado"; con un maestro en
 // modo servidor (continuar) vuelve a la sala y espera la siguiente.
 func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
-	err := c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoRegistro, WorkerID: cfg.ID, Huella: cfg.Huella, Motor: cfg.Motor.Nombre(), Dispositivo: cfg.Motor.Dispositivo()})
+	if cfg.Hardware == nil {
+		h := hardware.Detectar()
+		cfg.Hardware = &h
+	}
+	err := c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoRegistro, WorkerID: cfg.ID, Huella: cfg.Huella, Motor: cfg.Motor.Nombre(), Dispositivo: cfg.Motor.Dispositivo(), Hardware: cfg.Hardware})
 	if err != nil {
 		return fmt.Errorf("%w: no se pudo enviar el registro: %v", ErrConexionPerdida, err)
 	}
@@ -84,9 +92,15 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 			}
 			mod, resto := m.FiltroMongo.Mod, m.FiltroMongo.Resto
 			var y []float64
-			X, y = Filtrar(entrenamiento, mod, resto)
-			log.Printf("registrado como %s: partición %d de %d → %d de %d ejemplos de entrenamiento (%.1f%%)",
-				cfg.ID, resto, mod, len(X), entrenamiento.Len(), 100*float64(len(X))/float64(entrenamiento.Len()))
+			if len(m.FiltroMongo.Restos) > 0 {
+				X, y = FiltrarRestos(entrenamiento, mod, m.FiltroMongo.Restos)
+				log.Printf("registrado como %s: %d de %d cubetas del hash → %d de %d ejemplos de entrenamiento (%.1f%%)",
+					cfg.ID, len(m.FiltroMongo.Restos), mod, len(X), entrenamiento.Len(), 100*float64(len(X))/float64(entrenamiento.Len()))
+			} else {
+				X, y = Filtrar(entrenamiento, mod, resto)
+				log.Printf("registrado como %s: partición %d de %d → %d de %d ejemplos de entrenamiento (%.1f%%)",
+					cfg.ID, resto, mod, len(X), entrenamiento.Len(), 100*float64(len(X))/float64(entrenamiento.Len()))
+			}
 			if err := cfg.cargar(d, X, y); err != nil {
 				return err
 			}

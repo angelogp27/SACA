@@ -38,6 +38,8 @@ type configuracion struct {
 	resultado string
 	modo      string
 	maquina   string
+	// pesos: reparto proporcional (Experimento 9); nil = reparto igual.
+	pesos map[string]float64
 }
 
 func main() {
@@ -54,8 +56,14 @@ func main() {
 	resultado := flag.String("resultado", "", "CSV al que se agregan las filas de cada corrida, p. ej. resultados/experimento2.csv")
 	modo := flag.String("modo", "tcp_sincrono", "nombre del modo en el CSV (p. ej. tcp_local o tcp_tailscale)")
 	maquina := flag.String("maquina", "", "texto libre que describe el clúster; en modo servidor se arma solo con los nodos de cada corrida")
+	reparto := flag.String("reparto", "igual", "reparto de la muestra entre los nodos: igual, o proporcional (necesita -pesos)")
+	pesosFlag := flag.String("pesos", "", "pesos del reparto proporcional, p. ej. angelo=1,josue=4; al terminar cada corrida el maestro sugiere unos a partir de lo medido")
 	flag.Parse()
 
+	pesos, err := leerPesos(*reparto, *pesosFlag)
+	if err != nil {
+		log.Fatal(err)
+	}
 	if *nodos < 1 {
 		log.Fatal("-nodos debe ser >= 1")
 	}
@@ -102,7 +110,7 @@ func main() {
 		}
 	}()
 
-	cfg := configuracion{epocas: *epocas, tasa: *tasa, verificar: *verificar, resultado: *resultado, modo: *modo, maquina: *maquina}
+	cfg := configuracion{epocas: *epocas, tasa: *tasa, verificar: *verificar, resultado: *resultado, modo: *modo, maquina: *maquina, pesos: pesos}
 	if *web != "" {
 		if err := servir(ctx, *web, m, difusor, cfg); err != nil {
 			log.Fatal(err)
@@ -118,7 +126,7 @@ func unaCorrida(ctx context.Context, m *distribuido.Maestro, cfg configuracion) 
 		m.Despedir(distribuido.MotivoMaestroCerrando)
 		log.Fatal("maestro detenido con Ctrl+C mientras esperaba nodos")
 	}
-	res, err := m.Correr(ctx, distribuido.OpcionesCorrida{Epocas: cfg.epocas, Tasa: cfg.tasa, Verificar: cfg.verificar, CerrarSala: true})
+	res, err := m.Correr(ctx, distribuido.OpcionesCorrida{Epocas: cfg.epocas, Tasa: cfg.tasa, Verificar: cfg.verificar, CerrarSala: true, Pesos: cfg.pesos})
 	if err != nil {
 		m.Despedir(distribuido.MotivoMaestroCerrando)
 		if errors.Is(err, context.Canceled) {
@@ -127,8 +135,21 @@ func unaCorrida(ctx context.Context, m *distribuido.Maestro, cfg configuracion) 
 		log.Fatalf("entrenamiento abortado: %v", err)
 	}
 	reportar(res, cfg.epocas)
+	modo := cfg.modo
+	if len(cfg.pesos) > 0 {
+		modo += "_prop"
+	}
+	if cfg.maquina == "" {
+		// Sin -maquina, la columna describe los nodos que corrieron, con la
+		// huella de hardware que cada uno reportó al registrarse.
+		ejemplos := 0
+		for _, n := range res.Nodos {
+			ejemplos += n.N
+		}
+		_, cfg.maquina = combinacion(modo, res.Nodos, ejemplos)
+	}
 	if cfg.resultado != "" {
-		if err := agregarCSV(cfg.resultado, filasCSV(res, cfg.modo, cfg.maquina, cfg.epocas)); err != nil {
+		if err := agregarCSV(cfg.resultado, filasCSV(res, modo, cfg.maquina, cfg.epocas)); err != nil {
 			log.Fatalf("no se pudo escribir %s: %v", cfg.resultado, err)
 		}
 		log.Printf("resultados agregados a %s", cfg.resultado)
@@ -142,7 +163,15 @@ func reportar(res *distribuido.Resultado, epocas int) {
 	for _, n := range res.Nodos {
 		fmt.Fprintf(&b, "%-14s %4d  %-5s %-36s %9d %9.2f ms  %s\n", n.ID, n.Particion, n.Motor, recortar(n.Dispositivo, 36), n.N, por(n.TCalculo), n.Remoto)
 	}
+	for _, n := range res.Nodos {
+		if n.Hardware != nil {
+			fmt.Fprintf(&b, "  hardware de %s: %s\n", n.ID, n.Hardware.Resumen())
+		}
+	}
 	log.Print(b.String())
+	if sug := pesosSugeridos(res.Nodos, epocas); sug != "" {
+		log.Printf("rendimiento medido de cada nodo; para repartir en proporción a él: -reparto proporcional -pesos %s", sug)
+	}
 	total := res.TCalculo + res.TComunicacion
 	pctRed := 0.0
 	if total > 0 {
@@ -160,6 +189,56 @@ func reportar(res *distribuido.Resultado, epocas int) {
 		log.Printf("verificación: pérdida final distribuida %.9f, secuencial %.9f, diferencia %.1e → %s", final, finalSec, v.Diferencia, veredicto)
 		log.Printf("secuencial en esta PC: %s → speedup S(%d) = %.2f", v.Duracion.Round(time.Millisecond), len(res.Nodos), v.Duracion.Seconds()/res.Duracion.Seconds())
 	}
+}
+
+// leerPesos interpreta -reparto y -pesos ("a=1,b=4"). Con "igual" no hay pesos.
+func leerPesos(reparto, texto string) (map[string]float64, error) {
+	switch reparto {
+	case "igual":
+		if texto != "" {
+			return nil, errors.New("-pesos solo se usa con -reparto proporcional")
+		}
+		return nil, nil
+	case "proporcional":
+		if texto == "" {
+			return nil, errors.New("-reparto proporcional necesita -pesos, p. ej. -pesos angelo=1,josue=4 (corre antes con -reparto igual: el maestro sugiere los pesos)")
+		}
+	default:
+		return nil, fmt.Errorf("-reparto debe ser igual o proporcional, no %q", reparto)
+	}
+	pesos := map[string]float64{}
+	for _, par := range strings.Split(texto, ",") {
+		id, valor, ok := strings.Cut(strings.TrimSpace(par), "=")
+		peso, err := strconv.ParseFloat(valor, 64)
+		if !ok || id == "" || err != nil || !(peso > 0) {
+			return nil, fmt.Errorf("peso inválido %q: se espera nodo=numero positivo", par)
+		}
+		pesos[id] = peso
+	}
+	return pesos, nil
+}
+
+// pesosSugeridos propone pesos para el reparto proporcional a partir de lo
+// medido: ejemplos por milisegundo de cálculo de cada nodo, relativos al más
+// lento. Con un reparto igual, un nodo con el doble de rendimiento calcula su
+// parte en la mitad de tiempo.
+func pesosSugeridos(nodos []distribuido.InfoNodo, epocas int) string {
+	rend := make([]float64, len(nodos))
+	minimo := 0.0
+	for i, n := range nodos {
+		if n.TCalculo <= 0 || n.N == 0 {
+			return ""
+		}
+		rend[i] = float64(n.N) / (float64(n.TCalculo.Microseconds()) / 1000 / float64(epocas))
+		if minimo == 0 || rend[i] < minimo {
+			minimo = rend[i]
+		}
+	}
+	partes := make([]string, len(nodos))
+	for i, n := range nodos {
+		partes[i] = fmt.Sprintf("%s=%.2f", n.ID, rend[i]/minimo)
+	}
+	return strings.Join(partes, ",")
 }
 
 func recortar(s string, n int) string {

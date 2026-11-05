@@ -269,6 +269,24 @@ Copia los números de la serie `tcp_tailscale` a la diapositiva 5.
 
 ---
 
+## Paso 7b. Comprobar el hardware y repartir según el rendimiento (Experimento 9)
+
+**Huella de hardware.** Cada nodo manda al registrarse su CPU, núcleos, RAM, GPU y driver (la GPU sale de `nvidia-smi`). El maestro la imprime al conectarse (`nodo josue, hardware: ... · NVIDIA GeForce RTX 3060, 12288 MiB (driver 560.35)`), la muestra al pasar el ratón por el dispositivo del nodo en la página y la guarda en la columna `maquina` del CSV. Es la prueba de que cada máquina corrió de verdad: si un compañero dice que usó su GPU, su línea debe mostrar la GPU y el motor `cuda`. Para reforzarla, que cada uno comparta la terminal con `nvidia-smi -l 1` mientras dura la corrida.
+
+**Reparto proporcional.** Con el reparto igual, un nodo con GPU termina su parte antes y espera al más lento. Se corre una vez con el reparto igual y, al terminar, el maestro sugiere pesos a partir de lo medido:
+
+```
+rendimiento medido de cada nodo; para repartir en proporción a él: -reparto proporcional -pesos angelo=1.00,josue=3.80
+```
+
+Se repite la corrida con esos pesos (el modo del CSV queda con el sufijo `_prop`):
+
+```powershell
+.\bin\maestro.exe -nodos 2 -reparto proporcional -pesos angelo=1,josue=3.8 -resultado resultados/experimento9.csv
+```
+
+Cada nodo recibe cubetas del hash de estaciones en proporción a su peso (1024 cubetas), así que el reparto real puede diferir un poco del pedido: los ejemplos de cada nodo salen en la tabla final. El reparto proporcional solo está en el modo de una corrida, no en el modo servidor, y los nodos deben ser de esta versión.
+
 ## Paso 8. Modo servidor: controlar el clúster desde la página
 
 **Qué vas a hacer:** dejar el maestro encendido como servidor y manejar todo desde la página. Los nodos se conectan **una sola vez** y quedan en una **sala de espera**. Desde la página eliges con casillas qué nodos usar, pulsas **Entrenar** y ves en vivo las épocas, la pérdida, el cálculo frente a la red de cada nodo, el speedup y el concepto del curso que está ocurriendo. Al terminar, los nodos vuelven a la sala y puedes lanzar otra combinación sin pedirle nada a nadie.

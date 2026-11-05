@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"proyecto9/internal/distribuido"
+	"proyecto9/internal/hardware"
 	"proyecto9/internal/protocolo"
 )
 
@@ -51,6 +52,8 @@ func main() {
 		log.Fatalf("no se pudo preparar la muestra %s: %v (descárgala del Drive del grupo: paso 'Copiar la muestra' de tu guía en docs/cluster/)", *rutaMuestra, err)
 	}
 	log.Printf("muestra %s cargada, huella %s", *rutaMuestra, distribuido.Corta(huella))
+	hw := hardware.Detectar()
+	log.Printf("hardware de este nodo: %s", hw.Resumen())
 
 	respaldo := distribuido.NuevoMotorGo(*hilos)
 	motor, err := elegirMotor(*nombreMotor, *cudaExe, respaldo)
@@ -61,7 +64,7 @@ func main() {
 	ctx, cancelar := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancelar()
 
-	cfg := &distribuido.ConfigTrabajador{ID: *id, Datos: datos, Huella: huella, Motor: motor, Respaldo: respaldo}
+	cfg := &distribuido.ConfigTrabajador{ID: *id, Datos: datos, Huella: huella, Motor: motor, Respaldo: respaldo, Hardware: &hw}
 	err = sesion(ctx, *maestro, cfg, *reconectar)
 	cfg.Motor.Cerrar()
 	switch {

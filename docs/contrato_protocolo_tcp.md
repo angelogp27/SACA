@@ -34,6 +34,7 @@ Se fija por configuración del maestro al lanzar el entrenamiento, no por mensaj
 
 - `huella` es el SHA-256 del archivo de la muestra (`data/muestra.gob`) que cargó el nodo. El maestro rechaza con `baja` (`motivo: muestra_distinta: ...`) a un nodo cuya huella no coincide con la suya: con otros datos, la suma de los gradientes no sería la del conjunto de entrenamiento.
 - `motor` (`go` o `cuda`) y `dispositivo` (texto libre) son informativos, para la tabla de nodos del maestro.
+- `hardware` (opcional) es la huella de la máquina: `{ "host", "so", "cpu", "hilos", "nucleos", "ram_gb", "gpu", "driver" }`. El trabajador la detecta solo (`internal/hardware`; la GPU sale de `nvidia-smi`). El maestro la muestra en la tabla de nodos, la anota en el CSV (columna `maquina`) y la sirve en `/api/estado`, para comprobar en qué equipos corrió cada experimento.
 
 ### `particion_asignada` (maestro → trabajador)
 
@@ -46,6 +47,8 @@ Se fija por configuración del maestro al lanzar el entrenamiento, no por mensaj
 ```
 
 `filtro_mongo` es el criterio que el trabajador usa para quedarse con su porción: las estaciones cuyo hash FNV-32a de `estacion_id` módulo `mod` es `resto`. Así cada trabajador tiene un subconjunto disjunto y estable entre épocas. Pese al nombre, que se conserva para no romper el contrato, la implementación actual no consulta MongoDB: el trabajador filtra su copia local de la muestra (`distribuido.Filtrar`).
+
+Con el reparto proporcional (`-reparto proporcional -pesos a=1,b=3` en el maestro, Experimento 9) el filtro lleva además `"estacion_id_hash_restos": [0, 1, 2, ...]` con `mod` = 1024: al nodo le tocan **varias** cubetas del hash, en proporción a su peso (`particion.RepartirProporcional`, método del mayor resto). Es el equivalente de `MPI_Scatterv` con tamaños distintos. Si `restos` viene vacío, vale el `resto` único de siempre. Un trabajador viejo, que ignora `restos`, no sirve para este reparto.
 
 ### Modo servidor: sala de espera y varias corridas
 

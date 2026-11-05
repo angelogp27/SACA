@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"sync"
+
+	"proyecto9/internal/hardware"
 )
 
 const (
@@ -24,9 +26,13 @@ const (
 
 // FiltroMongo indica qué porción de los datos le toca a un trabajador:
 // las estaciones cuyo hash (internal/particion) módulo Mod es Resto.
+//
+// Con Restos (reparto proporcional) el nodo recibe varias cubetas del hash y
+// no una sola: es el scatter con tamaños distintos (MPI_Scatterv).
 type FiltroMongo struct {
-	Mod   int `json:"estacion_id_hash_mod"`
-	Resto int `json:"estacion_id_hash_resto"`
+	Mod    int   `json:"estacion_id_hash_mod"`
+	Resto  int   `json:"estacion_id_hash_resto"`
+	Restos []int `json:"estacion_id_hash_restos,omitempty"`
 }
 
 // Mensaje es la unión de todos los tipos del contrato; cada tipo usa solo
@@ -40,6 +46,9 @@ type Mensaje struct {
 	Huella      string `json:"huella,omitempty"`
 	Motor       string `json:"motor,omitempty"`
 	Dispositivo string `json:"dispositivo,omitempty"`
+	// Hardware es la huella de la máquina (CPU, núcleos, RAM, GPU): con
+	// ella el maestro deja constancia de en qué equipos se midió.
+	Hardware *hardware.Info `json:"hardware,omitempty"`
 
 	// particion_asignada
 	FiltroMongo *FiltroMongo `json:"filtro_mongo,omitempty"`

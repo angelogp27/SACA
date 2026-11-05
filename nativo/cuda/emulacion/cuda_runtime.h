@@ -8,10 +8,12 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 #include <thread>
 #include <vector>
 #define __global__
 #define __device__
+#define __shared__ static
 struct dim3 { unsigned x = 1, y = 1, z = 1; };
 inline thread_local dim3 threadIdx, blockIdx;
 inline dim3 blockDim, gridDim;
@@ -39,4 +41,19 @@ template <class F, class... A> void lanzar(int bloques, int hilos, size_t compar
     for (int t = 0; t < hilos; t++) ts.emplace_back([&, t, b] { threadIdx.x = t; blockIdx.x = b; barrera_actual = &barrera; kernel(args...); });
     for (auto& th : ts) th.join();
   }
+}
+
+// Lo que usa nativo/cuda/gradiente/gradiente.cu: atomicAdd, warp shuffles y cudaMemset.
+inline std::mutex mutex_atomico;
+inline double atomicAdd(double* dir, double v) { std::lock_guard<std::mutex> g(mutex_atomico); double viejo = *dir; *dir += v; return viejo; }
+inline cudaError_t cudaMemset(void* p, int v, size_t b) { memset(p, v, b); return 0; }
+// __shfl_down_sync emulado: cada hilo deja su valor en una casilla, todos esperan en la barrera y leen la del vecino.
+inline double casillas_shfl[1024];
+inline double __shfl_down_sync(unsigned, double v, int delta) {
+  casillas_shfl[threadIdx.x] = v;
+  __syncthreads();
+  int carril = threadIdx.x & 31;
+  double r = carril + delta < 32 ? casillas_shfl[threadIdx.x + delta] : v;
+  __syncthreads();
+  return r;
 }

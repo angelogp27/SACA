@@ -465,3 +465,55 @@ func TestMaestroAbortaSiUnNodoSeCae(t *testing.T) {
 	maestro.Despedir(MotivoMaestroCerrando)
 	wg.Wait()
 }
+
+// TestRepartoProporcional es el Experimento 9: con pesos 1:3 el segundo
+// nodo recibe unas tres veces más ejemplos, ningún ejemplo se pierde ni se
+// repite, y la pérdida sigue siendo la del secuencial.
+func TestRepartoProporcional(t *testing.T) {
+	// Con 600 estaciones el hash reparte lo bastante fino para ver 1:3.
+	muestra := muestraSintetica(6000, 5)
+	for i := range muestra.EstacionID {
+		muestra.EstacionID[i] = fmt.Sprintf("06-037-%04d", i%600)
+	}
+	datos, err := entrenador.PrepararDesde(muestra, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const tasa, epocas = 0.1, 25
+	secuencial := logistica.NuevoModelo(len(datos.Entrenamiento.X[0]))
+	perdidasSec := secuencial.Entrenar(datos.Entrenamiento.X, datos.Entrenamiento.Y, tasa, epocas, datos.PesosClase)
+
+	maestro, dir := levantarMaestro(t, ConfigMaestro{Capacidad: 2, Datos: datos, Huella: "h", EsperaGradiente: 10 * time.Second})
+	var wg sync.WaitGroup
+	errs := make(chan error, 10)
+	lanzarTrabajador(t, &wg, errs, dir, &ConfigTrabajador{ID: "lento", Datos: datos, Huella: "h", Motor: NuevoMotorGo(1)})
+	lanzarTrabajador(t, &wg, errs, dir, &ConfigTrabajador{ID: "rapido", Datos: datos, Huella: "h", Motor: NuevoMotorGo(2)})
+
+	ctx, cancelar := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancelar()
+	if err := maestro.EsperarNodos(ctx, 2); err != nil {
+		t.Fatal(err)
+	}
+	res, err := maestro.Correr(ctx, OpcionesCorrida{Nodos: []string{"lento", "rapido"}, Epocas: epocas, Tasa: tasa, CerrarSala: true,
+		Pesos: map[string]float64{"lento": 1, "rapido": 3}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	comprobarErrores(t, &wg, errs)
+
+	if dif := math.Abs(res.Perdidas[epocas-1] - perdidasSec[epocas-1]); dif > 1e-12 {
+		t.Fatalf("pérdida %.15f, secuencial %.15f", res.Perdidas[epocas-1], perdidasSec[epocas-1])
+	}
+	n := map[string]int{}
+	total := 0
+	for _, nodo := range res.Nodos {
+		n[nodo.ID] = nodo.N
+		total += nodo.N
+	}
+	if total != datos.Entrenamiento.Len() {
+		t.Fatalf("los nodos suman %d ejemplos de %d", total, datos.Entrenamiento.Len())
+	}
+	if proporcion := float64(n["rapido"]) / float64(n["lento"]); proporcion < 2.3 || proporcion > 3.9 {
+		t.Fatalf("con pesos 1:3 el reparto fue %v (proporción %.2f)", n, proporcion)
+	}
+}

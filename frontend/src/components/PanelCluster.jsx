@@ -103,7 +103,7 @@ function Sala({ inst, elegidos, setElegidos, ocupado, onError }) {
             <Icono motor={n.motor} />
             <span className="nodo-nombre">{n.id}</span>
           </label>
-          <span className="nodo-dispositivo" title={n.dispositivo}>{n.dispositivo}</span>
+          <span className="nodo-dispositivo" title={tituloHardware(n)}>{n.dispositivo}</span>
           <span className="nodo-ip">{n.remoto?.split(':')[0]}</span>
           <span className={`nodo-estado ${n.estado}`}>{n.estado === 'en_corrida' ? 'en corrida' : 'libre'}</span>
           <button
@@ -324,6 +324,21 @@ function Historial({ historial }) {
       )}
     </div>
   )
+}
+
+// Texto del tooltip de un nodo: su dispositivo y la huella del hardware que
+// reportó al registrarse (CPU, núcleos, RAM, GPU y driver).
+function tituloHardware(n) {
+  const h = n.hardware
+  if (!h) return n.dispositivo
+  const nucleos = h.nucleos ? `${h.nucleos} núcleos / ${h.hilos} hilos` : `${h.hilos} hilos`
+  return [
+    n.dispositivo,
+    `${h.host} (${h.so})`,
+    `${h.cpu || 'CPU desconocida'} · ${nucleos}`,
+    h.ram_gb ? `${Math.round(h.ram_gb)} GB de RAM` : null,
+    h.gpu ? `${h.gpu}${h.driver ? ` · driver ${h.driver}` : ''}` : null,
+  ].filter(Boolean).join('\n')
 }
 
 export default function PanelCluster({ datos, grande = false }) {

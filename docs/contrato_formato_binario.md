@@ -2,7 +2,9 @@
 
 Define cómo Go entrega los datos a los programas en C/C++ de `nativo/` (Pthreads, OpenMP, MPI, CUDA) y cómo estos devuelven sus mediciones. Gracias a este contrato, cada núcleo nativo se puede desarrollar y probar **sin MongoDB, sin red y sin Go**: basta con el archivo binario.
 
-Estado: **acordado, pendiente de implementar** (semana 8). Lo genera `herramientas/cmd/exportar-muestra`.
+Estado: **implementado** para el archivo 1 (`data/muestra.bin`, generado por `go run ./herramientas/cmd/exportar-muestra`, que deja también `data/muestra_referencia.json`). Los núcleos que ya lo leen están en `nativo/`: `openmp/entrenamiento`, `mpi/entrenamiento`, `pthreads/cargador` (lee los CSV de la EPA directamente) y `cuda/gradiente`. El archivo 2 (`series.bin`) sigue pendiente. Las utilidades comunes (lectura, F1/AUC, verificación contra la referencia, CSV) están en `nativo/comun/saca.h`.
+
+Opciones que los núcleos agregaron a la interfaz común: `--ejemplos N` (recorta o repite la muestra hasta N ejemplos, para la escala del Experimento 8; se anota en `maquina` y no se compara con la referencia), `--schedule static|dynamic|guided` y `--secuencial` (OpenMP), `--modo colectivo|p2p` (MPI) y `--agregadoras K` (Pthreads).
 
 ## Reglas generales
 

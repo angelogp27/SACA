@@ -58,11 +58,11 @@ Cada tema se ve de dos formas:
 
 | Tecnología | Semanas | Versión en Go | Núcleo nativo | Experimento |
 |---|---|---|---|---|
-| MPI | 3-4 | ✅ maestro TCP con registro de nodos | pendiente (semana 8): `nativo/mpi/entrenamiento` | 7 |
-| Pthreads | 5-6 | ✅ cargador concurrente | pendiente (semana 8): `nativo/pthreads/cargador` | 5 |
-| OpenMP | 7, 9-10 | ✅ `gradienteReduccion` | pendiente (semanas 8-9): `nativo/openmp/entrenamiento` y `variables` | 6 |
-| Clúster (MPI + OpenMP + CUDA entre PCs) | 2, 3-4, 10 | ✅ el maestro Go acepta nodos remotos | pendiente (semanas 8-13): inventario, ping-pong, híbrido con reparto proporcional; ver [guia_cluster.md](guia_cluster.md) | 2, 7, 7a, 9 |
-| CUDA | 11-13 | — | pendiente (semanas 11-13); se compila y mide en las PCs del grupo con NVIDIA | 8 |
+| MPI | 3-4 | ✅ maestro TCP con registro de nodos | ✅ `nativo/mpi/entrenamiento` (Scatterv, Allreduce y variante Send/Recv + Bcast); misma pérdida que Go | 7 |
+| Pthreads | 5-6 | ✅ cargador concurrente | ✅ `nativo/pthreads/cargador` (cola productor-consumidor, mutex y agregadoras dueñas de su índice); mismos conteos que Go | 5 |
+| OpenMP | 7, 9-10 | ✅ `gradienteReduccion` | ✅ `nativo/openmp/entrenamiento` (`reduction` con `schedule` static/dynamic/guided); pendiente `variables` (tareas por estación) | 6 |
+| Clúster (MPI + OpenMP + CUDA entre PCs) | 2, 3-4, 10 | ✅ el maestro Go acepta nodos remotos | ✅ huella de hardware por nodo (`internal/hardware`) y reparto proporcional (`-reparto proporcional -pesos`, Experimento 9) en el maestro Go; pendiente: ping-pong MPI y el híbrido MPI + OpenMP + CUDA entre PCs; ver [guia_cluster.md](guia_cluster.md) | 2, 7, 7a, 9 |
+| CUDA | 11-13 | — | motor del clúster hecho (`gradiente_servidor.cu`); kernels `atomic`/`shared`/`shuffle` en `nativo/cuda/gradiente` (lógica comprobada con la emulación en CPU; falta compilarlos y medirlos en una PC con NVIDIA); pendiente `estaciones` (semana 13) | 8 |
 
 ## Hallazgos para defender oralmente
 

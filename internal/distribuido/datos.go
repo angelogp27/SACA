@@ -59,6 +59,22 @@ func Corta(huella string) string {
 	return huella
 }
 
+// FiltrarRestos es Filtrar para un nodo al que le tocan varias cubetas del
+// hash (reparto proporcional a su rendimiento).
+func FiltrarRestos(m *dataset.Muestra, mod int, restos []int) (X [][]float64, y []float64) {
+	cubetas := make(map[int]bool, len(restos))
+	for _, r := range restos {
+		cubetas[r] = true
+	}
+	for i, estacion := range m.EstacionID {
+		if cubetas[particion.Asignar(estacion, mod)] {
+			X = append(X, m.X[i])
+			y = append(y, m.Y[i])
+		}
+	}
+	return X, y
+}
+
 // Filtrar devuelve los ejemplos cuyas estaciones caen en la partición
 // resto de mod (el filtro que el maestro envía en particion_asignada). Las
 // filas de X se comparten con la muestra original, no se copian.

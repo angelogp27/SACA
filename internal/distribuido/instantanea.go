@@ -1,6 +1,10 @@
 package distribuido
 
-import "time"
+import (
+	"time"
+
+	"proyecto9/internal/hardware"
+)
 
 // Instantanea es el estado del maestro que ve la página: la sala de
 // espera, la corrida en curso (o la última) con sus series por época, y el
@@ -18,12 +22,13 @@ type Instantanea struct {
 
 // NodoVista es un nodo conectado al maestro.
 type NodoVista struct {
-	ID             string    `json:"id"`
-	Motor          string    `json:"motor"`
-	Dispositivo    string    `json:"dispositivo"`
-	Remoto         string    `json:"remoto"`
-	Estado         string    `json:"estado"` // "libre" o "en_corrida"
-	ConectadoDesde time.Time `json:"conectado_desde"`
+	ID             string         `json:"id"`
+	Motor          string         `json:"motor"`
+	Dispositivo    string         `json:"dispositivo"`
+	Hardware       *hardware.Info `json:"hardware,omitempty"`
+	Remoto         string         `json:"remoto"`
+	Estado         string         `json:"estado"` // "libre" o "en_corrida"
+	ConectadoDesde time.Time      `json:"conectado_desde"`
 }
 
 // Estados de una corrida.
@@ -59,13 +64,14 @@ type EstadoCorrida struct {
 
 // NodoCorrida es la parte de un nodo en una corrida.
 type NodoCorrida struct {
-	ID          string    `json:"id"`
-	Motor       string    `json:"motor"`
-	Dispositivo string    `json:"dispositivo"`
-	Remoto      string    `json:"remoto"`
-	Particion   int       `json:"particion"`
-	Ejemplos    int       `json:"ejemplos"`
-	CalculoMs   []float64 `json:"calculo_ms"` // por época
+	ID          string         `json:"id"`
+	Motor       string         `json:"motor"`
+	Dispositivo string         `json:"dispositivo"`
+	Hardware    *hardware.Info `json:"hardware,omitempty"`
+	Remoto      string         `json:"remoto"`
+	Particion   int            `json:"particion"`
+	Ejemplos    int            `json:"ejemplos"`
+	CalculoMs   []float64      `json:"calculo_ms"` // por época
 }
 
 // ResumenCorrida es una fila del historial (y el resultado de una corrida).
