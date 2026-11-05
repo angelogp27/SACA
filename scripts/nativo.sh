@@ -8,7 +8,7 @@
 #   sh scripts/nativo.sh exp7       MPI: Allreduce frente a Send/Recv con 1..8 procesos
 #   sh scripts/nativo.sh exp8       CUDA (atomic, shared, shuffle) frente a OpenMP, de 10^3 a 10^7 ejemplos
 #
-# Variables: EPOCAS (200), REPETICIONES (3), HILOS ("1 2 4 8 12 16"), PROCESOS ("1 2 4 8"),
+# Variables: MAQUINA (hostname; nombre del equipo en exp8), EPOCAS (200), REPETICIONES (3), HILOS ("1 2 4 8 12 16"), PROCESOS ("1 2 4 8"),
 # EJEMPLOS ("1000 10000 100000 1000000 10000000"), MPIEXEC (mpiexec),
 # MPIEXEC_OPCIONES (p. ej. --oversubscribe si hay más procesos que núcleos).
 # Cada corrida agrega una fila a resultados/experimentoN.csv con la columna
@@ -125,19 +125,23 @@ exp7() {
 exp8() {
   necesita bin/entrenamiento_openmp
   necesita bin/gradiente_cuda_exp
+  go build -o bin/resumen-gpu ./experimentos/cmd/gpu
   CSV=resultados/experimento8.csv
+  # El nombre del equipo agrupa las filas de OpenMP (CPU) y de CUDA (GPU) de la
+  # misma PC: usa uno corto y distinto en cada laptop (MAQUINA=angelo).
+  MAQUINA=${MAQUINA:-$(hostname)}
   rm -f "$CSV"
   una() {
     for n in $EJEMPLOS; do
-      ./bin/entrenamiento_openmp --secuencial --ejemplos "$n" --epocas "$EPOCAS" --resultado "$CSV"
-      ./bin/entrenamiento_openmp --schedule static --ejemplos "$n" --epocas "$EPOCAS" --resultado "$CSV"
+      ./bin/entrenamiento_openmp --secuencial --ejemplos "$n" --epocas "$EPOCAS" --maquina "$MAQUINA" --resultado "$CSV"
+      ./bin/entrenamiento_openmp --schedule static --ejemplos "$n" --epocas "$EPOCAS" --maquina "$MAQUINA" --resultado "$CSV"
       for k in atomic shared shuffle; do
-        ./bin/gradiente_cuda_exp --kernel "$k" --hilos 256 --ejemplos "$n" --epocas "$EPOCAS" --resultado "$CSV"
+        ./bin/gradiente_cuda_exp --kernel "$k" --hilos 256 --ejemplos "$n" --epocas "$EPOCAS" --maquina "$MAQUINA" --resultado "$CSV"
       done
     done
   }
   repetir una
-  echo "resultados en $CSV (\"maquina\" lleva el número de ejemplos de cada fila)"
+  ./bin/resumen-gpu -entrada "$CSV" -json frontend/public/datos/experimento8.json
 }
 
 caso=${1:-}

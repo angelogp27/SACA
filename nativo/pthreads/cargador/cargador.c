@@ -538,9 +538,9 @@ int main(int argc, char **argv) {
            agregadoras, t_proc, t_indexado, memoria_mb);
 
     char fila[1024];
-    snprintf(fila, sizeof fila, "%s,%d,%.3f,%.3f,0.000,%.3f,%lld,%lld,%.0f,%s", modo, hilos, t_proc, t_indexado, t_proc,
-             (long long)ctx.total.leidas, (long long)registros, memoria_mb, maquina);
-    saca_csv_agregar(resultado, "modo,goroutines,t_procesamiento_s,t_indexado_s,t_mongo_s,t_total_s,filas_leidas,registros,memoria_mb,maquina", fila);
+    snprintf(fila, sizeof fila, "%s,%d,%.3f,%.3f,0.000,%.3f,%lld,%lld,%.0f", modo, hilos, t_proc, t_indexado, t_proc,
+             (long long)ctx.total.leidas, (long long)registros, memoria_mb);
+    saca_csv_agregar(resultado, "modo,goroutines,t_procesamiento_s,t_indexado_s,t_mongo_s,t_total_s,filas_leidas,registros,memoria_mb", fila, maquina);
     (void)NOMBRE_GAS;
     return 0;
 }

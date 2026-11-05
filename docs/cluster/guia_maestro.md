@@ -1,6 +1,6 @@
 # Guía del maestro (quien coordina el clúster)
 
-**Esta guía es solo para quien maneja el maestro**: la PC que reparte el trabajo, junta los resultados y comparte pantalla en la demo. Hoy es Piero (Ryzen 5 3600, Windows 11). Los demás integrantes siguen la guía de nodo que les toca ([README.md](README.md)).
+**Esta guía es solo para quien maneja el maestro**: la PC que reparte el trabajo, junta los resultados y comparte pantalla en la demo. En la primera versión fue Piero (Ryzen 5 3600, Windows 11); hoy es Angelo, en Fedora (Ryzen 7 7735HS): sus comandos están en la sección [«Maestro en Linux (Fedora)»](#maestro-en-linux-fedora) y el resto de la guía, pensada para PowerShell, sirve igual cambiando los comandos por los de esa sección. Los demás integrantes siguen la guía de nodo que les toca ([README.md](README.md)).
 
 Como maestro tienes dos tareas (y desde el paso 8, todo se puede manejar desde la página):
 
@@ -17,11 +17,78 @@ Tiempo: unos 30 minutos de preparación (una vez) y 30 minutos de ensayo general
 - [ ] Una carpeta de Google Drive del grupo.
 - [ ] Ideal: la PC conectada por cable y al cargador si es laptop.
 
-Todos los comandos se pegan en **PowerShell**, desde la carpeta del proyecto. Abre PowerShell y entra a la carpeta (ajusta la ruta si tu proyecto está en otra):
+Todos los comandos de los pasos 1 a 9 se pegan en **PowerShell** (si tu maestro es Linux, usa la sección siguiente), desde la carpeta del proyecto. Abre PowerShell y entra a la carpeta (ajusta la ruta si tu proyecto está en otra):
 
 ```powershell
 cd "C:\Users\piero\OneDrive\Documentos\Universidad\progra paralela\SACA"
 ```
+
+---
+
+## Maestro en Linux (Fedora)
+
+Todo lo que dice esta guía vale igual; cambian los comandos. Los nodos no notan la diferencia: solo necesitan la IP del maestro.
+
+**Una vez (preparación):**
+
+1. **Programas:** `go version` debe dar `go1.27.1` o mayor, y `git`, `node` y `npm` (para la página) deben responder.
+2. **Muestra:** `data/muestra.gob` en la carpeta del proyecto. La huella debe ser la que se publicó al grupo (`c2c8f8832a30`):
+
+   ```sh
+   sha256sum data/muestra.gob | cut -c1-12
+   ```
+
+3. **Tailscale:** si no está instalado, `curl -fsSL https://tailscale.com/install.sh | sh` y luego `sudo tailscale up` (muestra un enlace: ábrelo e inicia sesión). Comprueba y anota **la IP del maestro**:
+
+   ```sh
+   tailscale status
+   tailscale ip -4        # p. ej. 100.118.152.101
+   ```
+
+4. **Web de Tailscale** (la única parte que no es terminal): https://login.tailscale.com/admin/machines → en la fila de tu laptop, menú **`…`**:
+   - **Disable key expiry**, para que no se desconecte sola antes de la demo.
+   - **Share…** → **Copy share link**, y envía el enlace al grupo. Cada integrante lo abre y lo acepta **con su cuenta**. Si el maestro cambió (como ahora), todos deben aceptar el enlace del **nuevo** maestro: lo que tenían compartido del anterior no sirve.
+5. **Firewall:** Fedora usa `firewalld`. Mira si el 9000 ya está abierto y, si no, ábrelo:
+
+   ```sh
+   sudo firewall-cmd --list-ports
+   sudo firewall-cmd --add-port=9000/tcp --permanent && sudo firewall-cmd --reload     # solo si no está
+   ```
+
+6. **Código publicado** (los nodos usan lo que hay en GitHub): `git status --short`, `git push` y avisa en el grupo "hagan `git pull`".
+
+**Ensayo en tu laptop (sin compañeros):**
+
+```sh
+bash scripts/cluster-local.sh 2
+```
+
+Debe terminar con `verificación: ... OK, mismo modelo`. Usa ~1,5 GB de RAM por nodo local; con poca RAM, `MUESTRA=data/muestra_prueba.gob bash scripts/cluster-local.sh 2`.
+
+**Ensayo general y demo, en modo servidor (equivale al paso 8):**
+
+```sh
+go build -o bin/maestro ./entrenamiento/cmd/maestro
+./bin/maestro -web 127.0.0.1:8080 -modo tcp_tailscale -resultado resultados/experimento2_fedora.csv
+```
+
+En otra terminal, la página: `cd frontend && npm install && npm run dev` y abre `http://localhost:5173`. Los nodos se conectan con `-maestro <tu-IP>:9000`. Debes ver `los nodos se conectan con: -maestro 100.x.y.z:9000` y, por cada nodo que llega, su línea de hardware.
+
+Tu laptop también puede ser un nodo de CPU a la vez que maestro: en otra terminal, `./bin/trabajador -maestro localhost:9000 -id angelo` (compila antes con `go build -o bin/trabajador ./entrenamiento/cmd/trabajador`).
+
+**Maestro de una corrida (equivale a los pasos 6 y 7):**
+
+```sh
+./bin/maestro -nodos <N> -modo tcp_tailscale -maquina "<N> PCs por Tailscale" -resultado resultados/experimento2_fedora.csv
+```
+
+**Tabla de resultados (equivale a `scripts\experimento2-tabla.ps1`):**
+
+```sh
+go run ./experimentos/cmd/analisis -entrada resultados/experimento2_fedora.csv -json frontend/public/datos/experimento2.json -md resultados/experimento2.md -nombre "Experimento 2" -descripcion "Entrenamiento distribuido maestro-trabajador por TCP" -paralelo "*" "-serial="
+```
+
+> **Un maestro nuevo cambia la línea base.** El tiempo secuencial T(1) se mide en la PC del maestro: con otro procesador, los speedups no son comparables con los de la versión anterior. Por eso los resultados del maestro nuevo van en su propio CSV (`experimento2_fedora.csv`) y no se mezclan con `experimento2.csv`. La primera corrida de la sesión debe llevar **Verificar contra el secuencial** marcado para que se guarde ese T(1).
 
 ---
 

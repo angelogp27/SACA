@@ -164,9 +164,9 @@ int main(int argc, char **argv) {
         printf("F1 %.4f, AUC %.4f\n", f1, auc);
         ok = saca_verificar(ruta, epocas, tasa, perdida_epoca, stdout);
         char filaCSV[1024];
-        snprintf(filaCSV, sizeof filaCSV, "%s,%d,%d,%.6f,%.4f,%.6f,%.4f,%.4f,%s", modo, p, epocas, t_total, 1000.0 * t_total / epocas,
-                 perdida_epoca, f1, auc, maquina);
-        saca_csv_agregar(resultado, SACA_CSV_ENTRENAMIENTO, filaCSV);
+        snprintf(filaCSV, sizeof filaCSV, "%s,%d,%d,%.6f,%.4f,%.6f,%.4f,%.4f", modo, p, epocas, t_total, 1000.0 * t_total / epocas,
+                 perdida_epoca, f1, auc);
+        saca_csv_agregar(resultado, SACA_CSV_ENTRENAMIENTO, filaCSV, maquina);
         saca_liberar(&m);
     }
     free(local.Xe);

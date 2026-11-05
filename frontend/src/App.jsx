@@ -3,6 +3,7 @@ import PanelMapa from './components/PanelMapa'
 import PanelLineaTiempo from './components/PanelLineaTiempo'
 import PanelCluster from './components/PanelCluster'
 import PanelRendimiento from './components/PanelRendimiento'
+import PanelTecnologias from './components/PanelTecnologias'
 import Presentacion, { TOTAL_DIAPOSITIVAS } from './components/Presentacion'
 import Protector from './components/Protector'
 import { useDatosReales, estacionesParaPaneles, serieDeEstacion } from './data/datosReales'
@@ -101,6 +102,7 @@ function App() {
             experimento2={datos.experimento2}
             experimento2Prueba={datos.experimento2_prueba}
           />
+          <PanelTecnologias />
           <Protector>
             <PanelCluster datos={datos} />
           </Protector>

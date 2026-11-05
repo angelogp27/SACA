@@ -20,3 +20,9 @@ sh scripts/nativo.sh exp6                    # OpenMP; exp5 Pthreads, exp7 MPI, 
 Requisitos: `gcc` con OpenMP y Pthreads; `mpicc`/`mpiexec` (paquete `openmpi-devel` o `libopenmpi-dev`) para MPI; `nvcc` y una GPU NVIDIA para CUDA.
 
 Al terminar, el programa avisa si la pérdida coincide con la de Go (`CORRECTO`) y sale con código 1 si no. Un núcleo que no coincide no se mide.
+
+## Verlos en la página
+
+El panel **Las tecnologías en C** (`frontend/src/components/PanelTecnologias.jsx`) dibuja los resultados reales de los experimentos 5 a 8: una pestaña por tecnología, con el speedup frente al ideal y la tabla de tiempos (Pthreads frente a Go en el 5; OpenMP, MPI y CUDA frente a la línea base secuencial). Cada `sh scripts/nativo.sh expN` deja su `frontend/public/datos/experimentoN.json` al terminar, y la página lo vuelve a pedir cada 5 s, así que la corrida aparece sola (con `npm run dev`; un `npm run build` ya hecho solo ve los JSON de ese momento).
+
+No hay datos de ejemplo: si todavía no existe el JSON de una pestaña, esta dice qué comando correr. En el Experimento 8 el nombre del equipo (`MAQUINA=angelo sh scripts/nativo.sh exp8`) agrupa las filas de OpenMP y de CUDA de la misma PC.

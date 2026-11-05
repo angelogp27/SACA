@@ -113,9 +113,9 @@ int main(int argc, char **argv) {
     const int ok = ejemplos ? 1 : saca_verificar(ruta, epocas, tasa, perdida_epoca, stdout);
 
     char fila[1024];
-    snprintf(fila, sizeof fila, "%s,%d,%d,%.6f,%.4f,%.6f,%.4f,%.4f,%s", modo, hilos, epocas, t_total, 1000.0 * t_total / epocas,
-             perdida_epoca, f1, auc, maquina);
-    saca_csv_agregar(resultado, SACA_CSV_ENTRENAMIENTO, fila);
+    snprintf(fila, sizeof fila, "%s,%d,%d,%.6f,%.4f,%.6f,%.4f,%.4f", modo, hilos, epocas, t_total, 1000.0 * t_total / epocas,
+             perdida_epoca, f1, auc);
+    saca_csv_agregar(resultado, SACA_CSV_ENTRENAMIENTO, fila, maquina);
     saca_liberar(&m);
     return ok ? 0 : 1;
 }

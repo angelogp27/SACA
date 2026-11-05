@@ -236,16 +236,29 @@ SACA_FN int saca_verificar(const char *ruta_bin, int epocas, double tasa, double
     return dif < 1e-6;
 }
 
-/* Agrega una fila al CSV, escribiendo antes el encabezado si es nuevo. */
-SACA_FN void saca_csv_agregar(const char *ruta, const char *encabezado, const char *fila) {
+/* Agrega una fila al CSV. encabezado y fila van SIN la columna "maquina": se
+ * agrega al final solo si el archivo es nuevo o su encabezado ya la tiene.
+ * Así se puede escribir en el mismo CSV que usa Go (p. ej. el del cargador, que
+ * no tiene esa columna) sin descuadrar las filas. */
+SACA_FN void saca_csv_agregar(const char *ruta, const char *encabezado, const char *fila, const char *maquina) {
     if (!ruta || !*ruta) return;
+    int con_maquina = 1, nuevo = 1;
     FILE *f = fopen(ruta, "r");
-    int nuevo = (f == NULL);
-    if (f) fclose(f);
+    if (f) {
+        char primera[2048];
+        if (fgets(primera, sizeof primera, f)) {
+            nuevo = 0;
+            primera[strcspn(primera, "\r\n")] = '\0';
+            size_t n = strlen(primera);
+            con_maquina = n >= 8 && strcmp(primera + n - 8, ",maquina") == 0;
+        }
+        fclose(f);
+    }
     f = fopen(ruta, "a");
     if (!f) saca_fallar("no se pudo escribir", ruta);
-    if (nuevo) fprintf(f, "%s\n", encabezado);
-    fprintf(f, "%s\n", fila);
+    if (nuevo) fprintf(f, "%s,maquina\n", encabezado);
+    if (con_maquina) fprintf(f, "%s,%s\n", fila, maquina);
+    else fprintf(f, "%s\n", fila);
     fclose(f);
 }
 
@@ -283,6 +296,6 @@ SACA_FN void saca_maquina_por_defecto(char *dst, size_t n) {
     fclose(f);
 }
 
-#define SACA_CSV_ENTRENAMIENTO "modo,goroutines,epocas,t_total_s,t_epoca_ms,perdida_final,f1,auc,maquina"
+#define SACA_CSV_ENTRENAMIENTO "modo,goroutines,epocas,t_total_s,t_epoca_ms,perdida_final,f1,auc"
 
 #endif

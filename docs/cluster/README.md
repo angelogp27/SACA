@@ -6,7 +6,7 @@ Vamos a unir las computadoras del grupo, cada una desde su casa, para que **entr
 
 | Si tú… | Tu rol | Tu guía |
 |---|---|---|
-| coordinas la demo y tienes los datos del proyecto (hoy, Piero) | **Maestro** | [guia_maestro.md](guia_maestro.md) |
+| coordinas la demo y tienes los datos del proyecto (hoy, Angelo, en Fedora; antes, Piero) | **Maestro** | [guia_maestro.md](guia_maestro.md) |
 | tienes una tarjeta gráfica **NVIDIA** (GeForce, RTX, GTX, Quadro) | **Nodo CON GPU NVIDIA** | [guia_nodo_con_nvidia.md](guia_nodo_con_nvidia.md) |
 | **no** tienes NVIDIA: tu tarjeta es AMD (Radeon), Intel, integrada o **cualquier Mac** | **Nodo SIN GPU NVIDIA** | [guia_nodo_sin_nvidia.md](guia_nodo_sin_nvidia.md) |
 
@@ -27,7 +27,7 @@ Vamos a unir las computadoras del grupo, cada una desde su casa, para que **entr
        │                            │                            │
 ┌──────┴───────────┐     ┌──────────┴──────────┐     ┌───────────┴─────────┐
 │ MAESTRO          │◄────│ NODO SIN NVIDIA     │     │ NODO CON NVIDIA     │
-│ (PC de Piero)    │     │ calcula con la CPU  │     │ calcula con la GPU  │
+│ (PC de Angelo)   │     │ calcula con la CPU  │     │ calcula con la GPU  │
 │ reparte el       │◄────┼─────────────────────┼─────│ (CUDA)              │
 │ trabajo y junta  │     └─────────────────────┘     └─────────────────────┘
 │ los resultados   │
@@ -66,7 +66,8 @@ Cada uno completa su fila con lo que pide el paso "Enviar tus datos al grupo" de
 
 | Integrante | Rol | Sistema | Procesador | RAM | GPU | IP de Tailscale | Huella | Ensayo individual |
 |---|---|---|---|---|---|---|---|---|
-| Piero | Maestro | Windows 11 | Ryzen 5 3600 | 16 GB | AMD RX 580 | 100.67.177.8 | c2c8f8832a30 | OK |
+| Angelo | Maestro | Fedora | Ryzen 7 7735HS | 13 GB | AMD Radeon (integrada) | 100.118.152.101 | c2c8f8832a30 | pendiente |
+| Piero | Maestro anterior | Windows 11 | Ryzen 5 3600 | 16 GB | AMD RX 580 | 100.67.177.8 | c2c8f8832a30 | OK |
 | | | | | | | | | |
 | | | | | | | | | |
 | | | | | | | | | |

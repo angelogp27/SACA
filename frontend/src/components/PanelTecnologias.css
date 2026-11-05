@@ -1,0 +1,160 @@
+.panel-tecnologias .pestana {
+  position: relative;
+}
+
+/* Puntito junto a la pestaña que ya tiene mediciones. */
+.panel-tecnologias .punto-datos {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--serie-3);
+  vertical-align: middle;
+}
+
+.tec-vacio {
+  margin: 16px 0 4px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.tec-vacio p {
+  margin: 0 0 6px;
+}
+
+.tec-vacio code {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--gridline);
+  font-size: 13px;
+}
+
+.tec-resumen {
+  margin: 12px 0 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.tec-grafica {
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+}
+
+.tec-grid {
+  stroke: var(--gridline);
+  stroke-width: 1;
+}
+
+.tec-linea {
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.tec-ideal {
+  fill: none;
+  stroke: var(--text-secondary);
+  stroke-width: 1.4;
+  stroke-dasharray: 5 4;
+}
+
+.tec-tick-x,
+.tec-tick-y,
+.tec-unidad {
+  fill: var(--text-secondary);
+  font-size: 11px;
+}
+
+.tec-tick-x {
+  text-anchor: middle;
+}
+
+.tec-tick-y {
+  text-anchor: end;
+  dominant-baseline: middle;
+}
+
+.tec-unidad {
+  text-anchor: end;
+  font-style: italic;
+}
+
+.tec-tabla-caja {
+  overflow-x: auto;
+  margin-top: 10px;
+}
+
+.tec-tabla {
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tec-tabla th,
+.tec-tabla td {
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--gridline);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.tec-tabla th:first-child,
+.tec-tabla td:first-child {
+  text-align: left;
+}
+
+.tec-tabla .tec-sub {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.tec-equipo h4 {
+  margin: 14px 0 4px;
+  font-size: 14px;
+}
+
+.tec-tamano {
+  margin: 10px 0 0;
+}
+
+.tec-tamano-titulo {
+  margin: 0 0 3px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tec-barra-fila {
+  display: grid;
+  grid-template-columns: 130px minmax(80px, 1fr) minmax(150px, auto);
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0;
+  font-size: 12.5px;
+}
+
+.tec-barra-nombre {
+  color: var(--text-secondary);
+}
+
+.tec-barra-pista {
+  display: block;
+  height: 12px;
+}
+
+.tec-barra {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+
+.tec-barra-valor {
+  font-variant-numeric: tabular-nums;
+}
+
+.tec-barra-valor small {
+  color: var(--text-secondary);
+}
