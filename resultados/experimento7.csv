@@ -1,0 +1,8 @@
+modo,goroutines,epocas,t_total_s,t_epoca_ms,perdida_final,f1,auc,maquina
+secuencial_c,1,50,4.374239,87.4848,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+mpi_colectivo,1,50,4.488967,89.7793,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+mpi_p2p,1,50,4.474288,89.4858,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+mpi_colectivo,2,50,2.309032,46.1806,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+mpi_p2p,2,50,3.854086,77.0817,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+mpi_colectivo,4,50,1.639959,32.7992,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+mpi_p2p,4,50,2.484637,49.6927,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics

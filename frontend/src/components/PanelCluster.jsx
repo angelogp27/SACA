@@ -20,6 +20,16 @@ const RED = 'var(--serie-2)'
 const fmt = (v, d = 1) =>
   Number.isFinite(v) ? v.toLocaleString('es-PE', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—'
 
+// Eficiencia E = S/nodos. La base T(1) es UN hilo de CPU de la PC del maestro,
+// y un nodo puede tener 16 hilos o una GPU: con eso S/nodos pasa de 1 y deja
+// de medir eficiencia. En ese caso se dice en vez de mostrar un porcentaje
+// sin sentido.
+function textoEficiencia(e) {
+  if (!Number.isFinite(e)) return 'E = —'
+  if (e > 1.05) return 'E n/d (nodos más fuertes que 1 hilo)'
+  return `E = ${fmt(100 * e, 0)} %`
+}
+
 function fmtEjemplos(v) {
   if (!Number.isFinite(v) || v <= 0) return '—'
   if (v >= 1e9) return `${fmt(v / 1e9)} mil M`
@@ -226,7 +236,7 @@ function Corrida({ inst, corrida: cruda }) {
       <div className="kpis">
         <Kpi etiqueta="Tiempo por época" valor={`${fmt(tEpoca)} ms`} detalle={`${fmt(promedioFinal(corrida.t_calculo_ms))} cálculo + ${fmt(promedioFinal(corrida.t_red_ms))} red`} />
         <Kpi etiqueta="Comunicación" valor={`${fmt(pctRed, 0)} %`} detalle="del tiempo es red y espera" tema="Amdahl" />
-        <Kpi etiqueta="Speedup en vivo" valor={`${fmt(speedup)}×`} detalle={`E = ${fmt((100 * speedup) / n, 0)} % · T(1) = ${fmt(t1, 0)} ms/época`} tema="S(p), E(p)" />
+        <Kpi etiqueta="Speedup en vivo" valor={`${fmt(speedup)}×`} detalle={`${textoEficiencia(speedup / n)} · T(1) = ${fmt(t1, 0)} ms/época`} tema="S(p), E(p)" />
         <Kpi etiqueta="Throughput" valor={`${fmtEjemplos(throughput)}/s`} detalle="ejemplos procesados por segundo" />
         <Kpi etiqueta="Pérdida" valor={fmt(corrida.perdidas.at(-1) ?? NaN, 4)} detalle="log-loss ponderada" />
       </div>
@@ -300,7 +310,7 @@ function Historial({ historial }) {
     clave: String(h.id),
     etiqueta: `#${h.id} · ${describirNodos(h)}`,
     valores: { calculo: h.t_calculo_ms, red: h.t_comunicacion_ms },
-    extra: `${h.t_total_s.toFixed(2)} s · S = ${fmt(h.speedup)} · E = ${fmt(100 * h.eficiencia, 0)} %${h.verificado ? ` · verificado (dif. ${h.diferencia.toExponential(1)})` : ''}`,
+    extra: `${h.t_total_s.toFixed(2)} s · S = ${fmt(h.speedup)} · ${textoEficiencia(h.eficiencia)}${h.verificado ? ` · verificado (dif. ${h.diferencia.toExponential(1)})` : ''}`,
   }))
   const nombreEstado = { cancelado: 'cancelada', abortado: 'abortada' }
   return (

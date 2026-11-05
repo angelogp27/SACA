@@ -693,10 +693,14 @@ func (c *Corrida) terminar(estado, mensaje string, res *Resultado) {
 }
 
 // MedirT1 estima cuánto dura una época en secuencial (un hilo) en esta PC
-// con unas pocas épocas de prueba, para mostrar el speedup en vivo.
+// con unas pocas épocas de prueba (la mediana), para mostrar el speedup en
+// vivo. Antes se descarta una época de calentamiento: la primera pasada por
+// 2,5 millones de ejemplos recién cargados es más lenta (memoria fría) y
+// inflaba el T(1), y con él el speedup que ve la página.
 func (m *Maestro) MedirT1(epocas int) float64 {
 	X, y := m.cfg.Datos.Entrenamiento.X, m.cfg.Datos.Entrenamiento.Y
 	pesos := make([]float64, len(X[0]))
+	logistica.GradienteParcial(pesos, 0, X, y, m.cfg.Datos.PesosClase)
 	tiempos := make([]float64, 0, epocas)
 	for e := 0; e < max(epocas, 1); e++ {
 		inicio := time.Now()

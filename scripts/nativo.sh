@@ -3,7 +3,7 @@
 #
 #   sh scripts/nativo.sh compilar   gcc (OpenMP, Pthreads), mpicc y nvcc si están instalados
 #   sh scripts/nativo.sh muestra    genera data/muestra.bin y la referencia de Go
-#   sh scripts/nativo.sh exp5       Pthreads frente al cargador de Go (sin MongoDB)
+#   sh scripts/nativo.sh exp5       Pthreads frente al cargador de Go (sin MongoDB); SOLO_C=1 omite Go (~1 min)
 #   sh scripts/nativo.sh exp6       OpenMP: static, dynamic y guided con 1..16 hilos
 #   sh scripts/nativo.sh exp7       MPI: Allreduce frente a Send/Recv con 1..8 procesos
 #   sh scripts/nativo.sh exp8       CUDA (atomic, shared, shuffle) frente a OpenMP, de 10^3 a 10^7 ejemplos
@@ -64,22 +64,39 @@ repetir() { # repetir "comando con {r}" para r = 1..REPETICIONES
 
 exp5() {
   necesita bin/cargador_pthreads
-  go build -o bin/cargador-secuencial ./cargador/cmd/secuencial
-  go build -o bin/cargador-concurrente ./cargador/cmd/concurrente
   go build -o bin/analisis ./experimentos/cmd/analisis
   CSV=resultados/experimento5.csv
   rm -f "$CSV"
-  una() {
-    ./bin/cargador-secuencial -sin-mongo -resultado "$CSV"
-    for n in $HILOS; do
-      ./bin/cargador-concurrente -sin-mongo -goroutines "$n" -agregadoras 0 -resultado "$CSV"
-      ./bin/cargador_pthreads --hilos "$n" --agregadoras 0 --resultado "$CSV"
-    done
-  }
+  if [ -n "${SOLO_C:-}" ]; then
+    # Versión corta (~1 min con HILOS="1 2 4 8"): solo Pthreads, con su propia
+    # corrida de 1 hilo y 1 agregadora como línea base. No compara con Go.
+    una() {
+      ./bin/cargador_pthreads --hilos 1 --agregadoras 1 --resultado "$CSV"
+      for n in $HILOS; do
+        ./bin/cargador_pthreads --hilos "$n" --agregadoras 0 --resultado "$CSV"
+      done
+    }
+    BASE=pthreads
+    PARALELO=pthreads_particionado
+    DESCRIPCION="Cargador en C con Pthreads (1 hilo y 1 agregadora como línea base), sin MongoDB"
+  else
+    go build -o bin/cargador-secuencial ./cargador/cmd/secuencial
+    go build -o bin/cargador-concurrente ./cargador/cmd/concurrente
+    una() {
+      ./bin/cargador-secuencial -sin-mongo -resultado "$CSV"
+      for n in $HILOS; do
+        ./bin/cargador-concurrente -sin-mongo -goroutines "$n" -agregadoras 0 -resultado "$CSV"
+        ./bin/cargador_pthreads --hilos "$n" --agregadoras 0 --resultado "$CSV"
+      done
+    }
+    BASE=secuencial
+    PARALELO="pthreads_particionado,concurrente_particionado"
+    DESCRIPCION="Cargador: Pthreads (C) frente a goroutines (Go), sin MongoDB"
+  fi
   repetir una
   ./bin/analisis -entrada "$CSV" -json frontend/public/datos/experimento5.json -md resultados/experimento5.md \
-    -nombre "Experimento 5" -descripcion "Cargador: Pthreads (C) frente a goroutines (Go), sin MongoDB" \
-    -base secuencial -paralelo "pthreads_particionado,concurrente_particionado" -serial "t_indexado_s"
+    -nombre "Experimento 5" -descripcion "$DESCRIPCION" \
+    -base "$BASE" -paralelo "$PARALELO" -serial "t_indexado_s"
 }
 
 exp6() {

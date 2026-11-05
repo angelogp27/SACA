@@ -279,7 +279,7 @@ func (a *api) terminarSesion(w http.ResponseWriter, r *http.Request) {
 
 // servir es el modo servidor: la API queda escuchando hasta Ctrl+C.
 func servir(ctx context.Context, direccion string, m *distribuido.Maestro, d *difusor, cfg configuracion) error {
-	t1 := m.MedirT1(3)
+	t1 := m.MedirT1(5)
 	log.Printf("T(1) de referencia: una época en secuencial (1 hilo) en esta PC tarda ~%.1f ms", t1)
 
 	a := &api{m: m, difusor: d, cfg: cfg, base: ctx}

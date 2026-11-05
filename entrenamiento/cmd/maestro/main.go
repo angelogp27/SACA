@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"proyecto9/internal/distribuido"
+	"proyecto9/internal/hardware"
 )
 
 type configuracion struct {
@@ -255,7 +256,9 @@ var encabezado = []string{"modo", "goroutines", "epocas", "t_total_s", "t_epoca_
 func filasCSV(res *distribuido.Resultado, modo, maquina string, epocas int) [][]string {
 	filas := [][]string{fila(modo, len(res.Nodos), epocas, res.Duracion, res.TCalculo, res.TComunicacion, res.Perdidas, res.Evaluacion.F1, res.Evaluacion.AUC, maquina)}
 	if v := res.Verificacion; v != nil {
-		filas = append(filas, fila("secuencial", 1, epocas, v.Duracion, v.Duracion, 0, v.Perdidas, v.Evaluacion.F1, v.Evaluacion.AUC, maquina))
+		// El secuencial corre en la PC del maestro, no en los nodos de la
+		// corrida: su fila lleva el hardware del maestro.
+		filas = append(filas, fila("secuencial", 1, epocas, v.Duracion, v.Duracion, 0, v.Perdidas, v.Evaluacion.F1, v.Evaluacion.AUC, "maestro["+hardware.Detectar().Resumen()+"]"))
 	}
 	return filas
 }

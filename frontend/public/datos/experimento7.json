@@ -1,0 +1,187 @@
+{
+  "experimento": "Experimento 7",
+  "descripcion": "Entrenamiento con MPI: MPI_Allreduce frente a Send/Recv + Bcast",
+  "generado": "2026-11-05T17:36:50-05:00",
+  "cpus_logicas": 16,
+  "modo_base": "secuencial_c",
+  "modo_paralelo": "mpi_colectivo",
+  "t1_s": 4.374239,
+  "fases_base": {
+    "auc": 0.9938,
+    "epocas": 50,
+    "f1": 0.0066,
+    "perdida_final": 0.247913,
+    "t_epoca_ms": 87.4848,
+    "t_total_s": 4.374239
+  },
+  "fraccion_serial": 0.16655064648578488,
+  "origen_fraccion_serial": "karp_flatt",
+  "speedup_maximo_amdahl": 6.004179636044523,
+  "puntos": [
+    {
+      "unidades": 1,
+      "repeticiones": 1,
+      "t_total_s": 4.488967,
+      "speedup": 0.9744422269087745,
+      "eficiencia": 0.9744422269087745,
+      "speedup_amdahl": 1,
+      "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
+      "fases": {
+        "auc": 0.9938,
+        "epocas": 50,
+        "f1": 0.0066,
+        "perdida_final": 0.247913,
+        "t_epoca_ms": 89.7793,
+        "t_total_s": 4.488967
+      }
+    },
+    {
+      "unidades": 2,
+      "repeticiones": 1,
+      "t_total_s": 2.309032,
+      "speedup": 1.8944038021127467,
+      "eficiencia": 0.9472019010563734,
+      "karp_flatt": 0.05574112434185707,
+      "speedup_amdahl": 1.7144562098739287,
+      "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
+      "fases": {
+        "auc": 0.9938,
+        "epocas": 50,
+        "f1": 0.0066,
+        "perdida_final": 0.247913,
+        "t_epoca_ms": 46.1806,
+        "t_total_s": 2.309032
+      }
+    },
+    {
+      "unidades": 4,
+      "repeticiones": 1,
+      "t_total_s": 1.639959,
+      "speedup": 2.667285584578639,
+      "eficiencia": 0.6668213961446597,
+      "karp_flatt": 0.16655064648578488,
+      "speedup_amdahl": 2.667285584578639,
+      "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
+      "fases": {
+        "auc": 0.9938,
+        "epocas": 50,
+        "f1": 0.0066,
+        "perdida_final": 0.247913,
+        "t_epoca_ms": 32.7992,
+        "t_total_s": 1.639959
+      }
+    }
+  ],
+  "series": {
+    "mpi_colectivo": [
+      {
+        "unidades": 1,
+        "repeticiones": 1,
+        "t_total_s": 4.488967,
+        "speedup": 0.9744422269087745,
+        "eficiencia": 0.9744422269087745,
+        "speedup_amdahl": 1,
+        "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
+        "fases": {
+          "auc": 0.9938,
+          "epocas": 50,
+          "f1": 0.0066,
+          "perdida_final": 0.247913,
+          "t_epoca_ms": 89.7793,
+          "t_total_s": 4.488967
+        }
+      },
+      {
+        "unidades": 2,
+        "repeticiones": 1,
+        "t_total_s": 2.309032,
+        "speedup": 1.8944038021127467,
+        "eficiencia": 0.9472019010563734,
+        "karp_flatt": 0.05574112434185707,
+        "speedup_amdahl": 1.7144562098739287,
+        "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
+        "fases": {
+          "auc": 0.9938,
+          "epocas": 50,
+          "f1": 0.0066,
+          "perdida_final": 0.247913,
+          "t_epoca_ms": 46.1806,
+          "t_total_s": 2.309032
+        }
+      },
+      {
+        "unidades": 4,
+        "repeticiones": 1,
+        "t_total_s": 1.639959,
+        "speedup": 2.667285584578639,
+        "eficiencia": 0.6668213961446597,
+        "karp_flatt": 0.16655064648578488,
+        "speedup_amdahl": 2.667285584578639,
+        "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
+        "fases": {
+          "auc": 0.9938,
+          "epocas": 50,
+          "f1": 0.0066,
+          "perdida_final": 0.247913,
+          "t_epoca_ms": 32.7992,
+          "t_total_s": 1.639959
+        }
+      }
+    ],
+    "mpi_p2p": [
+      {
+        "unidades": 1,
+        "repeticiones": 1,
+        "t_total_s": 4.474288,
+        "speedup": 0.9776391238114311,
+        "eficiencia": 0.9776391238114311,
+        "speedup_amdahl": 1,
+        "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
+        "fases": {
+          "auc": 0.9938,
+          "epocas": 50,
+          "f1": 0.0066,
+          "perdida_final": 0.247913,
+          "t_epoca_ms": 89.4858,
+          "t_total_s": 4.474288
+        }
+      },
+      {
+        "unidades": 2,
+        "repeticiones": 1,
+        "t_total_s": 3.854086,
+        "speedup": 1.1349614409226987,
+        "eficiencia": 0.5674807204613493,
+        "karp_flatt": 0.762174403364791,
+        "speedup_amdahl": 1.7144562098739287,
+        "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
+        "fases": {
+          "auc": 0.9938,
+          "epocas": 50,
+          "f1": 0.0066,
+          "perdida_final": 0.247913,
+          "t_epoca_ms": 77.0817,
+          "t_total_s": 3.854086
+        }
+      },
+      {
+        "unidades": 4,
+        "repeticiones": 1,
+        "t_total_s": 2.484637,
+        "speedup": 1.7605143125535037,
+        "eficiencia": 0.4401285781383759,
+        "karp_flatt": 0.4240211078239362,
+        "speedup_amdahl": 2.667285584578639,
+        "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
+        "fases": {
+          "auc": 0.9938,
+          "epocas": 50,
+          "f1": 0.0066,
+          "perdida_final": 0.247913,
+          "t_epoca_ms": 49.6927,
+          "t_total_s": 2.484637
+        }
+      }
+    ]
+  }
+}

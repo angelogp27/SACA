@@ -1,0 +1,353 @@
+{
+  "experimento": "Experimento 5",
+  "descripcion": "Cargador: Pthreads (C) frente a goroutines (Go), sin MongoDB",
+  "generado": "2026-11-05T17:32:07-05:00",
+  "cpus_logicas": 16,
+  "modo_base": "secuencial",
+  "modo_paralelo": "pthreads_particionado",
+  "t1_s": 123.579,
+  "fases_base": {
+    "filas_leidas": 16972287,
+    "memoria_mb": 3773,
+    "registros": 10838667,
+    "t_indexado_s": 42.196,
+    "t_mongo_s": 0,
+    "t_procesamiento_s": 123.575,
+    "t_total_s": 123.579
+  },
+  "fraccion_serial": 0.3414495990419084,
+  "origen_fraccion_serial": "fases_medidas",
+  "columnas_serial": [
+    "t_indexado_s"
+  ],
+  "speedup_maximo_amdahl": 2.9286899232154706,
+  "puntos": [
+    {
+      "unidades": 1,
+      "repeticiones": 3,
+      "t_total_s": 15.745,
+      "speedup": 7.848777389647507,
+      "eficiencia": 7.848777389647507,
+      "speedup_amdahl": 1,
+      "fases": {
+        "filas_leidas": 16972287,
+        "memoria_mb": 796,
+        "registros": 10838667,
+        "t_indexado_s": 4.062,
+        "t_mongo_s": 0,
+        "t_procesamiento_s": 15.745,
+        "t_total_s": 15.745
+      }
+    },
+    {
+      "unidades": 2,
+      "repeticiones": 3,
+      "t_total_s": 8.398,
+      "speedup": 14.71528935460824,
+      "eficiencia": 7.35764467730412,
+      "karp_flatt": -0.8640869403377597,
+      "speedup_amdahl": 1.4909244457849495,
+      "fases": {
+        "filas_leidas": 16972287,
+        "memoria_mb": 801,
+        "registros": 10838667,
+        "t_indexado_s": 2.079,
+        "t_mongo_s": 0,
+        "t_procesamiento_s": 8.398,
+        "t_total_s": 8.398
+      }
+    },
+    {
+      "unidades": 4,
+      "repeticiones": 3,
+      "t_total_s": 5.156,
+      "speedup": 23.96799844840962,
+      "eficiencia": 5.991999612102405,
+      "karp_flatt": -0.277703601205167,
+      "speedup_amdahl": 1.9759440693616663,
+      "fases": {
+        "filas_leidas": 16972287,
+        "memoria_mb": 812,
+        "registros": 10838667,
+        "t_indexado_s": 1.3,
+        "t_mongo_s": 0,
+        "t_procesamiento_s": 5.156,
+        "t_total_s": 5.156
+      }
+    },
+    {
+      "unidades": 8,
+      "repeticiones": 3,
+      "t_total_s": 3.926,
+      "speedup": 31.47707590422822,
+      "eficiencia": 3.9346344880285273,
+      "karp_flatt": -0.10654954089518213,
+      "speedup_amdahl": 2.3597795446245504,
+      "fases": {
+        "filas_leidas": 16972287,
+        "memoria_mb": 834,
+        "registros": 10838667,
+        "t_indexado_s": 1.013,
+        "t_mongo_s": 0,
+        "t_procesamiento_s": 3.926,
+        "t_total_s": 3.926
+      }
+    },
+    {
+      "unidades": 12,
+      "repeticiones": 3,
+      "t_total_s": 4.043,
+      "speedup": 30.566163739797176,
+      "eficiencia": 2.5471803116497647,
+      "karp_flatt": -0.05521900234594138,
+      "speedup_amdahl": 2.5231575454924413,
+      "fases": {
+        "filas_leidas": 16972287,
+        "memoria_mb": 822,
+        "registros": 10838667,
+        "t_indexado_s": 0.825,
+        "t_mongo_s": 0,
+        "t_procesamiento_s": 4.043,
+        "t_total_s": 4.043
+      }
+    },
+    {
+      "unidades": 16,
+      "repeticiones": 3,
+      "t_total_s": 4.095,
+      "speedup": 30.178021978021977,
+      "eficiencia": 1.8861263736263736,
+      "karp_flatt": -0.031320855485155244,
+      "speedup_amdahl": 2.6136342907448458,
+      "fases": {
+        "filas_leidas": 16972287,
+        "memoria_mb": 881,
+        "registros": 10838667,
+        "t_indexado_s": 0.858,
+        "t_mongo_s": 0,
+        "t_procesamiento_s": 4.095,
+        "t_total_s": 4.095
+      }
+    }
+  ],
+  "series": {
+    "concurrente_particionado": [
+      {
+        "unidades": 1,
+        "repeticiones": 3,
+        "t_total_s": 98.162,
+        "speedup": 1.2589291171736516,
+        "eficiencia": 1.2589291171736516,
+        "speedup_amdahl": 1,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 5168,
+          "registros": 10838667,
+          "t_indexado_s": 41.873,
+          "t_mongo_s": 0,
+          "t_procesamiento_s": 98.156,
+          "t_total_s": 98.162
+        }
+      },
+      {
+        "unidades": 2,
+        "repeticiones": 3,
+        "t_total_s": 67.721,
+        "speedup": 1.8248253865123076,
+        "eficiencia": 0.9124126932561538,
+        "karp_flatt": 0.09599527427799237,
+        "speedup_amdahl": 1.4909244457849495,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 4622,
+          "registros": 10838667,
+          "t_indexado_s": 18.975,
+          "t_mongo_s": 0,
+          "t_procesamiento_s": 67.719,
+          "t_total_s": 67.721
+        }
+      },
+      {
+        "unidades": 4,
+        "repeticiones": 3,
+        "t_total_s": 39.989,
+        "speedup": 3.090324839330816,
+        "eficiencia": 0.772581209832704,
+        "karp_flatt": 0.09812077024952999,
+        "speedup_amdahl": 1.9759440693616663,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 5064,
+          "registros": 10838667,
+          "t_indexado_s": 9.589,
+          "t_mongo_s": 0,
+          "t_procesamiento_s": 39.985,
+          "t_total_s": 39.989
+        }
+      },
+      {
+        "unidades": 8,
+        "repeticiones": 3,
+        "t_total_s": 23.888,
+        "speedup": 5.1732669122571995,
+        "eficiencia": 0.6466583640321499,
+        "karp_flatt": 0.07805880102144035,
+        "speedup_amdahl": 2.3597795446245504,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 5096,
+          "registros": 10838667,
+          "t_indexado_s": 6.293,
+          "t_mongo_s": 0,
+          "t_procesamiento_s": 23.885,
+          "t_total_s": 23.888
+        }
+      },
+      {
+        "unidades": 12,
+        "repeticiones": 3,
+        "t_total_s": 18.661,
+        "speedup": 6.622313916724719,
+        "eficiencia": 0.5518594930603933,
+        "karp_flatt": 0.07382322239215404,
+        "speedup_amdahl": 2.5231575454924413,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 5665,
+          "registros": 10838667,
+          "t_indexado_s": 5.159,
+          "t_mongo_s": 0,
+          "t_procesamiento_s": 18.659,
+          "t_total_s": 18.661
+        }
+      },
+      {
+        "unidades": 16,
+        "repeticiones": 3,
+        "t_total_s": 17.601,
+        "speedup": 7.021135162774843,
+        "eficiencia": 0.43882094767342766,
+        "karp_flatt": 0.08525558549591758,
+        "speedup_amdahl": 2.6136342907448458,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 5636,
+          "registros": 10838667,
+          "t_indexado_s": 5.019,
+          "t_mongo_s": 0,
+          "t_procesamiento_s": 17.597,
+          "t_total_s": 17.601
+        }
+      }
+    ],
+    "pthreads_particionado": [
+      {
+        "unidades": 1,
+        "repeticiones": 3,
+        "t_total_s": 15.745,
+        "speedup": 7.848777389647507,
+        "eficiencia": 7.848777389647507,
+        "speedup_amdahl": 1,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 796,
+          "registros": 10838667,
+          "t_indexado_s": 4.062,
+          "t_mongo_s": 0,
+          "t_procesamiento_s": 15.745,
+          "t_total_s": 15.745
+        }
+      },
+      {
+        "unidades": 2,
+        "repeticiones": 3,
+        "t_total_s": 8.398,
+        "speedup": 14.71528935460824,
+        "eficiencia": 7.35764467730412,
+        "karp_flatt": -0.8640869403377597,
+        "speedup_amdahl": 1.4909244457849495,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 801,
+          "registros": 10838667,
+          "t_indexado_s": 2.079,
+          "t_mongo_s": 0,
+          "t_procesamiento_s": 8.398,
+          "t_total_s": 8.398
+        }
+      },
+      {
+        "unidades": 4,
+        "repeticiones": 3,
+        "t_total_s": 5.156,
+        "speedup": 23.96799844840962,
+        "eficiencia": 5.991999612102405,
+        "karp_flatt": -0.277703601205167,
+        "speedup_amdahl": 1.9759440693616663,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 812,
+          "registros": 10838667,
+          "t_indexado_s": 1.3,
+          "t_mongo_s": 0,
+          "t_procesamiento_s": 5.156,
+          "t_total_s": 5.156
+        }
+      },
+      {
+        "unidades": 8,
+        "repeticiones": 3,
+        "t_total_s": 3.926,
+        "speedup": 31.47707590422822,
+        "eficiencia": 3.9346344880285273,
+        "karp_flatt": -0.10654954089518213,
+        "speedup_amdahl": 2.3597795446245504,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 834,
+          "registros": 10838667,
+          "t_indexado_s": 1.013,
+          "t_mongo_s": 0,
+          "t_procesamiento_s": 3.926,
+          "t_total_s": 3.926
+        }
+      },
+      {
+        "unidades": 12,
+        "repeticiones": 3,
+        "t_total_s": 4.043,
+        "speedup": 30.566163739797176,
+        "eficiencia": 2.5471803116497647,
+        "karp_flatt": -0.05521900234594138,
+        "speedup_amdahl": 2.5231575454924413,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 822,
+          "registros": 10838667,
+          "t_indexado_s": 0.825,
+          "t_mongo_s": 0,
+          "t_procesamiento_s": 4.043,
+          "t_total_s": 4.043
+        }
+      },
+      {
+        "unidades": 16,
+        "repeticiones": 3,
+        "t_total_s": 4.095,
+        "speedup": 30.178021978021977,
+        "eficiencia": 1.8861263736263736,
+        "karp_flatt": -0.031320855485155244,
+        "speedup_amdahl": 2.6136342907448458,
+        "fases": {
+          "filas_leidas": 16972287,
+          "memoria_mb": 881,
+          "registros": 10838667,
+          "t_indexado_s": 0.858,
+          "t_mongo_s": 0,
+          "t_procesamiento_s": 4.095,
+          "t_total_s": 4.095
+        }
+      }
+    ]
+  }
+}
