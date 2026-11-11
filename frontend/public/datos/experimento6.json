@@ -1,18 +1,18 @@
 {
   "experimento": "Experimento 6",
   "descripcion": "Entrenamiento con OpenMP: reducción del gradiente con schedule static, dynamic y guided",
-  "generado": "2026-11-05T17:36:17-05:00",
+  "generado": "2026-11-05T17:46:12-05:00",
   "cpus_logicas": 16,
   "modo_base": "secuencial_c",
   "modo_paralelo": "openmp_static",
-  "t1_s": 7.726207,
+  "t1_s": 9.166501,
   "fases_base": {
     "auc": 0.9938,
     "epocas": 50,
     "f1": 0.0066,
     "perdida_final": 0.247913,
-    "t_epoca_ms": 154.5241,
-    "t_total_s": 7.726207
+    "t_epoca_ms": 183.33,
+    "t_total_s": 9.166501
   },
   "fraccion_serial": 0.000001,
   "origen_fraccion_serial": "karp_flatt",
@@ -21,9 +21,9 @@
     {
       "unidades": 1,
       "repeticiones": 1,
-      "t_total_s": 4.445847,
-      "speedup": 1.7378481535689376,
-      "eficiencia": 1.7378481535689376,
+      "t_total_s": 4.425431,
+      "speedup": 2.0713239004291335,
+      "eficiencia": 2.0713239004291335,
       "speedup_amdahl": 1,
       "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
       "fases": {
@@ -31,17 +31,17 @@
         "epocas": 50,
         "f1": 0.0066,
         "perdida_final": 0.247913,
-        "t_epoca_ms": 88.9169,
-        "t_total_s": 4.445847
+        "t_epoca_ms": 88.5086,
+        "t_total_s": 4.425431
       }
     },
     {
       "unidades": 2,
       "repeticiones": 1,
-      "t_total_s": 2.239558,
-      "speedup": 3.44988028887843,
-      "eficiencia": 1.724940144439215,
-      "karp_flatt": -0.4202697390841327,
+      "t_total_s": 2.230443,
+      "speedup": 4.10972214936674,
+      "eficiencia": 2.05486107468337,
+      "karp_flatt": -0.5133490958000222,
       "speedup_amdahl": 1.9999980000020001,
       "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
       "fases": {
@@ -49,17 +49,17 @@
         "epocas": 50,
         "f1": 0.0066,
         "perdida_final": 0.247913,
-        "t_epoca_ms": 44.7912,
-        "t_total_s": 2.239558
+        "t_epoca_ms": 44.6089,
+        "t_total_s": 2.230443
       }
     },
     {
       "unidades": 4,
       "repeticiones": 1,
-      "t_total_s": 1.281048,
-      "speedup": 6.031161205512986,
-      "eficiencia": 1.5077903013782465,
-      "karp_flatt": -0.11225926684766967,
+      "t_total_s": 1.137127,
+      "speedup": 8.061105751600305,
+      "eficiencia": 2.0152764379000763,
+      "karp_flatt": -0.1679300531358694,
       "speedup_amdahl": 3.999988000036,
       "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
       "fases": {
@@ -67,17 +67,17 @@
         "epocas": 50,
         "f1": 0.0066,
         "perdida_final": 0.247913,
-        "t_epoca_ms": 25.621,
-        "t_total_s": 1.281048
+        "t_epoca_ms": 22.7425,
+        "t_total_s": 1.137127
       }
     },
     {
       "unidades": 8,
       "repeticiones": 1,
-      "t_total_s": 0.909051,
-      "speedup": 8.499200814915774,
-      "eficiencia": 1.0624001018644718,
-      "karp_flatt": -0.008390718572700477,
+      "t_total_s": 0.800292,
+      "speedup": 11.453945559870647,
+      "eficiencia": 1.4317431949838308,
+      "karp_flatt": -0.043078674653034374,
       "speedup_amdahl": 7.999944000391999,
       "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
       "fases": {
@@ -85,8 +85,8 @@
         "epocas": 50,
         "f1": 0.0066,
         "perdida_final": 0.247913,
-        "t_epoca_ms": 18.181,
-        "t_total_s": 0.909051
+        "t_epoca_ms": 16.0058,
+        "t_total_s": 0.800292
       }
     }
   ],
@@ -95,9 +95,9 @@
       {
         "unidades": 1,
         "repeticiones": 1,
-        "t_total_s": 4.424852,
-        "speedup": 1.7460938806540875,
-        "eficiencia": 1.7460938806540875,
+        "t_total_s": 4.399246,
+        "speedup": 2.083652744129335,
+        "eficiencia": 2.083652744129335,
         "speedup_amdahl": 1,
         "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
         "fases": {
@@ -105,17 +105,17 @@
           "epocas": 50,
           "f1": 0.0066,
           "perdida_final": 0.247913,
-          "t_epoca_ms": 88.497,
-          "t_total_s": 4.424852
+          "t_epoca_ms": 87.9849,
+          "t_total_s": 4.399246
         }
       },
       {
         "unidades": 2,
         "repeticiones": 1,
-        "t_total_s": 2.237069,
-        "speedup": 3.453718682794317,
-        "eficiencia": 1.7268593413971585,
-        "karp_flatt": -0.4209140397092648,
+        "t_total_s": 2.217891,
+        "speedup": 4.132980836298989,
+        "eficiencia": 2.0664904181494945,
+        "karp_flatt": -0.5160877634770346,
         "speedup_amdahl": 1.9999980000020001,
         "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
         "fases": {
@@ -123,17 +123,17 @@
           "epocas": 50,
           "f1": 0.0066,
           "perdida_final": 0.247913,
-          "t_epoca_ms": 44.7414,
-          "t_total_s": 2.237069
+          "t_epoca_ms": 44.3578,
+          "t_total_s": 2.217891
         }
       },
       {
         "unidades": 4,
         "repeticiones": 1,
-        "t_total_s": 1.258842,
-        "speedup": 6.137551019111214,
-        "eficiencia": 1.5343877547778035,
-        "karp_flatt": -0.11609141889847545,
+        "t_total_s": 1.130183,
+        "speedup": 8.110634295507896,
+        "eficiencia": 2.027658573876974,
+        "karp_flatt": -0.1689401077539474,
         "speedup_amdahl": 3.999988000036,
         "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
         "fases": {
@@ -141,17 +141,17 @@
           "epocas": 50,
           "f1": 0.0066,
           "perdida_final": 0.247913,
-          "t_epoca_ms": 25.1768,
-          "t_total_s": 1.258842
+          "t_epoca_ms": 22.6037,
+          "t_total_s": 1.130183
         }
       },
       {
         "unidades": 8,
         "repeticiones": 1,
-        "t_total_s": 0.896213,
-        "speedup": 8.620949484107014,
-        "eficiencia": 1.0776186855133767,
-        "karp_flatt": -0.010289709888879292,
+        "t_total_s": 0.783358,
+        "speedup": 11.701547695944894,
+        "eficiencia": 1.4626934619931118,
+        "karp_flatt": -0.04518996475785659,
         "speedup_amdahl": 7.999944000391999,
         "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
         "fases": {
@@ -159,8 +159,8 @@
           "epocas": 50,
           "f1": 0.0066,
           "perdida_final": 0.247913,
-          "t_epoca_ms": 17.9243,
-          "t_total_s": 0.896213
+          "t_epoca_ms": 15.6672,
+          "t_total_s": 0.783358
         }
       }
     ],
@@ -168,9 +168,9 @@
       {
         "unidades": 1,
         "repeticiones": 1,
-        "t_total_s": 4.44551,
-        "speedup": 1.7379798943203368,
-        "eficiencia": 1.7379798943203368,
+        "t_total_s": 4.422271,
+        "speedup": 2.072803995955924,
+        "eficiencia": 2.072803995955924,
         "speedup_amdahl": 1,
         "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
         "fases": {
@@ -178,17 +178,17 @@
           "epocas": 50,
           "f1": 0.0066,
           "perdida_final": 0.247913,
-          "t_epoca_ms": 88.9102,
-          "t_total_s": 4.44551
+          "t_epoca_ms": 88.4454,
+          "t_total_s": 4.422271
         }
       },
       {
         "unidades": 2,
         "repeticiones": 1,
-        "t_total_s": 2.242552,
-        "speedup": 3.4452744016638186,
-        "eficiencia": 1.7226372008319093,
-        "karp_flatt": -0.4194947145475134,
+        "t_total_s": 2.227965,
+        "speedup": 4.114293088087111,
+        "eficiencia": 2.0571465440435555,
+        "karp_flatt": -0.5138897601167556,
         "speedup_amdahl": 1.9999980000020001,
         "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
         "fases": {
@@ -196,17 +196,17 @@
           "epocas": 50,
           "f1": 0.0066,
           "perdida_final": 0.247913,
-          "t_epoca_ms": 44.851,
-          "t_total_s": 2.242552
+          "t_epoca_ms": 44.5593,
+          "t_total_s": 2.227965
         }
       },
       {
         "unidades": 4,
         "repeticiones": 1,
-        "t_total_s": 1.264792,
-        "speedup": 6.108677948627126,
-        "eficiencia": 1.5271694871567816,
-        "karp_flatt": -0.1150646106168266,
+        "t_total_s": 1.14547,
+        "speedup": 8.00239290422272,
+        "eficiencia": 2.00059822605568,
+        "karp_flatt": -0.16671650393099832,
         "speedup_amdahl": 3.999988000036,
         "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
         "fases": {
@@ -214,17 +214,17 @@
           "epocas": 50,
           "f1": 0.0066,
           "perdida_final": 0.247913,
-          "t_epoca_ms": 25.2958,
-          "t_total_s": 1.264792
+          "t_epoca_ms": 22.9094,
+          "t_total_s": 1.14547
         }
       },
       {
         "unidades": 8,
         "repeticiones": 1,
-        "t_total_s": 0.897049,
-        "speedup": 8.612915236514393,
-        "eficiencia": 1.0766144045642991,
-        "karp_flatt": -0.010166049136400306,
+        "t_total_s": 0.82403,
+        "speedup": 11.123989417861,
+        "eficiencia": 1.390498677232625,
+        "karp_flatt": -0.04011907830791395,
         "speedup_amdahl": 7.999944000391999,
         "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
         "fases": {
@@ -232,8 +232,8 @@
           "epocas": 50,
           "f1": 0.0066,
           "perdida_final": 0.247913,
-          "t_epoca_ms": 17.941,
-          "t_total_s": 0.897049
+          "t_epoca_ms": 16.4806,
+          "t_total_s": 0.82403
         }
       }
     ],
@@ -241,9 +241,9 @@
       {
         "unidades": 1,
         "repeticiones": 1,
-        "t_total_s": 4.445847,
-        "speedup": 1.7378481535689376,
-        "eficiencia": 1.7378481535689376,
+        "t_total_s": 4.425431,
+        "speedup": 2.0713239004291335,
+        "eficiencia": 2.0713239004291335,
         "speedup_amdahl": 1,
         "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
         "fases": {
@@ -251,17 +251,17 @@
           "epocas": 50,
           "f1": 0.0066,
           "perdida_final": 0.247913,
-          "t_epoca_ms": 88.9169,
-          "t_total_s": 4.445847
+          "t_epoca_ms": 88.5086,
+          "t_total_s": 4.425431
         }
       },
       {
         "unidades": 2,
         "repeticiones": 1,
-        "t_total_s": 2.239558,
-        "speedup": 3.44988028887843,
-        "eficiencia": 1.724940144439215,
-        "karp_flatt": -0.4202697390841327,
+        "t_total_s": 2.230443,
+        "speedup": 4.10972214936674,
+        "eficiencia": 2.05486107468337,
+        "karp_flatt": -0.5133490958000222,
         "speedup_amdahl": 1.9999980000020001,
         "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
         "fases": {
@@ -269,17 +269,17 @@
           "epocas": 50,
           "f1": 0.0066,
           "perdida_final": 0.247913,
-          "t_epoca_ms": 44.7912,
-          "t_total_s": 2.239558
+          "t_epoca_ms": 44.6089,
+          "t_total_s": 2.230443
         }
       },
       {
         "unidades": 4,
         "repeticiones": 1,
-        "t_total_s": 1.281048,
-        "speedup": 6.031161205512986,
-        "eficiencia": 1.5077903013782465,
-        "karp_flatt": -0.11225926684766967,
+        "t_total_s": 1.137127,
+        "speedup": 8.061105751600305,
+        "eficiencia": 2.0152764379000763,
+        "karp_flatt": -0.1679300531358694,
         "speedup_amdahl": 3.999988000036,
         "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
         "fases": {
@@ -287,17 +287,17 @@
           "epocas": 50,
           "f1": 0.0066,
           "perdida_final": 0.247913,
-          "t_epoca_ms": 25.621,
-          "t_total_s": 1.281048
+          "t_epoca_ms": 22.7425,
+          "t_total_s": 1.137127
         }
       },
       {
         "unidades": 8,
         "repeticiones": 1,
-        "t_total_s": 0.909051,
-        "speedup": 8.499200814915774,
-        "eficiencia": 1.0624001018644718,
-        "karp_flatt": -0.008390718572700477,
+        "t_total_s": 0.800292,
+        "speedup": 11.453945559870647,
+        "eficiencia": 1.4317431949838308,
+        "karp_flatt": -0.043078674653034374,
         "speedup_amdahl": 7.999944000391999,
         "maquina": "AMD Ryzen 7 7735HS with Radeon Graphics",
         "fases": {
@@ -305,8 +305,8 @@
           "epocas": 50,
           "f1": 0.0066,
           "perdida_final": 0.247913,
-          "t_epoca_ms": 18.181,
-          "t_total_s": 0.909051
+          "t_epoca_ms": 16.0058,
+          "t_total_s": 0.800292
         }
       }
     ]

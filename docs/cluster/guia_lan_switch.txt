@@ -1,0 +1,145 @@
+GUIA: CLUSTER SACA POR SWITCH (LAN LOCAL)
+==========================================
+
+Requisito previo: cada laptop Windows debe tener el proyecto y data/muestra.gob
+con huella c2c8f8832a30. Si alguna no los tiene, primero sigue los pasos 1, 3 y 4
+de docs/cluster/guia_nodo_sin_nvidia.md (el paso de Tailscale se puede saltar).
+
+Plan de IPs (subred solo para el switch):
+
+  Equipo              Rol       IP
+  ------------------  --------  -------------
+  Fedora (Angelo)     Maestro   192.168.50.1
+  Laptop Windows 1    Nodo      192.168.50.2
+  Laptop Windows 2    Nodo      192.168.50.3
+
+
+------------------------------------------------------------
+A. FEDORA (MAESTRO)
+------------------------------------------------------------
+
+A1. Crear el perfil de red del cable (sin gateway: Internet sigue por Wi-Fi)
+
+  nmcli con add type ethernet ifname enp5s0f4u1c2 con-name lab-switch \
+    ipv4.method manual ipv4.addresses 192.168.50.1/24 ipv4.never-default yes \
+    ipv6.method disabled connection.autoconnect yes
+  nmcli con up lab-switch
+  ip -4 -br addr show enp5s0f4u1c2        # debe mostrar 192.168.50.1/24
+
+A2. Abrir el puerto 9000 en la zona del firewall del cable
+
+  ZONA=$(firewall-cmd --get-zone-of-interface=enp5s0f4u1c2); echo $ZONA
+  sudo firewall-cmd --zone=$ZONA --add-port=9000/tcp --permanent
+  sudo firewall-cmd --reload
+  sudo firewall-cmd --zone=$ZONA --list-ports      # debe incluir 9000/tcp
+
+  Si ZONA sale vacia, reemplaza $ZONA por public.
+
+A3. Compilar y comprobar la huella
+
+  cd ~/personal-projects/progra-concurrente-paralela
+  go build -o bin/maestro ./entrenamiento/cmd/maestro
+  go build -o bin/trabajador ./entrenamiento/cmd/trabajador
+  sha256sum data/muestra.gob | cut -c1-12          # c2c8f8832a30
+
+
+------------------------------------------------------------
+B. CADA LAPTOP WINDOWS (NODO)
+------------------------------------------------------------
+
+Abrir PowerShell como administrador
+(clic derecho en Inicio -> "Terminal (Administrador)").
+
+B1. Identificar el adaptador del cable
+
+  Get-NetAdapter | Format-Table Name, InterfaceDescription, Status, LinkSpeed
+
+  Busca el que este "Up" y no sea Wi-Fi (suele llamarse "Ethernet" o
+  "Ethernet 2"). En los comandos siguientes, cambia "Ethernet" por ese nombre.
+
+B2. Poner IP fija sin gateway (.2 en una laptop, .3 en la otra)
+
+  Set-NetIPInterface -InterfaceAlias "Ethernet" -Dhcp Disabled
+  New-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress 192.168.50.2 -PrefixLength 24
+  Set-NetConnectionProfile -InterfaceAlias "Ethernet" -NetworkCategory Private
+
+  Si New-NetIPAddress dice que la IP ya existe, no pasa nada: ya estaba puesta.
+
+B3. Comprobar la conexion con el maestro
+
+  ping 192.168.50.1
+
+  Deberias ver tiempos de <1ms o 1ms. Si no responde, revisa el paso A1.
+
+
+------------------------------------------------------------
+C. LANZAR EL CLUSTER POR EL SWITCH
+------------------------------------------------------------
+
+C1. En Fedora, iniciar el maestro en modo servidor
+
+  ./bin/maestro -web 127.0.0.1:8080 -modo tcp_lan -resultado resultados/experimento2_lan.csv
+
+  -modo tcp_lan separa en el CSV estas corridas de las de Tailscale.
+  El maestro muestra "los nodos se conectan con: -maestro 100.x...":
+  IGNORA esa linea (es la IP de Tailscale). Usa 192.168.50.1.
+
+  En otra terminal, la pagina:
+
+  cd frontend && npm run dev               # abre http://localhost:5173
+
+C2. En cada Windows, desde la carpeta del proyecto (no hace falta admin)
+
+  Test-NetConnection 192.168.50.1 -Port 9000      # TcpTestSucceeded : True
+  powershell -ExecutionPolicy Bypass -File scripts\nodo.ps1 -Maestro 192.168.50.1:9000 -Id <nombre>
+
+  Si aparece el aviso del Firewall de Windows: marca "redes privadas" y Permitir.
+
+C3. (Opcional) Fedora tambien como nodo, en otra terminal
+
+  ./bin/trabajador -maestro localhost:9000 -id angelo
+
+Cuando todos los nodos aparezcan en el maestro, lanza el entrenamiento
+desde la pagina.
+
+
+------------------------------------------------------------
+SI ALGO FALLA
+------------------------------------------------------------
+
+- ping desde Windows no responde:
+    En Fedora, "nmcli con show --active" debe listar lab-switch.
+    Revisa tambien el cable en el switch.
+
+- TcpTestSucceeded : False:
+    Que el maestro este corriendo y el paso A2 (zona y puerto).
+
+- muestra_distinta:
+    La huella de esa laptop no es c2c8f8832a30: vuelve a copiar muestra.gob.
+
+- Windows pierde Internet:
+    Le pusiste gateway al cable:
+    Remove-NetRoute -InterfaceAlias "Ethernet" -DestinationPrefix 0.0.0.0/0
+
+
+------------------------------------------------------------
+VOLVER A COMO ESTABA
+------------------------------------------------------------
+
+Fedora:
+  nmcli con down lab-switch          # o: nmcli con delete lab-switch
+
+Windows (como administrador):
+  Set-NetIPInterface -InterfaceAlias "Ethernet" -Dhcp Enabled
+  Remove-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress 192.168.50.2
+
+
+------------------------------------------------------------
+NOTA SOBRE LOS 100 Mbps
+------------------------------------------------------------
+
+El adaptador USB de Fedora (WCH 1a86:e396) es 10/100. En este clúster casi
+no influye: en cada época viajan mensajes chicos (modelo y gradientes) y lo
+que pesa es la latencia. En el switch es menor a 1 ms, mucho mejor que por
+Tailscale. Idea para el informe: comparar el tiempo por época tcp_lan vs
+tcp_tailscale.

@@ -6,6 +6,7 @@
 // No hay datos de ejemplo: sin archivo, la pestaña dice cómo generarlo.
 import { useState } from 'react'
 import { useResultadosNativos } from '../data/resultadosNativos'
+import { esGPU, useCluster } from '../data/cluster'
 import './PanelTecnologias.css'
 
 const TECNOLOGIAS = [
@@ -42,6 +43,7 @@ export default function PanelTecnologias() {
   const [clave, setClave] = useState('experimento6')
   const actual = TECNOLOGIAS.find((t) => t.clave === clave)
   const exp = datos[clave]
+  const { inst } = useCluster()
 
   return (
     <figure className="panel panel-tecnologias">
@@ -65,10 +67,13 @@ export default function PanelTecnologias() {
 
       {cargando ? (
         <p className="tec-vacio">Buscando resultados…</p>
+      ) : actual.clave === 'experimento8' ? (
+        <>
+          <CudaEnCluster inst={inst} />
+          {exp ? <ResultadosGPU exp={exp} /> : <SinDatos tecnologia={actual} detalle="la comparación de los tres kernels (atomic, shared y shuffle)" />}
+        </>
       ) : !exp ? (
         <SinDatos tecnologia={actual} />
-      ) : actual.clave === 'experimento8' ? (
-        <ResultadosGPU exp={exp} />
       ) : (
         <ResultadosEscalabilidad exp={exp} unidad={actual.unidad} />
       )}
@@ -76,11 +81,62 @@ export default function PanelTecnologias() {
   )
 }
 
-function SinDatos({ tecnologia }) {
+// CUDA ya trabaja dentro del clúster: los nodos con GPU calculan con el motor
+// CUDA. Esto lista, con lo que el maestro midió de verdad en esta sesión, las
+// corridas con GPU frente a las que fueron solo de CPU.
+function CudaEnCluster({ inst }) {
+  const historial = (inst?.historial ?? []).filter((h) => h.estado === 'terminado' && h.t_epoca_ms > 0)
+  const gpus = (inst?.sala ?? []).filter((n) => esGPU(n.motor))
+  const conGPU = (h) => (h.motores ?? []).some(esGPU)
+  return (
+    <div className="tec-cuda-cluster">
+      <h4>CUDA dentro del clúster (corridas reales de esta sesión)</h4>
+      {gpus.length > 0 && (
+        <p className="tec-resumen">
+          GPU conectadas: {gpus.map((n) => `${n.id} (${n.hardware?.gpu ?? n.dispositivo})`).join(' · ')}.
+        </p>
+      )}
+      {historial.length === 0 ? (
+        <p className="tec-vacio">Todavía no hay corridas terminadas. Lanza una desde «Clúster en vivo» con nodos con GPU y aparecerá aquí.</p>
+      ) : (
+        <div className="tec-tabla-caja">
+          <table className="tec-tabla">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>nodos</th>
+                <th>motor</th>
+                <th>ms/época</th>
+                <th>cálculo</th>
+                <th>red</th>
+                <th>tiempo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {historial.map((h) => (
+                <tr key={h.id}>
+                  <td>{h.id}</td>
+                  <td>{(h.nodos ?? []).join(' + ')}</td>
+                  <td>{conGPU(h) ? 'GPU (CUDA)' : 'CPU (Go)'}</td>
+                  <td>{fmt(h.t_epoca_ms, 1)}</td>
+                  <td>{fmt(h.t_calculo_ms, 1)} ms</td>
+                  <td>{fmt(h.t_comunicacion_ms, 1)} ms</td>
+                  <td>{fmt(h.t_total_s, 2)} s</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SinDatos({ tecnologia, detalle }) {
   return (
     <div className="tec-vacio">
       <p>
-        Todavía no hay mediciones de <b>{tecnologia.titulo}</b> en este equipo.
+        Todavía no hay mediciones de <b>{tecnologia.titulo}</b> en este equipo{detalle ? `: ${detalle}` : ''}.
       </p>
       <p>
         Corre <code>{tecnologia.comando}</code>: al terminar aparecerán aquí los datos de esa ejecución.

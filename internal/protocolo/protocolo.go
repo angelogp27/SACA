@@ -98,6 +98,16 @@ func NuevaConexion(rw io.ReadWriter) *Conexion {
 	return &Conexion{w: rw, scanner: s}
 }
 
+// Cerrar cierra el extremo subyacente si se puede (una conexión de red).
+// Sirve para soltar una conexión que el otro lado ya no atiende; la
+// goroutine que está en Recibir recibe un error y termina.
+func (c *Conexion) Cerrar() error {
+	if cerrador, ok := c.w.(io.Closer); ok {
+		return cerrador.Close()
+	}
+	return nil
+}
+
 func (c *Conexion) Enviar(m Mensaje) error {
 	datos, err := json.Marshal(m)
 	if err != nil {

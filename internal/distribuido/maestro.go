@@ -187,6 +187,13 @@ func (m *Maestro) senalar() {
 // hasta que el nodo se va.
 func (m *Maestro) Atender(conn net.Conn) {
 	defer conn.Close()
+	// Sin esto, una conexión que se corta en silencio (la PC del nodo se
+	// durmió, cambió de red) queda "viva" en el maestro y bloquea el
+	// registro del mismo nodo cuando vuelve. Con sondas cada pocos segundos,
+	// el sistema operativo la declara muerta en unos 15 s.
+	if tc, ok := conn.(*net.TCPConn); ok {
+		tc.SetKeepAliveConfig(net.KeepAliveConfig{Enable: true, Idle: 5 * time.Second, Interval: 3 * time.Second, Count: 3})
+	}
 	c := protocolo.NuevaConexion(conn)
 	remoto := conn.RemoteAddr().String()
 
@@ -217,6 +224,23 @@ func (m *Maestro) Atender(conn net.Conn) {
 		rechazar("registro_rechazado: la sesión ya terminó")
 		return
 	}
+	// Un nodo que se registra con el nombre de otro que está libre en la sala
+	// (no en una corrida) es casi siempre el mismo nodo, que reinició o
+	// perdió la red: su conexión anterior está muerta aunque el maestro no se
+	// haya enterado. Se reemplaza en vez de rechazarlo para siempre. Con una
+	// corrida en curso no se toca: se rechaza como antes.
+	m.mu.Lock()
+	viejo, hay := m.nodos[msg.WorkerID]
+	reemplazar := hay && !m.ocupados[msg.WorkerID]
+	if reemplazar {
+		delete(m.nodos, msg.WorkerID)
+	}
+	m.mu.Unlock()
+	if reemplazar {
+		log.Printf("%s: %s vuelve a registrarse y su conexión anterior (%s) estaba libre: se reemplaza", remoto, msg.WorkerID, viejo.vista.Remoto)
+		m.registro.DarDeBaja(msg.WorkerID)
+		viejo.conexion.Cerrar()
+	}
 	if _, err := m.registro.Registrar(msg.WorkerID, c); err != nil {
 		log.Printf("%s: registro de %s rechazado: %v", remoto, msg.WorkerID, err)
 		rechazar("registro_rechazado: " + err.Error())
@@ -241,11 +265,21 @@ func (m *Maestro) Atender(conn net.Conn) {
 
 	motivo := m.escuchar(c, msg.WorkerID)
 
-	m.registro.DarDeBaja(msg.WorkerID)
+	// Solo se limpia si el nodo de la sala sigue siendo esta conexión: si la
+	// reemplazó otra del mismo nombre, no hay nada que quitar.
 	m.mu.Lock()
-	delete(m.nodos, msg.WorkerID)
+	actual, esta := m.nodos[msg.WorkerID]
+	esta = esta && actual.conexion == c
+	if esta {
+		delete(m.nodos, msg.WorkerID)
+	}
 	activa := m.activa
 	m.mu.Unlock()
+	if !esta {
+		log.Printf("conexión anterior de %s cerrada (%s)", msg.WorkerID, motivo)
+		return
+	}
+	m.registro.DarDeBaja(msg.WorkerID)
 	if activa != nil {
 		if _, participa := activa.indice[msg.WorkerID]; participa {
 			activa.avisar(evento{tipo: caida, id: msg.WorkerID, motivo: motivo})
@@ -333,7 +367,11 @@ func (m *Maestro) Quitar(id string) error {
 	if ocupado {
 		return fmt.Errorf("%w: %s está en una corrida", ErrNodoNoDisponible, id)
 	}
-	return n.conexion.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoBaja, WorkerID: id, Motivo: MotivoSesionTerminada})
+	err := n.conexion.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoBaja, WorkerID: id, Motivo: MotivoSesionTerminada})
+	// Se cierra también del lado del maestro: si la conexión estaba muerta, el
+	// aviso no llega a nadie y la entrada no se liberaría sola.
+	n.conexion.Cerrar()
+	return err
 }
 
 // Despedir avisa a todos los nodos con el motivo dado (p. ej.

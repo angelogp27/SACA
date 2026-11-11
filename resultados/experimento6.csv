@@ -1,14 +1,14 @@
 modo,goroutines,epocas,t_total_s,t_epoca_ms,perdida_final,f1,auc,maquina
-secuencial_c,1,50,7.726207,154.5241,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
-openmp_static,1,50,4.445847,88.9169,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
-openmp_dynamic,1,50,4.424852,88.4970,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
-openmp_guided,1,50,4.445510,88.9102,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
-openmp_static,2,50,2.239558,44.7912,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
-openmp_dynamic,2,50,2.237069,44.7414,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
-openmp_guided,2,50,2.242552,44.8510,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
-openmp_static,4,50,1.281048,25.6210,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
-openmp_dynamic,4,50,1.258842,25.1768,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
-openmp_guided,4,50,1.264792,25.2958,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
-openmp_static,8,50,0.909051,18.1810,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
-openmp_dynamic,8,50,0.896213,17.9243,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
-openmp_guided,8,50,0.897049,17.9410,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+secuencial_c,1,50,9.166501,183.3300,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+openmp_static,1,50,4.425431,88.5086,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+openmp_dynamic,1,50,4.399246,87.9849,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+openmp_guided,1,50,4.422271,88.4454,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+openmp_static,2,50,2.230443,44.6089,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+openmp_dynamic,2,50,2.217891,44.3578,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+openmp_guided,2,50,2.227965,44.5593,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+openmp_static,4,50,1.137127,22.7425,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+openmp_dynamic,4,50,1.130183,22.6037,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+openmp_guided,4,50,1.145470,22.9094,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+openmp_static,8,50,0.800292,16.0058,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+openmp_dynamic,8,50,0.783358,15.6672,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics
+openmp_guided,8,50,0.824030,16.4806,0.247913,0.0066,0.9938,AMD Ryzen 7 7735HS with Radeon Graphics

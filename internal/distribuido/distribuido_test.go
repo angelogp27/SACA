@@ -517,3 +517,52 @@ func TestRepartoProporcional(t *testing.T) {
 		t.Fatalf("con pesos 1:3 el reparto fue %v (proporción %.2f)", n, proporcion)
 	}
 }
+
+// TestNodoQueVuelveReemplazaSuConexionMuerta: un nodo libre que se registra
+// con el nombre de otro que sigue "conectado" (pero muerto) debe quedarse
+// con su lugar, y la conexión vieja se cierra. Con una corrida en curso no.
+func TestNodoQueVuelveReemplazaSuConexionMuerta(t *testing.T) {
+	datos := datosSinteticos(t)
+	maestro, dir := levantarMaestro(t, ConfigMaestro{Capacidad: 4, Datos: datos, Huella: "h", EsperaGradiente: 10 * time.Second})
+
+	registrar := func() (net.Conn, *protocolo.Conexion) {
+		conn, err := net.Dial("tcp", dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { conn.Close() })
+		c := protocolo.NuevaConexion(conn)
+		if err := c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoRegistro, WorkerID: "x", Huella: "h", Motor: "go"}); err != nil {
+			t.Fatal(err)
+		}
+		return conn, c
+	}
+	esperarSala := func(remoto string) {
+		t.Helper()
+		limite := time.Now().Add(5 * time.Second)
+		for time.Now().Before(limite) {
+			for _, n := range maestro.Instantanea().Sala {
+				if n.ID == "x" && n.Remoto == remoto {
+					return
+				}
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		t.Fatalf("x con remoto %s no llegó a la sala: %+v", remoto, maestro.Instantanea().Sala)
+	}
+
+	viejaConn, vieja := registrar()
+	esperarSala(viejaConn.LocalAddr().String())
+
+	nuevaConn, _ := registrar()
+	esperarSala(nuevaConn.LocalAddr().String())
+
+	// El maestro cerró la conexión anterior: su lector termina.
+	viejaConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if _, err := vieja.Recibir(); err == nil {
+		t.Fatal("la conexión anterior debía haberse cerrado")
+	}
+	if got := len(maestro.Instantanea().Sala); got != 1 {
+		t.Fatalf("la sala tiene %d nodos, se esperaba 1", got)
+	}
+}

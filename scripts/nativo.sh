@@ -62,18 +62,32 @@ repetir() { # repetir "comando con {r}" para r = 1..REPETICIONES
   done
 }
 
+# Cada medición terminada vuelve a escribir el JSON que lee la página, así que
+# los puntos aparecen uno a uno mientras el experimento corre (la página lo
+# pide cada 5 s). Al empezar se borra el JSON anterior: el panel arranca vacío
+# y se llena con lo que se mide ahora. Falla en silencio hasta que existe la
+# línea base.
+refrescar() {
+  ./bin/analisis -entrada "$CSV" -json "$JSON" -md "${JSON%.json}.md.tmp" -nombre "$NOMBRE" -descripcion "$DESCRIPCION" \
+    -base "$BASE" -paralelo "$PARALELO" -serial "$SERIAL" >/dev/null 2>&1 || true
+  rm -f "${JSON%.json}.md.tmp"
+}
+
 exp5() {
   necesita bin/cargador_pthreads
   go build -o bin/analisis ./experimentos/cmd/analisis
   CSV=resultados/experimento5.csv
-  rm -f "$CSV"
+  JSON=frontend/public/datos/experimento5.json
+  NOMBRE="Experimento 5"
+  SERIAL="t_indexado_s"
+  rm -f "$CSV" "$JSON"
   if [ -n "${SOLO_C:-}" ]; then
     # Versión corta (~1 min con HILOS="1 2 4 8"): solo Pthreads, con su propia
     # corrida de 1 hilo y 1 agregadora como línea base. No compara con Go.
     una() {
-      ./bin/cargador_pthreads --hilos 1 --agregadoras 1 --resultado "$CSV"
+      ./bin/cargador_pthreads --hilos 1 --agregadoras 1 --resultado "$CSV"; refrescar
       for n in $HILOS; do
-        ./bin/cargador_pthreads --hilos "$n" --agregadoras 0 --resultado "$CSV"
+        ./bin/cargador_pthreads --hilos "$n" --agregadoras 0 --resultado "$CSV"; refrescar
       done
     }
     BASE=pthreads
@@ -83,10 +97,10 @@ exp5() {
     go build -o bin/cargador-secuencial ./cargador/cmd/secuencial
     go build -o bin/cargador-concurrente ./cargador/cmd/concurrente
     una() {
-      ./bin/cargador-secuencial -sin-mongo -resultado "$CSV"
+      ./bin/cargador-secuencial -sin-mongo -resultado "$CSV"; refrescar
       for n in $HILOS; do
-        ./bin/cargador-concurrente -sin-mongo -goroutines "$n" -agregadoras 0 -resultado "$CSV"
-        ./bin/cargador_pthreads --hilos "$n" --agregadoras 0 --resultado "$CSV"
+        ./bin/cargador-concurrente -sin-mongo -goroutines "$n" -agregadoras 0 -resultado "$CSV"; refrescar
+        ./bin/cargador_pthreads --hilos "$n" --agregadoras 0 --resultado "$CSV"; refrescar
       done
     }
     BASE=secuencial
@@ -94,28 +108,32 @@ exp5() {
     DESCRIPCION="Cargador: Pthreads (C) frente a goroutines (Go), sin MongoDB"
   fi
   repetir una
-  ./bin/analisis -entrada "$CSV" -json frontend/public/datos/experimento5.json -md resultados/experimento5.md \
-    -nombre "Experimento 5" -descripcion "$DESCRIPCION" \
-    -base "$BASE" -paralelo "$PARALELO" -serial "t_indexado_s"
+  ./bin/analisis -entrada "$CSV" -json "$JSON" -md resultados/experimento5.md \
+    -nombre "$NOMBRE" -descripcion "$DESCRIPCION" -base "$BASE" -paralelo "$PARALELO" -serial "$SERIAL"
 }
 
 exp6() {
   necesita bin/entrenamiento_openmp
   go build -o bin/analisis ./experimentos/cmd/analisis
   CSV=resultados/experimento6.csv
-  rm -f "$CSV"
+  JSON=frontend/public/datos/experimento6.json
+  NOMBRE="Experimento 6"
+  DESCRIPCION="Entrenamiento con OpenMP: reducción del gradiente con schedule static, dynamic y guided"
+  BASE=secuencial_c
+  PARALELO="openmp_static,openmp_dynamic,openmp_guided"
+  SERIAL=""
+  rm -f "$CSV" "$JSON"
   una() {
-    ./bin/entrenamiento_openmp --secuencial --epocas "$EPOCAS" --resultado "$CSV"
+    ./bin/entrenamiento_openmp --secuencial --epocas "$EPOCAS" --resultado "$CSV"; refrescar
     for n in $HILOS; do
       for s in static dynamic guided; do
-        ./bin/entrenamiento_openmp --hilos "$n" --schedule "$s" --epocas "$EPOCAS" --resultado "$CSV"
+        ./bin/entrenamiento_openmp --hilos "$n" --schedule "$s" --epocas "$EPOCAS" --resultado "$CSV"; refrescar
       done
     done
   }
   repetir una
-  ./bin/analisis -entrada "$CSV" -json frontend/public/datos/experimento6.json -md resultados/experimento6.md \
-    -nombre "Experimento 6" -descripcion "Entrenamiento con OpenMP: reducción del gradiente con schedule static, dynamic y guided" \
-    -base secuencial_c -paralelo "openmp_static,openmp_dynamic,openmp_guided" -serial ""
+  ./bin/analisis -entrada "$CSV" -json "$JSON" -md resultados/experimento6.md \
+    -nombre "$NOMBRE" -descripcion "$DESCRIPCION" -base "$BASE" -paralelo "$PARALELO" -serial "$SERIAL"
 }
 
 exp7() {
@@ -123,20 +141,25 @@ exp7() {
   necesita bin/entrenamiento_openmp
   go build -o bin/analisis ./experimentos/cmd/analisis
   CSV=resultados/experimento7.csv
-  rm -f "$CSV"
+  JSON=frontend/public/datos/experimento7.json
+  NOMBRE="Experimento 7"
+  DESCRIPCION="Entrenamiento con MPI: MPI_Allreduce frente a Send/Recv + Bcast"
+  BASE=secuencial_c
+  PARALELO="mpi_colectivo,mpi_p2p"
+  SERIAL=""
+  rm -f "$CSV" "$JSON"
   una() {
-    ./bin/entrenamiento_openmp --secuencial --epocas "$EPOCAS" --resultado "$CSV"
+    ./bin/entrenamiento_openmp --secuencial --epocas "$EPOCAS" --resultado "$CSV"; refrescar
     for p in $PROCESOS; do
       for modo in colectivo p2p; do
         # shellcheck disable=SC2086
-        $MPIEXEC $MPIEXEC_OPCIONES -n "$p" ./bin/entrenamiento_mpi --modo "$modo" --epocas "$EPOCAS" --resultado "$CSV"
+        $MPIEXEC $MPIEXEC_OPCIONES -n "$p" ./bin/entrenamiento_mpi --modo "$modo" --epocas "$EPOCAS" --resultado "$CSV"; refrescar
       done
     done
   }
   repetir una
-  ./bin/analisis -entrada "$CSV" -json frontend/public/datos/experimento7.json -md resultados/experimento7.md \
-    -nombre "Experimento 7" -descripcion "Entrenamiento con MPI: MPI_Allreduce frente a Send/Recv + Bcast" \
-    -base secuencial_c -paralelo "mpi_colectivo,mpi_p2p" -serial ""
+  ./bin/analisis -entrada "$CSV" -json "$JSON" -md resultados/experimento7.md \
+    -nombre "$NOMBRE" -descripcion "$DESCRIPCION" -base "$BASE" -paralelo "$PARALELO" -serial "$SERIAL"
 }
 
 exp8() {
