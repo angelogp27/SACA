@@ -243,7 +243,7 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
             <button type="button" className="boton" disabled={!!ocupado} onClick={onRealizarLimpieza}>REALIZAR LIMPIEZA</button>
           </div>
         )}
-        {!esMaestro && <p className="detalle">El maestro ({local.maestro}) controla el clúster; aquí se ve en vivo.</p>}
+        {!esMaestro && <p className="detalle">Maestro: {(local.maestro ?? '').replace(/:\d+$/, '')}</p>}
       </div>
 
       <div className="sala-nodos">

@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -39,7 +40,7 @@ type descubridor struct {
 	instancia string
 
 	mu     sync.Mutex
-	vistos map[string]*ClusterVisto // por IP
+	vistos map[string]*ClusterVisto // por instancia del maestro
 }
 
 func nuevoDescubridor(puerto int, instancia string) *descubridor {
@@ -66,22 +67,37 @@ func (d *descubridor) escuchar() {
 		if json.Unmarshal(buf[:n], &a) != nil || a.Saca != 1 || a.Instancia == d.instancia {
 			continue
 		}
+		// El maestro anuncia por todas sus redes (Wi-Fi, switch…), así que el
+		// mismo maestro llega desde varias IP. Se guarda una entrada por
+		// maestro y, de sus IP, la del switch (192.168.50.x) si llega por ahí:
+		// si no, el clúster iría por el Wi-Fi.
 		ip := origen.(*net.UDPAddr).IP.String()
 		d.mu.Lock()
-		d.vistos[ip] = &ClusterVisto{Host: a.Host, IP: ip, TCP: a.TCP, Web: a.Web, instante: time.Now()}
+		v, ok := d.vistos[a.Instancia]
+		switch {
+		case !ok:
+			d.vistos[a.Instancia] = &ClusterVisto{Host: a.Host, IP: ip, TCP: a.TCP, Web: a.Web, instante: time.Now()}
+		case ip == v.IP || esSwitch(ip) && !esSwitch(v.IP):
+			v.IP, v.instante = ip, time.Now() // la misma IP, o una mejor (la del switch)
+		case !esSwitch(v.IP):
+			v.instante = time.Now() // otra red cualquiera: sigue vivo
+		}
 		d.mu.Unlock()
 	}
 }
+
+// esSwitch: la subred del switch del grupo (docs/cluster/switch).
+func esSwitch(ip string) bool { return strings.HasPrefix(ip, "192.168.50.") }
 
 // Vistos devuelve los maestros anunciados en los últimos segundos.
 func (d *descubridor) Vistos() []ClusterVisto {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	var lista []ClusterVisto
-	for ip, v := range d.vistos {
+	for clave, v := range d.vistos {
 		hace := time.Since(v.instante)
 		if hace > vigenciaAnuncio {
-			delete(d.vistos, ip)
+			delete(d.vistos, clave)
 			continue
 		}
 		c := *v
