@@ -342,7 +342,7 @@ function Limpieza({ inst, esMaestro, onContinuar }) {
               <th scope="col">Nodo</th>
               <th scope="col"># hilos</th>
               {l.tecnologias.map((t) => (
-                <th key={t} scope="col" colSpan={2}>{NOMBRE_TEC[t] ?? t} <small>CPU a lo largo del avance · tiempo total</small></th>
+                <th key={t} scope="col" colSpan={2}>{NOMBRE_TEC[t] ?? t} <small>% Uso del CPU</small></th>
               ))}
             </tr>
           </thead>
@@ -363,11 +363,8 @@ function Limpieza({ inst, esMaestro, onContinuar }) {
       </div>
 
       <footer className="limpieza-pie">
-        <p className="detalle">
-          Pthreads y Go corren uno tras otro en cada nodo para no pelear por la CPU.{' '}
-          {huellas.size === 1 && <>Todas las muestras generadas tienen la misma huella: <code>{corta([...huellas][0])}</code>.</>}
-          {huellas.size > 1 && <strong className="error-texto"> ¡Hay {huellas.size} huellas distintas!</strong>}
-        </p>
+        {/* Solo se avisa si algo salió mal: muestras con huellas distintas. */}
+        {huellas.size > 1 ? <p className="error">Los nodos generaron {huellas.size} muestras distintas (huellas diferentes).</p> : <span />}
         {esMaestro && (
           <div className="sala-botones">
             <button type="button" className="boton-grande" disabled={enCurso} onClick={onContinuar}>Continuar</button>
@@ -419,7 +416,7 @@ function SinLanzador() {
 export default function FlujoCluster({ datos, lanzador }) {
   const { datos: local, actualizar } = lanzador
   const rol = local?.rol ?? ''
-  const { conectado, inst } = useCluster(rol !== '')
+  const { conectado, inst, perdido } = useCluster(rol !== '')
   const esMaestro = rol === 'maestro'
   const [paso, setPaso] = useState('sala') // 'sala' | 'pre' | 'entrenamiento'
   // Nodos que el maestro quitó de la selección (amarillos); los demás de la
@@ -445,10 +442,18 @@ export default function FlujoCluster({ datos, lanzador }) {
   if (!local) return <p className="detalle">Conectando con el lanzador local…</p>
 
   // El rol de esta laptop y el botón para salir van arriba a la izquierda (App).
-  const salir = rol && !conectado && <p className="detalle">Conectando con el maestro…</p>
+  const salir = null
 
   if (!rol) return <>{salir}<Inicio local={local} actualizar={actualizar} /></>
-  if (!inst) return <>{salir}<p className="detalle">Esperando al maestro…</p></>
+  if (perdido && !conectado) {
+    return (
+      <section className="flujo-aviso" role="status">
+        <h3>Se ha perdido conexión con el maestro…</h3>
+        <p className="detalle">Esperando a que vuelva. {rol === 'nodo' ? 'Este nodo se reconecta solo.' : ''}</p>
+      </section>
+    )
+  }
+  if (!inst) return <section className="flujo-aviso" role="status"><p className="detalle">Conectando con el maestro…</p></section>
 
   const accion = async (nombre, f) => {
     setOcupado(nombre)

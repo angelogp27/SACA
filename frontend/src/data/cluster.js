@@ -27,7 +27,8 @@ export function useCluster(activo = true) {
       fuente.onerror = () => {
         fuente.close()
         if (!vigente) return
-        setEstado((s) => ({ ...s, conectado: false }))
+        // perdido: ya había conexión y se cortó (el maestro se cerró o se cayó la red).
+        setEstado((s) => ({ ...s, conectado: false, perdido: s.conectado || !!s.perdido }))
         reintento = setTimeout(abrir, 2000)
       }
     }
@@ -36,6 +37,9 @@ export function useCluster(activo = true) {
       vigente = false
       clearTimeout(reintento)
       fuente?.close()
+      // Al salir del clúster se olvida la sesión: si después se une a otro,
+      // no debe aparecer "se perdió la conexión" mientras conecta.
+      setEstado(SIN_CLUSTER)
     }
   }, [activo])
 

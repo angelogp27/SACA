@@ -556,3 +556,21 @@ button.nodo-caja {
   overflow-x: auto;
   max-width: 100%;
 }
+
+.flujo-aviso {
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.flujo-aviso h3 {
+  font-size: 22px;
+}
