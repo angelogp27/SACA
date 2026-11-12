@@ -42,6 +42,9 @@ import (
 	"proyecto9/internal/hardware"
 )
 
+// maxLaptops es el tamaño máximo del clúster, contando la del maestro.
+const maxLaptops = 8
+
 type config struct {
 	puertoUI, puertoWeb, puertoTCP, puertoUDP int
 	dirFrontend, dirBin, rutaMuestra          string
@@ -130,6 +133,8 @@ type estadoLocal struct {
 	Clusters   []ClusterVisto  `json:"clusters"`
 	Hardware   hardware.Info   `json:"hardware"`
 	Huella     string          `json:"huella"`
+	IPs        []string        `json:"ips"` // IPv4 de esta laptop (cable, Wi-Fi, Tailscale)
+	IP         string          `json:"ip"`  // la que deben usar los demás (ver ipPrincipal)
 	Listo      map[string]bool `json:"listo"`
 	Error      string          `json:"error,omitempty"`
 	LogMaestro []string        `json:"log_maestro,omitempty"`
@@ -149,6 +154,8 @@ func (l *lanzador) estado(w http.ResponseWriter, r *http.Request) {
 		e.LogNodo = l.trabajador.ultimas(20)
 	}
 	l.mu.Unlock()
+	e.IPs = ipsLocales()
+	e.IP = ipPrincipal(e.IPs)
 	e.Clusters = l.desc.Vistos()
 	if e.Clusters == nil {
 		e.Clusters = []ClusterVisto{}
@@ -231,7 +238,13 @@ func (l *lanzador) arrancarMaestro(ctx context.Context, id string, participar bo
 	if !existe(exe) {
 		return fmt.Errorf("falta %s: compila con scripts/saca.sh (Linux) o scripts/saca.ps1 (Windows)", exe)
 	}
-	args := []string{"-web", net.JoinHostPort("0.0.0.0", itoa(l.cfg.puertoWeb)), "-escuchar", ":" + itoa(l.cfg.puertoTCP),
+	// Máximo 8 laptops contando la del maestro: si el maestro no participa
+	// como nodo, la sala admite 7.
+	capacidad := maxLaptops
+	if !participar {
+		capacidad--
+	}
+	args := []string{"-capacidad", itoa(capacidad), "-web", net.JoinHostPort("0.0.0.0", itoa(l.cfg.puertoWeb)), "-escuchar", ":" + itoa(l.cfg.puertoTCP),
 		"-muestra", l.cfg.rutaMuestra, "-modo", "tcp_lan", "-resultado", l.cfg.resultado,
 		// Al terminar cada entrenamiento: guardar el modelo y regenerar el
 		// mapa (exportar usa MongoDB; si no está, el mapa queda como estaba).
@@ -431,6 +444,54 @@ func (l *lanzador) proxy(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------- utilidades ----------
+
+// ipPrincipal elige la IP por la que los demás llegan al maestro: la del
+// switch (subred 192.168.50.0/24 de docs/cluster/switch); si no hay
+// switch, la de Tailscale (100.64.0.0/10); si tampoco, la primera.
+func ipPrincipal(ips []string) string {
+	_, tailscale, _ := net.ParseCIDR("100.64.0.0/10")
+	var ts string
+	for _, s := range ips {
+		ip := net.ParseIP(s)
+		if strings.HasPrefix(s, "192.168.50.") {
+			return s
+		}
+		if ts == "" && tailscale.Contains(ip) {
+			ts = s
+		}
+	}
+	if ts != "" {
+		return ts
+	}
+	if len(ips) > 0 {
+		return ips[0]
+	}
+	return ""
+}
+
+// ipsLocales: las IPv4 por las que los nodos pueden llegar a esta laptop,
+// sin las de loopback ni las de interfaces virtuales (Docker, libvirt,
+// VMware, VirtualBox; en Windows se llaman "VMware Network Adapter…").
+func ipsLocales() []string {
+	ips := []string{}
+	interfaces, _ := net.Interfaces()
+	for _, i := range interfaces {
+		if i.Flags&net.FlagUp == 0 || i.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		n := strings.ToLower(i.Name)
+		if strings.HasPrefix(n, "docker") || strings.HasPrefix(n, "br-") || strings.HasPrefix(n, "virbr") || strings.HasPrefix(n, "veth") || strings.HasPrefix(n, "vmnet") || strings.HasPrefix(n, "vboxnet") || strings.Contains(n, "vethernet") || strings.Contains(n, "vmware") || strings.Contains(n, "virtualbox") {
+			continue
+		}
+		direcciones, _ := i.Addrs()
+		for _, a := range direcciones {
+			if red, ok := a.(*net.IPNet); ok && red.IP.To4() != nil && !red.IP.IsLinkLocalUnicast() {
+				ips = append(ips, red.IP.String())
+			}
+		}
+	}
+	return ips
+}
 
 // spa sirve el frontend; las rutas desconocidas devuelven index.html.
 func spa(dir string) http.Handler {

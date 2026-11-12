@@ -6,11 +6,38 @@ import PanelRendimiento from './components/PanelRendimiento'
 import PanelTecnologias from './components/PanelTecnologias'
 import Protector from './components/Protector'
 import FlujoCluster from './components/flujo/FlujoCluster'
-import { useLocal } from './data/local'
+import { apiLocal, useLocal } from './data/local'
 import { useDatosReales, estacionesParaPaneles, serieDeEstacion } from './data/datosReales'
 import './App.css'
 
 const formato = new Intl.NumberFormat('es-PE')
+
+// Arriba a la izquierda: si esta laptop es el maestro (con sus IPs, para que
+// los demás se unan) o un nodo, y el botón para salir del clúster.
+function RolLaptop({ lanzador }) {
+  const local = lanzador.datos
+  if (!local?.rol) return <span />
+  const esMaestro = local.rol === 'maestro'
+  return (
+    <div className="rol-laptop">
+      <span className={`rol-insignia ${esMaestro ? 'maestro' : 'nodo'}`}>{esMaestro ? 'Maestro' : 'Nodo'}</span>
+      <span className="rol-detalle">
+        <strong>{local.id}</strong>
+        {esMaestro && ` · ${local.ip ? `IP ${local.ip}` : 'sin IP de red'}`}
+      </span>
+      <button
+        type="button"
+        className="rol-salir"
+        onClick={async () => {
+          await apiLocal.detener().catch(() => {})
+          lanzador.actualizar()
+        }}
+      >
+        {esMaestro ? 'Apagar clúster' : 'Salir del clúster'}
+      </button>
+    </div>
+  )
+}
 
 function App() {
   const datos = useDatosReales()
@@ -33,9 +60,12 @@ function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div className="vistas" role="tablist" aria-label="Vista">
-          <button type="button" role="tab" aria-selected={vistaActual === 'cluster'} onClick={() => setVista('cluster')}>Clúster</button>
-          <button type="button" role="tab" aria-selected={vistaActual === 'tablero'} onClick={() => setVista('tablero')}>Tablero</button>
+        <div className="app-barra">
+          <RolLaptop lanzador={lanzador} />
+          <div className="vistas" role="tablist" aria-label="Vista">
+            <button type="button" role="tab" aria-selected={vistaActual === 'cluster'} onClick={() => setVista('cluster')}>Clúster</button>
+            <button type="button" role="tab" aria-selected={vistaActual === 'tablero'} onClick={() => setVista('tablero')}>Tablero</button>
+          </div>
         </div>
         <h1 className="app-marca">
           <span className="app-sigla">SACA</span>

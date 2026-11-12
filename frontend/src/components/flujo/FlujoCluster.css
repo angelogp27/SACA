@@ -159,6 +159,10 @@
   min-height: 44px;
 }
 
+.casilla:has(input:disabled) {
+  opacity: 0.45;
+}
+
 .casilla input {
   width: 20px;
   height: 20px;
@@ -256,46 +260,48 @@ button.nodo-caja {
   font-size: 11px;
 }
 
-/* Marcas en texto (no se usan logotipos registrados). */
-.marca {
-  font-family: var(--sans);
-  font-weight: 800;
-  font-size: 13px;
-  line-height: 1;
-  padding: 3px 6px;
-  border-radius: 4px;
-  letter-spacing: 0.06em;
+/* Logos de hardware (src/assets/marcas). */
+.logo {
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
 }
 
-.marca.nvidia {
+.logo-cpu {
+  max-width: 84px;
+  max-height: 58px;
+}
+
+/* El logo de Ryzen trae letras blancas: va sobre su propio fondo oscuro. */
+.logo-cpu.amd {
+  border-radius: 6px;
+}
+
+.logo-nvidia {
   position: absolute;
   top: 6px;
   right: 6px;
-  font-size: 10px;
-  background: #76b900;
-  color: #000;
-}
-
-.marca.amd {
+  width: 38px;
+  height: 28px;
   background: #fff;
-  color: #000;
-  border: 1px solid #000;
+  border-radius: 4px;
+  padding: 2px;
 }
 
-.marca.intel {
-  background: #0068b5;
-  color: #fff;
-  letter-spacing: 0;
-  font-size: 15px;
+.nodo.pequeno .logo-cpu {
+  max-width: 40px;
+  max-height: 28px;
 }
 
-.nodo.pequeno .marca {
-  font-size: 9px;
-  padding: 2px 3px;
+.nodo.pequeno .logo-cpu.amd {
+  border-radius: 3px;
 }
 
-.nodo.pequeno .marca.nvidia {
+.nodo.pequeno .logo-nvidia {
   position: static;
+  width: 22px;
+  height: 16px;
+  padding: 1px;
 }
 
 /* ---------- 2 y 4. sala ---------- */
@@ -332,13 +338,12 @@ button.nodo-caja {
   gap: 8px;
 }
 
+/* Rótulos como "CLÚSTER INICIADO": texto, no caja (no deben parecer botones). */
 .rotulo {
   font-weight: 700;
-  letter-spacing: 0.08em;
-  border: 2px solid var(--text-primary);
-  border-radius: 10px;
-  padding: 6px 14px;
+  letter-spacing: 0.1em;
   font-size: 15px;
+  color: var(--text-secondary);
 }
 
 @media (max-width: 700px) {

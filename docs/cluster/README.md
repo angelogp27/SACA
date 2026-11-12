@@ -21,7 +21,7 @@ Cada guía de red trae sus **casos especiales**: laptop ya configurada, otra hue
 3. **Limpieza**: por cada nodo, el número de hilos, el % de CPU a lo largo del avance y el tiempo total, primero con **Pthreads** y luego con **Go** (uno tras otro, para no pelear por la CPU). Los nodos que llegan tarde aparecen arriba a la derecha y se pueden sumar. *Parar limpieza* pregunta si guardar los resultados ya completados.
 4. **Antes de entrenar**: se eligen los nodos (amarillo = no participa) e *Iniciar entrenamiento* comprueba que todos tengan el mismo `muestra.bin` que el maestro. Después se ve el entrenamiento en vivo.
 
-Solo la laptop del maestro tiene los botones; las demás ven todo en vivo.
+Solo la laptop del maestro tiene los botones; las demás ven todo en vivo. El clúster admite **hasta 8 laptops**, contando la del maestro; los lugares que quedan se ven como *(Libre)*. Arriba a la izquierda, la laptop del maestro muestra su nombre y la IP a la que deben unirse los demás: la del switch (`192.168.50.x`) si existe; si no, la de Tailscale.
 
 ## 3. Cómo funciona
 

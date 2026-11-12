@@ -12,6 +12,9 @@ import { apiCluster, useCluster } from '../../data/cluster'
 import { apiLocal } from '../../data/local'
 import PanelCluster from '../PanelCluster'
 import Protector from '../Protector'
+import logoIntel from '../../assets/marcas/Intel.png'
+import logoNvidia from '../../assets/marcas/NVIDIA.png'
+import logoRyzen from '../../assets/marcas/Ryzen.svg'
 import './FlujoCluster.css'
 
 const corta = (h) => (h ? h.slice(0, 12) : '')
@@ -24,10 +27,10 @@ function ipDe(nodo) {
   return ip === '127.0.0.1' || ip === '::1' ? 'misma laptop que el maestro' : ip
 }
 
+// En Windows el procesador llega como "... AuthenticAMD" o "... GenuineIntel".
 function marcaCPU(cpu = '') {
-  if (/ryzen/i.test(cpu)) return { clase: 'amd', texto: 'RYZEN' }
-  if (/amd/i.test(cpu)) return { clase: 'amd', texto: 'AMD' }
-  if (/intel/i.test(cpu)) return { clase: 'intel', texto: 'intel' }
+  if (/ryzen|amd/i.test(cpu)) return { clase: 'amd', logo: logoRyzen, nombre: /ryzen/i.test(cpu) ? 'AMD Ryzen' : 'AMD' }
+  if (/intel/i.test(cpu)) return { clase: 'intel', logo: logoIntel, nombre: 'Intel' }
   return null
 }
 
@@ -44,8 +47,8 @@ function Nodo({ nodo, tipo, nota, onClick, pequeno }) {
         aria-pressed={onClick ? tipo !== 'deseleccionado' : undefined}
         title={hw.cpu ? `${hw.cpu}${hw.gpu ? ` · ${hw.gpu}` : ''}` : undefined}
       >
-        {hw.gpu && <span className="marca nvidia">NVIDIA</span>}
-        {cpu && <span className={`marca ${cpu.clase}`}>{cpu.texto}</span>}
+        {hw.gpu && <img className="logo logo-nvidia" src={logoNvidia} alt="GPU NVIDIA" />}
+        {cpu && <img className={`logo logo-cpu ${cpu.clase}`} src={cpu.logo} alt={cpu.nombre} />}
       </Etiqueta>
       {nodo && (
         <span className="nodo-nombre">
@@ -108,7 +111,12 @@ function Inicio({ local, actualizar }) {
         </button>
         <IlustracionCluster />
         <label className="casilla">
-          <input type="checkbox" checked={participar} onChange={(e) => setParticipar(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={participar}
+            disabled={!!ocupado || vistos.length > 0}
+            onChange={(e) => setParticipar(e.target.checked)}
+          />
           Esta laptop también participa como nodo
         </label>
         {vistos.length > 0 && (
@@ -185,7 +193,9 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
   const sala = inst?.sala ?? []
   const maestroNodo = sala.find((n) => n.id === inst?.nodo_maestro)
   const otros = sala.filter((n) => n !== maestroNodo)
-  const libres = Math.max(0, Math.min(1, (inst?.capacidad ?? 16) - sala.length))
+  // Máximo 8 laptops (inst.capacidad: 8 si el maestro participa como nodo,
+  // 7 si no, porque su laptop igual cuenta).
+  const libres = Math.max(0, (inst?.capacidad ?? 8) - sala.length)
   const enPre = modo === 'pre'
 
   const tipo = (n, base) => {
@@ -245,7 +255,6 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
 
       <div className="sala-pie">
         {enPre && <p className="detalle">Toca un nodo para quitarlo o volver a elegirlo (amarillo = no participa). Muestra del maestro: <code>{corta(inst?.huella) || 'ninguna'}</code>.</p>}
-        {!enPre && <p className="detalle">Muestra del maestro: <code>{corta(inst?.huella) || 'ninguna todavía'}</code>. Iniciar limpieza: cada nodo limpia sus propios CSV y genera su muestra.bin; deben salir con la misma huella.</p>}
         {avisos?.map((a) => <p key={a} className="aviso">{a}</p>)}
         {error && <p className="error" role="alert">{error}</p>}
       </div>
@@ -435,19 +444,8 @@ export default function FlujoCluster({ datos, lanzador }) {
   if (!local && lanzador.disponible === false) return <SinLanzador />
   if (!local) return <p className="detalle">Conectando con el lanzador local…</p>
 
-  const salir = rol && (
-    <div className="flujo-barra">
-      <span className="detalle">
-        Esta laptop: <strong>{local.id}</strong> · {rol === 'maestro' ? 'maestro del clúster' : rol === 'nodo' ? `nodo de ${local.maestro}` : 'fuera del clúster'}
-        {rol && !conectado && ' · conectando con el maestro…'}
-      </span>
-      {rol && (
-        <button type="button" className="boton" onClick={async () => { await apiLocal.detener().catch(() => {}); setPaso('sala'); actualizar() }}>
-          {rol === 'maestro' ? 'Apagar clúster' : 'Salir del clúster'}
-        </button>
-      )}
-    </div>
-  )
+  // El rol de esta laptop y el botón para salir van arriba a la izquierda (App).
+  const salir = rol && !conectado && <p className="detalle">Conectando con el maestro…</p>
 
   if (!rol) return <>{salir}<Inicio local={local} actualizar={actualizar} /></>
   if (!inst) return <>{salir}<p className="detalle">Esperando al maestro…</p></>

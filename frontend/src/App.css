@@ -118,9 +118,6 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
-.vistas {
-  align-self: flex-end;
-}
 
 .app-marca {
   display: flex;
@@ -152,4 +149,58 @@
   .app-nombre {
     font-size: 18px;
   }
+}
+
+.app-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rol-laptop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+
+.rol-insignia {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: #fff;
+}
+
+.rol-insignia.maestro {
+  background: var(--serie-1);
+}
+
+.rol-insignia.nodo {
+  background: var(--serie-3);
+}
+
+.rol-detalle {
+  font-family: var(--mono);
+  color: var(--text-secondary);
+}
+
+.rol-salir {
+  font: inherit;
+  font-size: 13px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--baseline);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.rol-salir:hover {
+  border-color: var(--status-critical);
+  color: var(--status-critical);
 }
