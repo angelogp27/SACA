@@ -185,16 +185,14 @@
 }
 
 .nodo-caja {
-  --trama: var(--serie-3);
+  /* Color de la marca del procesador (Ryzen naranja, Intel celeste). */
+  --marca: #8a8a85;
   position: relative;
   width: 120px;
   height: 110px;
-  border: 2px solid var(--text-primary);
+  border: 2px solid color-mix(in srgb, var(--marca) 40%, var(--surface));
   border-radius: 14px;
-  background:
-    repeating-linear-gradient(45deg, color-mix(in srgb, var(--trama) 45%, transparent) 0 1px, transparent 1px 9px),
-    repeating-linear-gradient(-45deg, color-mix(in srgb, var(--trama) 45%, transparent) 0 1px, transparent 1px 9px),
-    color-mix(in srgb, var(--trama) 10%, var(--surface));
+  background: color-mix(in srgb, var(--marca) 16%, var(--surface));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -203,34 +201,70 @@
   padding: 8px;
   font: inherit;
   color: inherit;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 
 button.nodo-caja {
   cursor: pointer;
 }
 
+.nodo-caja.marca-amd {
+  --marca: #f07b16;
+}
+
+.nodo-caja.marca-intel {
+  --marca: #1aa3e8;
+}
+
+/* El maestro se resalta más que los nodos. */
 .nodo-caja.maestro {
-  --trama: var(--serie-1);
+  border-width: 3px;
+  border-color: color-mix(in srgb, var(--marca) 65%, var(--surface));
+  background: color-mix(in srgb, var(--marca) 30%, var(--surface));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--marca) 18%, transparent);
 }
 
-.nodo-caja.trabajador {
-  --trama: var(--serie-3);
+/* Elegidos para entrenar: borde y fondo más intensos; el maestro aún más. */
+.nodo-caja.elegido {
+  border-color: var(--marca);
+  background: color-mix(in srgb, var(--marca) 34%, var(--surface));
 }
 
-.nodo-caja.deseleccionado,
-.nodo-caja.nuevo {
-  --trama: var(--status-warning);
+.nodo-caja.maestro.elegido {
+  background: color-mix(in srgb, var(--marca) 48%, var(--surface));
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--marca) 30%, transparent), 0 4px 14px color-mix(in srgb, var(--marca) 40%, transparent);
 }
 
-.nodo-caja.libre {
-  --trama: var(--status-critical);
+/* No elegido: apagado. */
+.nodo-caja.deseleccionado {
+  background: var(--surface);
   border-style: dashed;
-  background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--trama) 40%, transparent) 0 1px, transparent 1px 9px), var(--surface);
+  border-color: var(--baseline);
+  filter: grayscale(1);
+  opacity: 0.55;
 }
 
 .nodo-caja.distinto {
-  --trama: var(--status-critical);
   border-color: var(--status-critical);
+}
+
+/* Lugar libre: color completo. */
+.nodo-caja.libre {
+  --marca: var(--status-critical);
+  border: 2px dashed color-mix(in srgb, var(--marca) 55%, var(--surface));
+  background: color-mix(in srgb, var(--marca) 14%, var(--surface));
+}
+
+.nodo-rol {
+  font-weight: 700;
+}
+
+.nodo-rol.maestro {
+  color: var(--serie-1);
+}
+
+.nodo-nombre .nodo-nota {
+  color: var(--status-critical);
 }
 
 .nodo.pequeno .nodo-caja {

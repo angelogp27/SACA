@@ -131,7 +131,7 @@ Se abre la página en `http://127.0.0.1:8090`, pestaña **Clúster**:
 1. **Una sola laptop** pulsa **INICIAR CLÚSTER** (será el maestro). Por defecto también participa como nodo.
 2. Las demás pulsan **UNIRSE AL CLÚSTER**: debe decir *Maestro detectado: … (192.168.50.x)*. Si no lo detecta, escribe la IP del maestro.
 3. En el maestro aparecen todos los nodos. **INICIAR LIMPIEZA**: cada laptop limpia sus CSV con Pthreads y luego con Go, y genera su `data/muestra.bin`. Si ya limpiaron antes, **SALTAR LIMPIEZA** solo comprueba que todos tengan el mismo archivo (misma huella).
-4. **Continuar** → elige los nodos (amarillo = no participa) → **INICIAR ENTRENAMIENTO**.
+4. **Continuar** → elige los nodos (gris = no participa) → **INICIAR ENTRENAMIENTO**.
 
 Solo la laptop del maestro tiene los botones; las demás ven todo en vivo. Los tiempos de limpieza quedan en `resultados/limpieza.csv` y los de entrenamiento en `resultados/cluster.csv` (en la laptop del maestro).
 

@@ -21,10 +21,11 @@ const corta = (h) => (h ? h.slice(0, 12) : '')
 const fmtS = (s) => (Number.isFinite(s) && s > 0 ? `${s.toLocaleString('es-PE', { maximumFractionDigits: 1 })} s` : '—')
 const NOMBRE_TEC = { pthreads: 'Pthreads (C)', go: 'Go' }
 
-// ip del nodo: la de su conexión (el nodo local del maestro llega por 127.0.0.1).
-function ipDe(nodo) {
+// ip del nodo: la de su conexión. El nodo que corre en la laptop del maestro
+// llega por 127.0.0.1: para él se usa la IP del maestro (ipMaestro).
+function ipDe(nodo, ipMaestro) {
   const ip = (nodo.remoto ?? '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '')
-  return ip === '127.0.0.1' || ip === '::1' ? 'misma laptop que el maestro' : ip
+  return ip === '127.0.0.1' || ip === '::1' ? ipMaestro : ip
 }
 
 // En Windows el procesador llega como "... AuthenticAMD" o "... GenuineIntel".
@@ -34,15 +35,19 @@ function marcaCPU(cpu = '') {
   return null
 }
 
-function Nodo({ nodo, tipo, nota, onClick, pequeno }) {
+// Tarjeta de un nodo: el color de fondo y del borde salen de la marca del
+// procesador (Ryzen naranja, Intel celeste); el maestro y los elegidos para
+// entrenar se resaltan más. Debajo: nombre, tipo (Maestro o Nodo) e IP.
+function Nodo({ nodo, tipo, rol, ip, nota, onClick, pequeno, elegido }) {
   const hw = nodo?.hardware ?? {}
   const cpu = marcaCPU(hw.cpu)
   const Etiqueta = onClick ? 'button' : 'div'
+  const clases = ['nodo-caja', tipo, cpu ? `marca-${cpu.clase}` : 'marca-otra', elegido ? 'elegido' : ''].join(' ')
   return (
     <div className={`nodo ${pequeno ? 'pequeno' : ''}`}>
       <Etiqueta
         type={onClick ? 'button' : undefined}
-        className={`nodo-caja ${tipo}`}
+        className={clases}
         onClick={onClick}
         aria-pressed={onClick ? tipo !== 'deseleccionado' : undefined}
         title={hw.cpu ? `${hw.cpu}${hw.gpu ? ` · ${hw.gpu}` : ''}` : undefined}
@@ -53,7 +58,13 @@ function Nodo({ nodo, tipo, nota, onClick, pequeno }) {
       {nodo && (
         <span className="nodo-nombre">
           {nodo.id}
-          {!pequeno && <small>{nota ?? ipDe(nodo)}</small>}
+          {!pequeno && (
+            <>
+              <small className={`nodo-rol ${tipo === 'maestro' || rol === 'Maestro' ? 'maestro' : ''}`}>{rol}</small>
+              {ip && <small>{ip}</small>}
+              {nota && <small className="nodo-nota">{nota}</small>}
+            </>
+          )}
         </span>
       )}
       {!nodo && <span className="nodo-nombre">(Libre)</span>}
@@ -198,11 +209,13 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
   const libres = Math.max(0, (inst?.capacidad ?? 8) - sala.length)
   const enPre = modo === 'pre'
 
+  const ipMaestro = esMaestro ? local.ip : (local.maestro ?? '').replace(/:\d+$/, '')
   const tipo = (n, base) => {
     if (enPre && !seleccion.has(n.id)) return 'deseleccionado'
-    if (enPre && n.huella !== inst.huella) return 'distinto'
+    if (enPre && n.huella !== inst.huella) return `${base} distinto`
     return base
   }
+  const elegido = (n) => enPre && seleccion.has(n.id) && n.huella === inst.huella
   const alternar = (n) =>
     enPre && esMaestro
       ? () =>
@@ -223,9 +236,11 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
       <div className="sala-centro">
         <span className="rotulo">CLÚSTER INICIADO</span>
         {maestroNodo ? (
-          <Nodo nodo={maestroNodo} tipo={tipo(maestroNodo, 'maestro')} nota={nota(maestroNodo) ?? 'maestro'} onClick={alternar(maestroNodo)} />
+          <Nodo nodo={maestroNodo} tipo={tipo(maestroNodo, 'maestro')} rol="Maestro" ip={ipMaestro} nota={nota(maestroNodo)}
+            elegido={elegido(maestroNodo)} onClick={alternar(maestroNodo)} />
         ) : (
-          <div className="nodo"><div className="nodo-caja maestro" /><span className="nodo-nombre">{local.id}<small>maestro (no participa)</small></span></div>
+          <Nodo nodo={{ id: esMaestro ? local.id : 'maestro', hardware: esMaestro ? local.hardware : undefined }} tipo="maestro"
+            rol="Maestro (no participa)" ip={ipMaestro} />
         )}
         {esMaestro && !enPre && (
           <div className="sala-botones">
@@ -243,18 +258,17 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
             <button type="button" className="boton" disabled={!!ocupado} onClick={onRealizarLimpieza}>REALIZAR LIMPIEZA</button>
           </div>
         )}
-        {!esMaestro && <p className="detalle">Maestro: {(local.maestro ?? '').replace(/:\d+$/, '')}</p>}
       </div>
 
       <div className="sala-nodos">
         {otros.map((n) => (
-          <Nodo key={n.id} nodo={n} tipo={tipo(n, 'trabajador')} nota={nota(n)} onClick={alternar(n)} />
+          <Nodo key={n.id} nodo={n} tipo={tipo(n, 'trabajador')} rol="Nodo" ip={ipDe(n, ipMaestro)} nota={nota(n)}
+            elegido={elegido(n)} onClick={alternar(n)} />
         ))}
         {Array.from({ length: libres }, (_, i) => <Nodo key={`libre${i}`} tipo="libre" />)}
       </div>
 
       <div className="sala-pie">
-        {enPre && <p className="detalle">Toca un nodo para quitarlo o volver a elegirlo (amarillo = no participa). Muestra del maestro: <code>{corta(inst?.huella) || 'ninguna'}</code>.</p>}
         {avisos?.map((a) => <p key={a} className="aviso">{a}</p>)}
         {error && <p className="error" role="alert">{error}</p>}
       </div>
@@ -326,7 +340,7 @@ function Limpieza({ inst, esMaestro, onContinuar }) {
     <section className="flujo-limpieza" aria-label="Limpieza">
       <header className="limpieza-cabecera">
         <span className="rotulo">CLÚSTER INICIADO</span>
-        <span className="rotulo titulo">LIMPIEZA {l.estado === 'limpiando' ? '' : `· ${l.estado}`}</span>
+        <span className="rotulo titulo">LIMPIEZA{l.estado === 'cancelada' ? ' · PARADA' : ''}</span>
         <div className="nuevos" aria-label="Nodos que se unieron después">
           {nuevos.map((n) => (
             <Nodo key={n.id} nodo={n} tipo="nuevo" pequeno onClick={esMaestro && enCurso ? () => accion(() => apiCluster.limpiar([n.id])) : undefined} />
@@ -419,14 +433,15 @@ export default function FlujoCluster({ datos, lanzador }) {
   const { conectado, inst, perdido } = useCluster(rol !== '')
   const esMaestro = rol === 'maestro'
   const [paso, setPaso] = useState('sala') // 'sala' | 'pre' | 'entrenamiento'
-  // Nodos que el maestro quitó de la selección (amarillos); los demás de la
+  // Nodos que el maestro quitó de la selección (en gris); los demás de la
   // sala, incluidos los que llegan, entran elegidos.
   const [quitados, setQuitados] = useState(new Set())
   // Limpieza ya vista (botón Continuar): mientras no, se sigue mostrando.
   const [continuada, setContinuada] = useState(0)
   const [ocupado, setOcupado] = useState('')
-  const [error, setError] = useState('')
-  const [avisos, setAvisos] = useState([])
+  // Error y avisos de una acción, atados a la pantalla en que ocurrieron:
+  // al cambiar de pantalla dejan de mostrarse.
+  const [mensaje, setMensaje] = useState({ paso: '', error: '', avisos: [] })
 
   const limpieza = inst?.limpieza
   const corrida = inst?.corrida
@@ -455,14 +470,21 @@ export default function FlujoCluster({ datos, lanzador }) {
   }
   if (!inst) return <section className="flujo-aviso" role="status"><p className="detalle">Conectando con el maestro…</p></section>
 
+  // Un entrenamiento en curso siempre se muestra; una limpieza también,
+  // hasta que el maestro aprieta Continuar.
+  // (Las laptops que solo miran no tienen Continuar: ven la limpieza solo mientras corre.)
+  const viendoLimpieza = limpieza && (limpieza.estado === 'limpiando' || (esMaestro && limpieza.id !== continuada))
+  const pasoActual = entrenando ? 'entrenamiento' : viendoLimpieza ? 'limpieza' : paso
+  const error = mensaje.paso === pasoActual ? mensaje.error : ''
+  const avisos = mensaje.paso === pasoActual ? mensaje.avisos : []
+
   const accion = async (nombre, f) => {
     setOcupado(nombre)
-    setError('')
-    setAvisos([])
+    setMensaje({ paso: '', error: '', avisos: [] })
     try {
       await f()
     } catch (e) {
-      setError(e.message)
+      setMensaje({ paso: pasoActual, error: e.message, avisos: [] })
     } finally {
       setOcupado('')
     }
@@ -481,7 +503,7 @@ export default function FlujoCluster({ datos, lanzador }) {
   })
   const onSaltar = () => accion('saltar', async () => {
     const malos = await distintos((inst.sala ?? []).map((n) => n.id))
-    if (malos.length) setAvisos([`No todos tienen el mismo muestra.bin que el maestro: ${describir(malos)}. Puedes continuar sin ellos o realizar la limpieza.`])
+    if (malos.length) setMensaje({ paso: 'pre', error: '', avisos: [`No todos tienen el mismo muestra.bin que el maestro: ${describir(malos)}. Puedes continuar sin ellos o realizar la limpieza.`] })
     setPaso('pre')
   })
   const onEntrenar = () => accion('entrenar', async () => {
@@ -496,11 +518,6 @@ export default function FlujoCluster({ datos, lanzador }) {
     setPaso('entrenamiento')
   })
 
-  // Un entrenamiento en curso siempre se muestra; una limpieza también,
-  // hasta que el maestro aprieta Continuar.
-  // (Las laptops que solo miran no tienen Continuar: ven la limpieza solo mientras corre.)
-  const viendoLimpieza = limpieza && (limpieza.estado === 'limpiando' || (esMaestro && limpieza.id !== continuada))
-  const pasoActual = entrenando ? 'entrenamiento' : viendoLimpieza ? 'limpieza' : paso
 
   let vista
   if (pasoActual === 'entrenamiento' && corrida) {
@@ -513,14 +530,14 @@ export default function FlujoCluster({ datos, lanzador }) {
       </>
     )
   } else if (pasoActual === 'limpieza') {
-    vista = <Limpieza inst={inst} esMaestro={esMaestro} onContinuar={() => { setAvisos([]); setContinuada(limpieza.id); setPaso('pre') }} />
+    vista = <Limpieza inst={inst} esMaestro={esMaestro} onContinuar={() => { setContinuada(limpieza.id); setPaso('pre') }} />
   } else {
     vista = (
       <Sala
         inst={inst} local={local} esMaestro={esMaestro} modo={pasoActual === 'pre' ? 'pre' : 'sala'}
         seleccion={seleccion} setSeleccion={setSeleccion}
         onLimpiar={onLimpiar} onSaltar={onSaltar} onEntrenar={onEntrenar}
-        onRealizarLimpieza={() => { setAvisos([]); setPaso('sala') }}
+        onRealizarLimpieza={() => setPaso('sala')}
         ocupado={ocupado} error={error} avisos={avisos}
       />
     )

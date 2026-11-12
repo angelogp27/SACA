@@ -183,9 +183,14 @@
   background: var(--serie-3);
 }
 
-.rol-detalle {
+.rol-dato {
   font-family: var(--mono);
-  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 15px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--serie-1) 14%, transparent);
+  color: var(--text-primary);
 }
 
 .rol-salir {
