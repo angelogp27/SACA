@@ -1,6 +1,6 @@
 /* Utilidades comunes de los núcleos nativos de SACA (Pthreads, OpenMP, MPI).
  *
- * Lee la muestra binaria de docs/contrato_formato_binario.md (archivo 1),
+ * Lee la muestra binaria de docs/contratos/contrato_formato_binario.md (archivo 1),
  * mide tiempos, evalúa el modelo (F1 y AUC igual que internal/metricas),
  * compara contra la referencia de Go y agrega filas a los CSV de resultados.
  * Es un solo encabezado con funciones static: cada programa lo incluye y no
@@ -68,7 +68,8 @@ SACA_FN void saca_cargar(const char *ruta, Muestra *m) {
     uint32_t version, tipo;
     memcpy(&version, enc + 4, 4);
     memcpy(&tipo, enc + 8, 4);
-    if (version != 1 || tipo != 1) saca_fallar("versión o tipo no soportados (se esperaba muestra v1)", ruta);
+    /* v2 agrega al final la normalización y las estaciones; el cuerpo que se lee aquí es el mismo. */
+    if ((version != 1 && version != 2) || tipo != 1) saca_fallar("versión o tipo no soportados (se esperaba muestra v1 o v2)", ruta);
     memcpy(&m->d, enc + 12, 4);
     memcpy(&m->n_ent, enc + 16, 8);
     memcpy(&m->n_pru, enc + 24, 8);

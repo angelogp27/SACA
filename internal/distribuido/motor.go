@@ -24,7 +24,7 @@ type Motor interface {
 
 // MotorGo calcula con goroutines (reducción con casillas privadas,
 // Experimento 1b): dentro de cada PC hay memoria compartida y entre PCs
-// paso de mensajes, el modelo híbrido de docs/guia_cluster.md.
+// paso de mensajes, el modelo híbrido de docs/cluster/arquitectura_cluster.md.
 type MotorGo struct {
 	Hilos int
 	X     [][]float64

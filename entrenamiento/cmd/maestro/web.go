@@ -8,11 +8,15 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"proyecto9/internal/dataset"
 	"proyecto9/internal/distribuido"
 )
 
@@ -100,6 +104,9 @@ func (a *api) rutas() *http.ServeMux {
 	mux.HandleFunc("POST /api/corridas/cancelar", a.cancelarCorrida)
 	mux.HandleFunc("POST /api/nodos/quitar", a.quitarNodo)
 	mux.HandleFunc("POST /api/sesion/terminar", a.terminarSesion)
+	mux.HandleFunc("POST /api/limpiezas", a.nuevaLimpieza)
+	mux.HandleFunc("POST /api/limpiezas/cancelar", a.cancelarLimpieza)
+	mux.HandleFunc("POST /api/huellas/verificar", a.verificarHuellas)
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, r *http.Request) {
 		responder(w, http.StatusOK, map[string]any{"epocas": a.cfg.epocas, "tasa": a.cfg.tasa, "verificar": a.cfg.verificar})
 	})
@@ -185,7 +192,8 @@ func (a *api) nuevaCorrida(w http.ResponseWriter, r *http.Request) {
 	}
 	corrida, err := a.m.Iniciar(distribuido.OpcionesCorrida{Nodos: p.Nodos, Epocas: p.Epocas, Tasa: a.cfg.tasa, Verificar: p.Verificar, Continuar: true})
 	switch {
-	case errors.Is(err, distribuido.ErrOcupado):
+	case errors.Is(err, distribuido.ErrOcupado), errors.Is(err, distribuido.ErrLimpiando),
+		errors.Is(err, distribuido.ErrMuestraDistinta), errors.Is(err, distribuido.ErrSinMuestra):
 		fallo(w, http.StatusConflict, err)
 		return
 	case err != nil:
@@ -205,6 +213,7 @@ func (a *api) nuevaCorrida(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		reportar(res, p.Epocas)
+		regenerarMapa(a.cfg, res, p.Epocas)
 		if a.cfg.resultado == "" {
 			return
 		}
@@ -277,10 +286,67 @@ func (a *api) terminarSesion(w http.ResponseWriter, r *http.Request) {
 	responder(w, http.StatusOK, map[string]any{"ok": true})
 }
 
+type pedidoLimpieza struct {
+	Nodos       []string `json:"nodos"`
+	Tecnologias []string `json:"tecnologias"` // vacío = pthreads y luego go
+	Hilos       int      `json:"hilos"`       // 0 = todos los núcleos de cada nodo
+}
+
+// nuevaLimpieza empieza una limpieza o suma nodos a la que está en curso.
+func (a *api) nuevaLimpieza(w http.ResponseWriter, r *http.Request) {
+	var p pedidoLimpieza
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		fallo(w, http.StatusBadRequest, fmt.Errorf("pedido inválido: %w", err))
+		return
+	}
+	if p.Hilos < 0 || p.Hilos > 1024 {
+		fallo(w, http.StatusBadRequest, errors.New("los hilos deben estar entre 0 (todos) y 1024"))
+		return
+	}
+	err := a.m.IniciarLimpieza(p.Nodos, p.Tecnologias, p.Hilos)
+	switch {
+	case errors.Is(err, distribuido.ErrOcupado):
+		fallo(w, http.StatusConflict, err)
+	case err != nil:
+		fallo(w, http.StatusBadRequest, err)
+	default:
+		responder(w, http.StatusAccepted, map[string]any{"ok": true})
+	}
+}
+
+// cancelarLimpieza: botón "Parar limpieza"; guardar = respuesta a
+// "¿Quieres guardar los resultados completados?".
+func (a *api) cancelarLimpieza(w http.ResponseWriter, r *http.Request) {
+	var p struct {
+		Guardar bool `json:"guardar"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		fallo(w, http.StatusBadRequest, fmt.Errorf("pedido inválido: %w", err))
+		return
+	}
+	if err := a.m.CancelarLimpieza(p.Guardar); err != nil {
+		fallo(w, http.StatusConflict, err)
+		return
+	}
+	responder(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// verificarHuellas pregunta a los nodos la huella de su muestra.bin y
+// devuelve el estado actualizado (antes de "Iniciar entrenamiento" o de
+// "Saltar limpieza").
+func (a *api) verificarHuellas(w http.ResponseWriter, r *http.Request) {
+	if err := a.m.VerificarHuellas(r.Context(), 5*time.Second); err != nil {
+		fallo(w, http.StatusInternalServerError, err)
+		return
+	}
+	responder(w, http.StatusOK, a.m.Instantanea())
+}
+
 // servir es el modo servidor: la API queda escuchando hasta Ctrl+C.
 func servir(ctx context.Context, direccion string, m *distribuido.Maestro, d *difusor, cfg configuracion) error {
-	t1 := m.MedirT1(5)
-	log.Printf("T(1) de referencia: una época en secuencial (1 hilo) en esta PC tarda ~%.1f ms", t1)
+	if t1 := m.MedirT1(5); t1 > 0 {
+		log.Printf("T(1) de referencia: una época en secuencial (1 hilo) en esta PC tarda ~%.1f ms", t1)
+	}
 
 	a := &api{m: m, difusor: d, cfg: cfg, base: ctx}
 	oyente, err := net.Listen("tcp", direccion)
@@ -302,4 +368,67 @@ func servir(ctx context.Context, direccion string, m *distribuido.Maestro, d *di
 		return err
 	}
 	return nil
+}
+
+// regenerarMapa guarda el modelo recién entrenado y vuelve a exportar los
+// datos del mapa y de la línea de tiempo (las probabilidades salen del
+// modelo). Es lo único que sigue usando MongoDB: si no está corriendo, se
+// avisa y la página conserva el mapa anterior.
+func regenerarMapa(cfg configuracion, res *distribuido.Resultado, epocas int) {
+	if cfg.rutaModelo == "" {
+		return
+	}
+	modelo := dataset.ModeloGuardado{
+		Features: dataset.NombresFeatures, Pesos: res.Modelo.Pesos, Sesgo: res.Modelo.Sesgo,
+		Normalizador: res.Normalizador, HorizonteHoras: 1, UmbralNO2: dataset.UmbralNO2,
+		Modo: cfg.modo, Epocas: epocas, F1: res.Evaluacion.F1, AUC: res.Evaluacion.AUC,
+		Precision: res.Evaluacion.Precision, Exhaustividad: res.Evaluacion.Exhaustividad,
+	}
+	if err := modelo.Guardar(cfg.rutaModelo); err != nil {
+		log.Printf("no se pudo guardar el modelo en %s: %v", cfg.rutaModelo, err)
+		return
+	}
+	log.Printf("modelo guardado en %s (AUC %.3f)", cfg.rutaModelo, res.Evaluacion.AUC)
+	if cfg.exportar == "" {
+		return
+	}
+	tmp, err := os.MkdirTemp("", "saca-mapa-")
+	if err != nil {
+		log.Printf("mapa no regenerado: %v", err)
+		return
+	}
+	defer os.RemoveAll(tmp)
+	ctx, cancelar := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancelar()
+	inicio := time.Now()
+	salida, err := exec.CommandContext(ctx, cfg.exportar, "-modelo", cfg.rutaModelo, "-salida", tmp).CombinedOutput()
+	if err != nil {
+		log.Printf("mapa no regenerado (¿MongoDB está corriendo?): %v: %s", err, ultimaLinea(string(salida)))
+		return
+	}
+	archivos, _ := os.ReadDir(tmp)
+	for _, dir := range cfg.datosPagina {
+		dir = strings.TrimSpace(dir)
+		if info, err := os.Stat(dir); dir == "" || err != nil || !info.IsDir() {
+			continue
+		}
+		for _, a := range archivos {
+			datos, err := os.ReadFile(filepath.Join(tmp, a.Name()))
+			if err == nil {
+				err = os.WriteFile(filepath.Join(dir, a.Name()), datos, 0o644)
+			}
+			if err != nil {
+				log.Printf("no se pudo copiar %s a %s: %v", a.Name(), dir, err)
+			}
+		}
+	}
+	log.Printf("mapa regenerado con el modelo nuevo en %s (recarga el Tablero)", time.Since(inicio).Round(time.Second))
+}
+
+func ultimaLinea(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.LastIndexByte(s, '\n'); i >= 0 {
+		return s[i+1:]
+	}
+	return s
 }

@@ -1,6 +1,6 @@
 # Núcleos nativos (C, C++ y CUDA)
 
-Las mismas partes del sistema que ya resuelve Go, programadas con las tecnologías del laboratorio. Cada núcleo lee los datos del contrato [docs/contrato_formato_binario.md](../docs/contrato_formato_binario.md), se valida contra la referencia de Go y deja una fila por corrida en un CSV que procesa `experimentos/cmd/analisis`.
+Las mismas partes del sistema que ya resuelve Go, programadas con las tecnologías del laboratorio. Cada núcleo lee los datos del contrato [docs/contratos/contrato_formato_binario.md](../docs/contratos/contrato_formato_binario.md), se valida contra la referencia de Go y deja una fila por corrida en un CSV que procesa `experimentos/cmd/analisis`.
 
 | Carpeta | Tecnología | Qué hace | Se compara con |
 |---|---|---|---|

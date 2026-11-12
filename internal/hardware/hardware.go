@@ -40,6 +40,7 @@ func Detectar() Info {
 		info.RAMGB = leerMemInfo("/proc/meminfo")
 	case "windows":
 		info.CPU = os.Getenv("PROCESSOR_IDENTIFIER")
+		info.RAMGB = ramWindows()
 	}
 	info.GPU, info.Driver = detectarNVIDIA()
 	return info

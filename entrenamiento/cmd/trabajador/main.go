@@ -2,9 +2,9 @@
 // maestro (reintentando si todavía no está arriba), se registra con la
 // huella de su muestra y su motor de cálculo, recibe su partición y
 // calcula un gradiente parcial por cada época que le pide el maestro
-// (docs/contrato_protocolo_tcp.md, pasos 1 a 7).
+// (docs/contratos/contrato_protocolo_tcp.md, pasos 1 a 7).
 //
-// Los datos salen de data/muestra.gob, copiada en cada PC: el trabajador
+// Los datos salen de data/muestra.bin, generada o copiada en cada PC: el trabajador
 // no necesita MongoDB. El motor de cálculo puede ser:
 //   - go:   goroutines en la CPU (cualquier PC);
 //   - cuda: nativo/cuda/gradiente_servidor.cu en una GPU NVIDIA, validado
@@ -32,6 +32,7 @@ import (
 
 	"proyecto9/internal/distribuido"
 	"proyecto9/internal/hardware"
+	"proyecto9/internal/limpieza"
 	"proyecto9/internal/protocolo"
 )
 
@@ -39,19 +40,25 @@ func main() {
 	maestro := flag.String("maestro", "localhost:9000", "dirección TCP del maestro (IP:puerto; con Tailscale, la IP 100.x.y.z del maestro)")
 	nombre, _ := os.Hostname()
 	id := flag.String("id", fmt.Sprintf("%s-%d", nombre, os.Getpid()), "worker_id con el que se registra este nodo")
-	rutaMuestra := flag.String("muestra", "data/muestra.gob", "muestra de entrenamiento (la misma que la del maestro)")
+	rutaMuestra := flag.String("muestra", "data/muestra.bin", "muestra de entrenamiento (la misma que la del maestro)")
 	mesCorte := flag.Int("mes-corte", 10, "los meses >= mes-corte son de prueba (igual que en el maestro)")
 	nombreMotor := flag.String("motor", "auto", "motor de cálculo: auto, go o cuda")
 	cudaExe := flag.String("cuda-exe", ejecutableCUDA(), "ejecutable compilado de nativo/cuda/gradiente_servidor.cu")
 	hilos := flag.Int("hilos", 0, "goroutines del motor go (0 = todos los núcleos lógicos)")
+	dirDatos := flag.String("datos", "data/raw", "directorio con los 4 CSV de la EPA, para la limpieza que pide el maestro")
+	sinLimpieza := flag.Bool("sin-limpieza", false, "no aceptar pedidos de limpieza del maestro")
 	reconectar := flag.Bool("reconectar", false, "si se pierde la conexión con el maestro, volver a intentar en vez de terminar")
 	flag.Parse()
 
+	// Sin muestra el nodo igual entra a la sala: puede generarla con la
+	// limpieza que pide el maestro desde la página.
 	datos, huella, err := distribuido.PrepararLocal(*rutaMuestra, *mesCorte)
 	if err != nil {
-		log.Fatalf("no se pudo preparar la muestra %s: %v (descárgala del Drive del grupo: paso 'Copiar la muestra' de tu guía en docs/cluster/)", *rutaMuestra, err)
+		log.Printf("todavía no hay una muestra válida en %s (%v): se puede generar con la limpieza desde la página", *rutaMuestra, err)
+		datos, huella = nil, ""
+	} else {
+		log.Printf("muestra %s cargada, huella %s", *rutaMuestra, distribuido.Corta(huella))
 	}
-	log.Printf("muestra %s cargada, huella %s", *rutaMuestra, distribuido.Corta(huella))
 	hw := hardware.Detectar()
 	log.Printf("hardware de este nodo: %s", hw.Resumen())
 
@@ -64,7 +71,12 @@ func main() {
 	ctx, cancelar := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancelar()
 
-	cfg := &distribuido.ConfigTrabajador{ID: *id, Datos: datos, Huella: huella, Motor: motor, Respaldo: respaldo, Hardware: &hw}
+	cfg := &distribuido.ConfigTrabajador{ID: *id, Datos: datos, Huella: huella, RutaMuestra: *rutaMuestra, MesCorte: *mesCorte, Motor: motor, Respaldo: respaldo, Hardware: &hw}
+	if !*sinLimpieza {
+		lim := limpieza.PorDefecto()
+		lim.DirDatos, lim.RutaBin = *dirDatos, *rutaMuestra
+		cfg.Limpieza = &lim
+	}
 	err = sesion(ctx, *maestro, cfg, *reconectar)
 	cfg.Motor.Cerrar()
 	switch {

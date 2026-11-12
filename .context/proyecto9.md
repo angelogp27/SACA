@@ -22,7 +22,7 @@ El sistema base está escrito en **Go** y se despliega con Docker. Desde el 13 d
 | **CUDA** | 11-13 | Gradiente en GPU (reducción en memoria compartida y warp shuffles) y ordenamiento/MapReduce en GPU |
 | Go: goroutines, channels, TCP | todo el curso | Sistema completo: cargador, maestro-trabajador, API y orquestación |
 
-Todos los núcleos resuelven **el mismo problema con exactamente los mismos datos** (un archivo binario que exporta Go, ver [docs/contrato_formato_binario.md](../docs/contrato_formato_binario.md)). Por eso pueden compararse de forma directa: misma pérdida final y distinto tiempo.
+Todos los núcleos resuelven **el mismo problema con exactamente los mismos datos** (un archivo binario que exporta Go, ver [docs/contratos/contrato_formato_binario.md](../docs/contratos/contrato_formato_binario.md)). Por eso pueden compararse de forma directa: misma pérdida final y distinto tiempo.
 
 El proyecto combina las tres dimensiones del curso:
 
@@ -30,7 +30,7 @@ El proyecto combina las tres dimensiones del curso:
 - **Distribución por paso de mensajes**: maestro-trabajador sobre TCP en Go, y MPI.
 - **Aceleración en GPU**: CUDA.
 
-Todo se ejecuta también en un **clúster físico heterogéneo** formado por las computadoras del grupo: **2 PCs con GPU NVIDIA** y las demás aportando su procesador, conectadas por la red local. Se usa un modelo híbrido, como en HPC: MPI (o TCP en Go) entre PCs, OpenMP (o goroutines) dentro de cada PC y CUDA en las GPUs. Ver [docs/guia_cluster.md](../docs/guia_cluster.md).
+Todo se ejecuta también en un **clúster físico heterogéneo** formado por las computadoras del grupo: **2 PCs con GPU NVIDIA** y las demás aportando su procesador, conectadas por la red local. Se usa un modelo híbrido, como en HPC: MPI (o TCP en Go) entre PCs, OpenMP (o goroutines) dentro de cada PC y CUDA en las GPUs. Ver [docs/cluster/arquitectura_cluster.md](../docs/cluster/arquitectura_cluster.md).
 
 ## 2. Fundamentos, para quien recién empieza en paralelismo
 
@@ -242,7 +242,7 @@ Cada tecnología del sílabo tiene un programa propio en `nativo/`, y todos comp
 Reglas comunes:
 
 - **Misma respuesta.** Con los mismos datos y la misma cantidad de épocas, cada implementación debe dar la misma pérdida final que `entrenamiento/cmd/secuencial`, dentro de 1e-6. Es la prueba de corrección de cada núcleo.
-- **Mismas reglas de limpieza.** El cargador en Pthreads aplica las de [docs/contrato_registro_procesado.md](../docs/contrato_registro_procesado.md) y debe reportar los mismos conteos que el cargador en Go (16 972 287 filas leídas, 1625 excluidas por qualifier).
+- **Mismas reglas de limpieza.** El cargador en Pthreads aplica las de [docs/contratos/contrato_registro_procesado.md](../docs/contratos/contrato_registro_procesado.md) y debe reportar los mismos conteos que el cargador en Go (16 972 287 filas leídas, 1625 excluidas por qualifier).
 - **Dónde corre cada uno:**
   - Pthreads y OpenMP: gcc de MSYS2 en Windows, o gcc en Linux.
   - MPI: MS-MPI en Windows, u OpenMPI en Linux o en contenedores Docker.
@@ -258,7 +258,7 @@ Las computadoras de los integrantes forman un **multicomputador MIMD de memoria 
 | GPU | 2 (NVIDIA) | Un proceso MPI que calcula su parte del gradiente con CUDA; trabajador Go |
 | CPU | el resto | Un proceso MPI con hilos OpenMP; trabajador Go |
 
-El mismo entrenamiento se lanza de tres formas, de menor a mayor complejidad. Los pasos de instalación, firewall, `smpd`/`hostfile` y la lista de verificación están en [docs/guia_cluster.md](../docs/guia_cluster.md).
+El mismo entrenamiento se lanza de tres formas, de menor a mayor complejidad. Los pasos de instalación, firewall, `smpd`/`hostfile` y la lista de verificación están en [docs/cluster/arquitectura_cluster.md](../docs/cluster/arquitectura_cluster.md).
 
 1. **Go por TCP**: el maestro en la PC principal y un `trabajador.exe` en cada PC. Ya funciona y no requiere instalar nada en los nodos.
 2. **MPI entre PCs**: MS-MPI con `smpd -d` y `mpiexec -hosts` si todas usan Windows; OpenMPI con SSH sin contraseña y `hostfile` si todas usan Linux. No se mezclan sistemas operativos en un mismo trabajo MPI.
@@ -361,7 +361,7 @@ Convención: A = cargador, B = entrenamiento, C = API, D = frontend, N = núcleo
 | 8 | Examen parcial | **N: MPI** (entrenamiento punto a punto y colectivo con `mpiexec -n 1..8`) | pendiente, prioridad para el parcial si MS-MPI queda instalado |
 | 8 | Arquitecturas paralelas (sílabo sem. 2) | **T: inventario del clúster** (CPU, núcleos, RAM, GPU, sistema operativo e IP de cada PC) y elegir el sistema operativo común para MPI | pendiente |
 
-Si no hay tiempo de tener MPI, Pthreads y OpenMP para la entrega del parcial, se entregan en la semana 9 y el parcial se defiende con la tabla de equivalencias de [docs/conceptos_curso.md](../docs/conceptos_curso.md).
+Si no hay tiempo de tener MPI, Pthreads y OpenMP para la entrega del parcial, se entregan en la semana 9 y el parcial se defiende con la tabla de equivalencias de [docs/proyecto/conceptos_curso.md](../docs/proyecto/conceptos_curso.md).
 
 ### Fase 3 · Semanas 9-12 · Distribución, API y GPU
 
@@ -444,7 +444,7 @@ Hasta el 13 de octubre de 2026 estas cuatro tecnologías estaban fuera de alcanc
 | MPI entre PCs | MS-MPI, la misma versión en todas; `smpd -d` en cada PC; `mpiexec -hosts N ip1 1 ip2 1 ...`; ejecutable en la misma ruta; reglas de firewall | OpenMPI; SSH sin contraseña entre todas; `mpirun --hostfile` |
 | Híbrido + CUDA | `nvcc` (con `cl.exe`) + `msmpi.lib` en los 2 nodos GPU | `nvcc -ccbin mpicxx` |
 
-Detalle completo en [docs/guia_cluster.md](../docs/guia_cluster.md).
+Detalle completo en [docs/cluster/arquitectura_cluster.md](../docs/cluster/arquitectura_cluster.md).
 
 **Flujo de trabajo de CUDA:**
 

@@ -225,8 +225,8 @@ func TestIndiceInternaTextos(t *testing.T) {
 	linea2 := strings.Repeat("y", 100) + "California"
 	ix.Agregar(ValorLeido{EstacionID: "a", TimestampUTC: "t", Estado: linea1[100:], Contaminante: "no2"})
 	ix.Agregar(ValorLeido{EstacionID: "b", TimestampUTC: "t", Estado: linea2[100:], Contaminante: "no2"})
-	if len(ix.textos) != 2 { // "California" y "" (condado vacío)
-		t.Fatalf("se esperaban 2 textos internados, hay %d", len(ix.textos))
+	if len(ix.textos) != 5 { // "California", "" (condado vacío), "a", "b" y "t" (estaciones y hora)
+		t.Fatalf("se esperaban 5 textos internados, hay %d", len(ix.textos))
 	}
 	if ix.Registros["a|t"].Estado != "California" || ix.Registros["b|t"].Estado != "California" {
 		t.Fatal("estado mal copiado")

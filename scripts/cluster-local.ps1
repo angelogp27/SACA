@@ -16,7 +16,7 @@ param(
     [int]$Puerto = 9000,
     [int]$Hilos = 0,
     [string]$Motor = "auto",
-    [string]$Muestra = "data/muestra.gob",
+    [string]$Muestra = "data/muestra.bin",
     [switch]$Ventanas,
     [switch]$Web
 )

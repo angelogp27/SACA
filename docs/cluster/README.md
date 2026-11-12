@@ -1,81 +1,70 @@
 # Clúster de SACA: empieza aquí
 
-Vamos a unir las computadoras del grupo, cada una desde su casa, para que **entrenen juntas** el modelo del proyecto. No necesitas entender el código: solo sigue **la guía de tu rol**, paso a paso, copiando y pegando los comandos.
+Varias laptops del grupo trabajan juntas: cada una **limpia** los datos de la EPA en su propia máquina (con Pthreads y con Go, para compararlos), todas comprueban que obtuvieron **exactamente el mismo archivo** de muestra, y luego **entrenan juntas** el modelo de alerta de NO2.
 
-## 1. ¿Qué guía me toca?
+Todo se maneja desde una página. Cada laptop corre un solo comando, el **lanzador** (`scripts/saca.sh` en Linux, `scripts\saca.ps1` en Windows), que compila todo y abre `http://127.0.0.1:8090`. Funciona igual en Linux y en Windows.
 
-| Si tú… | Tu rol | Tu guía |
-|---|---|---|
-| coordinas la demo y tienes los datos del proyecto (hoy, Angelo, en Fedora; antes, Piero) | **Maestro** | [guia_maestro.md](guia_maestro.md) |
-| tienes una tarjeta gráfica **NVIDIA** (GeForce, RTX, GTX, Quadro) | **Nodo CON GPU NVIDIA** | [guia_nodo_con_nvidia.md](guia_nodo_con_nvidia.md) |
-| **no** tienes NVIDIA: tu tarjeta es AMD (Radeon), Intel, integrada o **cualquier Mac** | **Nodo SIN GPU NVIDIA** | [guia_nodo_sin_nvidia.md](guia_nodo_sin_nvidia.md) |
+## 1. Qué guía seguir
 
-### ¿Cómo sé si tengo una tarjeta NVIDIA?
+| Paso | Guía |
+|---|---|
+| 1. Instalar (una vez por laptop): Git, Go, Node, gcc (MSYS2 en Windows), proyecto, CSV | [instalacion.md](instalacion.md) |
+| 2a. Todas en la misma mesa, con cable y un **switch** | [switch/](switch/README.md) |
+| 2b. Cada una desde su casa, por **Tailscale** (VPN) | [tailscale/](tailscale/README.md) |
 
-- **Windows:** abre el Administrador de tareas (`Ctrl` + `Shift` + `Esc`), ve a la pestaña **Rendimiento** y mira los elementos que dicen **GPU 0** y **GPU 1**. Si alguno dice **NVIDIA**, tienes NVIDIA. Si solo aparecen AMD Radeon o Intel, no la tienes.
-- **Linux:** escribe `lspci | grep -i nvidia` en la terminal. Si aparece una línea, tienes NVIDIA.
-- **Mac:** las Mac no tienen NVIDIA. Usa la guía SIN GPU NVIDIA.
+Cada guía de red trae sus **casos especiales**: laptop ya configurada, otra huella, sin CSV, sin gcc, cambiar de maestro, etc.
 
-> Muchas laptops tienen **dos** GPU: una Intel o AMD integrada y una NVIDIA. Si una de las dos es NVIDIA, usa la guía CON GPU NVIDIA.
+## 2. Las pantallas
 
-## 2. Cómo funciona, en una figura
+1. **Inicio**: *Iniciar clúster* (esta laptop es el maestro; se niega si otra ya lo inició) o *Unirse al clúster* (detecta al maestro en la red local; por Tailscale se escribe su IP).
+2. **Clúster iniciado**: los nodos conectados, con su procesador (Ryzen, Intel) y si tienen GPU NVIDIA. *Iniciar limpieza* o *Saltar limpieza* (si ya limpiaron: solo comprueba las huellas).
+3. **Limpieza**: por cada nodo, el número de hilos, el % de CPU a lo largo del avance y el tiempo total, primero con **Pthreads** y luego con **Go** (uno tras otro, para no pelear por la CPU). Los nodos que llegan tarde aparecen arriba a la derecha y se pueden sumar. *Parar limpieza* pregunta si guardar los resultados ya completados.
+4. **Antes de entrenar**: se eligen los nodos (amarillo = no participa) e *Iniciar entrenamiento* comprueba que todos tengan el mismo `muestra.bin` que el maestro. Después se ve el entrenamiento en vivo.
+
+Solo la laptop del maestro tiene los botones; las demás ven todo en vivo.
+
+## 3. Cómo funciona
 
 ```
-                      Internet (red privada de Tailscale)
-                                    │
-       ┌────────────────────────────┼────────────────────────────┐
-       │                            │                            │
-┌──────┴───────────┐     ┌──────────┴──────────┐     ┌───────────┴─────────┐
-│ MAESTRO          │◄────│ NODO SIN NVIDIA     │     │ NODO CON NVIDIA     │
-│ (PC de Angelo)   │     │ calcula con la CPU  │     │ calcula con la GPU  │
-│ reparte el       │◄────┼─────────────────────┼─────│ (CUDA)              │
-│ trabajo y junta  │     └─────────────────────┘     └─────────────────────┘
-│ los resultados   │
-└──────────────────┘
+ laptop maestro                         cada laptop (también la del maestro)
+ ┌───────────────────────────┐          ┌─────────────────────────────────────┐
+ │ saca (página :8090)       │          │ saca (página :8090)                 │
+ │ maestro  TCP :9000 ◄──────┼──────────┼── trabajador                       │
+ │          API :8080 ◄──────┼──────────┼── (la página de esa laptop)        │
+ │ anuncio UDP :9001 ────────┼─────────►│   limpia sus CSV → data/muestra.bin │
+ └───────────────────────────┘          └─────────────────────────────────────┘
 ```
 
-1. Cada nodo se conecta al maestro. El maestro le asigna **su parte de los datos** (un grupo de estaciones de monitoreo).
-2. En cada **época** (vuelta de entrenamiento), el maestro manda el modelo actual. Cada nodo calcula sobre su parte y le devuelve el resultado.
-3. El maestro junta todo, mejora el modelo y repite 200 veces. Al final comprueba que el resultado es **idéntico** al que daría una sola PC.
+- **Limpieza:** cada nodo lee **sus** CSV (`data/raw`) y genera `data/muestra.bin`. Por la red solo viajan avisos, el avance y la huella; nunca los datos.
+- **Huella:** el SHA-256 del `muestra.bin`, los primeros 12 caracteres. Los dos cargadores escriben el archivo **byte a byte igual** con cualquier número de hilos, así que todas las laptops deben obtener la misma huella. Si una no coincide, no entrena.
+- **Entrenamiento:** el maestro reparte las estaciones entre los nodos; en cada época manda el modelo, cada nodo calcula su gradiente y el maestro los suma.
+- **MongoDB** ya no participa en la limpieza ni en el entrenamiento. Solo se usa en la laptop del maestro para **regenerar el mapa** al terminar un entrenamiento (si no está corriendo, el mapa queda como estaba).
 
-## 3. Palabras que vas a ver
+## 4. Palabras que vas a ver
 
 | Palabra | Qué significa |
 |---|---|
-| **Terminal** o **PowerShell** | La ventana negra o azul donde se escriben comandos |
-| **Maestro** | La PC que coordina. Hay una sola |
-| **Nodo** o **trabajador** | Cada PC que aporta su cálculo. Tú eres uno |
-| **Época** | Una vuelta de entrenamiento. Por defecto hay 200 |
-| **Partición** | La parte de los datos que le toca a cada nodo |
-| **Huella** | Un código de 12 letras y números que identifica el archivo de datos. Si tu huella no es igual a la del maestro, tienes otro archivo y el maestro te rechaza |
-| **Tailscale** | Un programa gratuito que conecta nuestras PCs como si estuvieran en la misma red, aunque estén en casas distintas |
-| **Motor** | Con qué calcula tu nodo: `go` (el procesador) o `cuda` (la tarjeta NVIDIA) |
-
-## 4. Calendario: qué hace cada uno y cuándo
-
-| Momento | Maestro | Cada nodo |
-|---|---|---|
-| **1. Preparación** (cada uno en su casa, unos 45 min; 1-2 h con NVIDIA) | Sube los datos al Drive, invita a todos en Tailscale y abre el puerto | Instala los programas, se une a Tailscale, descarga el proyecto y los datos |
-| **2. Ensayo individual** (5 min) | Prueba el clúster completo en su PC | Prueba el clúster completo en su PC y **envía sus datos al grupo** |
-| **3. Ensayo general** (todos juntos por videollamada, 30 min) | Lanza el maestro, mide y guarda los resultados | Se conecta al maestro y repite cuando el maestro lo pida |
-| **4. Presentación** | Comparte pantalla y lanza el maestro | Se conecta al maestro y sigue las indicaciones |
+| **Maestro** | La laptop que coordina. Hay una sola: la que pulsó *Iniciar clúster* |
+| **Nodo** o **trabajador** | Cada laptop que aporta su cálculo (el maestro también puede serlo) |
+| **Limpieza** | Leer los 4 CSV, descartar filas inválidas, unir los 4 gases por estación y hora, y armar la muestra |
+| **Huella** | El código de 12 caracteres que identifica el `muestra.bin`: igual huella = mismo archivo |
+| **Época** | Una vuelta de entrenamiento (por defecto 200) |
 
 ## 5. Inventario del grupo
 
-Cada uno completa su fila con lo que pide el paso "Enviar tus datos al grupo" de su guía.
+Cada uno completa su fila al terminar la instalación. La huella es la de su `data/muestra.bin` después de limpiar.
 
-| Integrante | Rol | Sistema | Procesador | RAM | GPU | IP de Tailscale | Huella | Ensayo individual |
-|---|---|---|---|---|---|---|---|---|
-| Angelo | Maestro | Fedora | Ryzen 7 7735HS | 13 GB | AMD Radeon (integrada) | 100.118.152.101 | c2c8f8832a30 | pendiente |
-| Piero | Maestro anterior | Windows 11 | Ryzen 5 3600 | 16 GB | AMD RX 580 | 100.67.177.8 | c2c8f8832a30 | OK |
-| | | | | | | | | |
-| | | | | | | | | |
-| | | | | | | | | |
-| | | | | | | | | |
+| Integrante | Sistema | Procesador | RAM | GPU | gcc (Pthreads) | CSV | IP switch | IP Tailscale | Huella |
+|---|---|---|---|---|---|---|---|---|---|
+| Angelo | Fedora | Ryzen 7 7735HS | 13 GB | AMD Radeon (integrada) | sí | sí | 192.168.50.1 | 100.118.152.101 | de62c327dffc |
+| Piero | Windows 11 | Ryzen 5 3600 | 16 GB | AMD RX 580 | | | | 100.67.177.8 | |
+| | | | | | | | | | |
+| | | | | | | | | | |
 
-## 6. Para quien quiera más detalle
+## 6. Más detalle
 
-- La exposición (guion, demo, preguntas): [../guia_presentacion_cluster.md](../guia_presentacion_cluster.md)
-- La arquitectura técnica y MPI: [../guia_cluster.md](../guia_cluster.md)
-- Los mensajes que se intercambian: [../contrato_protocolo_tcp.md](../contrato_protocolo_tcp.md)
+- Los mensajes entre el maestro y los nodos: [../contratos/contrato_protocolo_tcp.md](../contratos/contrato_protocolo_tcp.md)
+- El formato de `muestra.bin` y por qué sale igual en todos: [../contratos/contrato_formato_binario.md](../contratos/contrato_formato_binario.md)
+- La arquitectura del clúster (MPI, OpenMP, CUDA): [arquitectura_cluster.md](arquitectura_cluster.md)
+- La exposición: [../presentacion/guia_presentacion_cluster.md](../presentacion/guia_presentacion_cluster.md)
 - El motor CUDA: [../../nativo/cuda/README.md](../../nativo/cuda/README.md)

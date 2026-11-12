@@ -1,5 +1,5 @@
 ﻿# Une esta PC al clúster como nodo trabajador. Es lo único que corre cada
-# integrante el día de la demo (ver docs/cluster/guia_nodo_sin_nvidia.md
+# integrante el día de la demo (ver docs/cluster/tailscale/anterior/guia_nodo_sin_nvidia.md
 # o guia_nodo_con_nvidia.md):
 #   powershell -ExecutionPolicy Bypass -File scripts/nodo.ps1 -Maestro 100.101.102.103:9000 -Id ana
 # Comprueba la muestra y la conexión con el maestro, elige el motor (CUDA si
@@ -11,7 +11,7 @@ param(
     [string]$Id = $env:COMPUTERNAME.ToLower(),
     [string]$Motor = "auto",
     [int]$Hilos = 0,
-    [string]$Muestra = "data/muestra.gob"
+    [string]$Muestra = "data/muestra.bin"
 )
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")

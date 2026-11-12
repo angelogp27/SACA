@@ -1,10 +1,11 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-// La API del maestro en modo servidor (entrenamiento/cmd/maestro -web)
-// escucha en 127.0.0.1:8080; la página la usa como /api a través de este
-// proxy, tanto con `npm run dev` como con `npm run preview`.
-const api = { '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true } }
+// En desarrollo la página habla con el lanzador local (bin/saca, puerto
+// 8090): /local son sus botones y /api lo reenvía él al maestro del
+// clúster. Con el lanzador, la página compilada la sirve él mismo.
+const lanzador = { target: 'http://127.0.0.1:8090', changeOrigin: true }
+const api = { '/api': lanzador, '/local': lanzador }
 
 // https://vite.dev/config/
 export default defineConfig({

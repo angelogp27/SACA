@@ -1,17 +1,21 @@
 package distribuido
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"math/rand/v2"
 	"net"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"proyecto9/internal/entrenador"
 	"proyecto9/internal/hardware"
+	"proyecto9/internal/limpieza"
 	"proyecto9/internal/protocolo"
 )
 
@@ -21,9 +25,18 @@ import (
 // Respaldo: Trabajar actualiza Motor en ese caso, y quien llama lo cierra
 // al final.
 type ConfigTrabajador struct {
-	ID       string
-	Datos    *entrenador.Datos
-	Huella   string
+	ID string
+	// Datos y Huella son la muestra cargada (Datos nil si el nodo todavía
+	// no tiene). Con RutaMuestra, el nodo relee el archivo si cambió (al
+	// conectarse, al recibir su partición y cuando el maestro pregunta su
+	// huella): una limpieza o una copia pueden haberlo regenerado.
+	Datos       *entrenador.Datos
+	Huella      string
+	RutaMuestra string
+	MesCorte    int
+	// Limpieza, si no es nil, permite que el maestro le pida limpiar sus
+	// CSV y generar su muestra.bin (iniciar_limpieza).
+	Limpieza *limpieza.Config
 	Motor    Motor
 	Respaldo *MotorGo
 	// Hardware es la huella de esta máquina que se manda al registrarse;
@@ -56,14 +69,19 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 		h := hardware.Detectar()
 		cfg.Hardware = &h
 	}
+	if cfg.RutaMuestra != "" {
+		cfg.Huella = huellaArchivo(cfg.RutaMuestra)
+	}
+	// Una limpieza en curso se cancela si la sesión termina.
+	var lim limpiezaNodo
+	defer lim.cancelar(0)
 	err := c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoRegistro, WorkerID: cfg.ID, Huella: cfg.Huella, Motor: cfg.Motor.Nombre(), Dispositivo: cfg.Motor.Dispositivo(), Hardware: cfg.Hardware})
 	if err != nil {
 		return fmt.Errorf("%w: no se pudo enviar el registro: %v", ErrConexionPerdida, err)
 	}
 	log.Printf("conectado al maestro como %s; esperando que inicie una corrida", cfg.ID)
 
-	entrenamiento := cfg.Datos.Entrenamiento
-	d := len(entrenamiento.X[0])
+	var d int
 	var X [][]float64
 	cargado := false
 	var tCalculo time.Duration
@@ -86,10 +104,34 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 				return fmt.Errorf("%w: el maestro pidió la baja (%s)", ErrConexionPerdida, m.Motivo)
 			}
 
+		case m.Tipo == protocolo.TipoIniciarLimpieza:
+			lim.iniciar(c, cfg, m)
+
+		case m.Tipo == protocolo.TipoCancelarLimpieza:
+			lim.cancelar(m.Corrida)
+
+		case m.Tipo == protocolo.TipoConsultarHuella:
+			if cfg.RutaMuestra != "" {
+				cfg.Huella = huellaArchivo(cfg.RutaMuestra)
+			}
+			c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoHuellaMuestra, WorkerID: cfg.ID, Huella: cfg.Huella})
+
 		case m.Tipo == protocolo.TipoParticionAsignada:
 			if m.FiltroMongo == nil {
 				return fmt.Errorf("particion_asignada sin filtro")
 			}
+			cargado = false
+			if err := cfg.asegurarMuestra(); err != nil {
+				log.Printf("AVISO: %v", err)
+			}
+			if cfg.Datos == nil || (m.Huella != "" && m.Huella != cfg.Huella) {
+				// Otra muestra (o ninguna): avisarle al maestro, que aborta la corrida.
+				log.Printf("mi muestra (%s) no es la de la corrida (%s): no puedo participar", cortaOVacia(cfg.Huella), cortaOVacia(m.Huella))
+				c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoHuellaMuestra, WorkerID: cfg.ID, Huella: cfg.Huella})
+				continue
+			}
+			entrenamiento := cfg.Datos.Entrenamiento
+			d = len(entrenamiento.X[0])
 			mod, resto := m.FiltroMongo.Mod, m.FiltroMongo.Resto
 			var y []float64
 			if len(m.FiltroMongo.Restos) > 0 {
@@ -197,4 +239,114 @@ func (cfg *ConfigTrabajador) cargar(d int, X [][]float64, y []float64) error {
 	cfg.validado = true
 	log.Printf("motor %s validado contra el de Go: mismo gradiente (tolerancia relativa 1e-8)", cfg.Motor.Nombre())
 	return nil
+}
+
+// huellaArchivo es la huella de la muestra en disco, o "" si no hay.
+func huellaArchivo(ruta string) string {
+	h, err := Huella(ruta)
+	if err != nil {
+		return ""
+	}
+	return h
+}
+
+// asegurarMuestra relee la muestra si el archivo cambió desde que se
+// cargó (o si todavía no se había cargado).
+func (cfg *ConfigTrabajador) asegurarMuestra() error {
+	if cfg.RutaMuestra == "" {
+		return nil
+	}
+	h := huellaArchivo(cfg.RutaMuestra)
+	if h == cfg.Huella && cfg.Datos != nil {
+		return nil
+	}
+	cfg.Datos, cfg.Huella = nil, h
+	if h == "" {
+		return fmt.Errorf("no hay muestra en %s: realiza la limpieza", cfg.RutaMuestra)
+	}
+	datos, h, err := PrepararLocal(cfg.RutaMuestra, cfg.MesCorte)
+	if err != nil {
+		cfg.Huella = ""
+		return fmt.Errorf("no se pudo cargar %s: %w", cfg.RutaMuestra, err)
+	}
+	cfg.Datos, cfg.Huella = datos, h
+	log.Printf("muestra %s cargada, huella %s", cfg.RutaMuestra, Corta(h))
+	return nil
+}
+
+// limpiezaNodo es la limpieza que corre este nodo en segundo plano: la
+// goroutine principal sigue leyendo mensajes (para poder cancelarla).
+type limpiezaNodo struct {
+	mu     sync.Mutex
+	id     int
+	cancel context.CancelFunc
+}
+
+// cancelar detiene la limpieza id (0 = cualquiera).
+func (l *limpiezaNodo) cancelar(id int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.cancel != nil && (id == 0 || id == l.id) {
+		l.cancel()
+	}
+}
+
+func (l *limpiezaNodo) iniciar(c *protocolo.Conexion, cfg *ConfigTrabajador, m protocolo.Mensaje) {
+	terminada := func(tec, motivo string) {
+		c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoLimpiezaTerminada, WorkerID: cfg.ID, Corrida: m.Corrida, Tecnologia: tec, Motivo: motivo})
+	}
+	if cfg.Limpieza == nil {
+		for _, t := range m.Tecnologias {
+			terminada(t, "este nodo no tiene configurada la limpieza")
+		}
+		return
+	}
+	l.mu.Lock()
+	if l.cancel != nil {
+		l.mu.Unlock()
+		for _, t := range m.Tecnologias {
+			terminada(t, "este nodo ya está limpiando")
+		}
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	l.id, l.cancel = m.Corrida, cancel
+	l.mu.Unlock()
+
+	go func() {
+		defer func() {
+			cancel()
+			l.mu.Lock()
+			l.cancel = nil
+			l.mu.Unlock()
+		}()
+		hilos := m.Hilos
+		if hilos <= 0 {
+			hilos = runtime.NumCPU()
+		}
+		for _, tec := range m.Tecnologias {
+			if ctx.Err() != nil {
+				terminada(tec, LimpiezaCancelada)
+				continue
+			}
+			log.Printf("limpieza %d: empiezo con %s (%d hilos)", m.Corrida, tec, hilos)
+			progreso := func(a limpieza.Avance) {
+				c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoProgresoLimpieza, WorkerID: cfg.ID, Corrida: m.Corrida, Tecnologia: tec, Hilos: hilos, Avance: a.Avance, CPU: a.CPU})
+			}
+			progreso(limpieza.Avance{})
+			res, err := cfg.Limpieza.Ejecutar(ctx, tec, hilos, progreso)
+			switch {
+			case ctx.Err() != nil:
+				log.Printf("limpieza %d: %s cancelada", m.Corrida, tec)
+				terminada(tec, LimpiezaCancelada)
+			case err != nil:
+				log.Printf("limpieza %d: %s falló: %v", m.Corrida, tec, err)
+				terminada(tec, err.Error())
+			default:
+				log.Printf("limpieza %d: %s terminó en %s, huella %s", m.Corrida, tec, res.Duracion.Round(time.Millisecond), Corta(res.Huella))
+				c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoLimpiezaTerminada, WorkerID: cfg.ID, Corrida: m.Corrida, Tecnologia: tec,
+					Hilos: res.Hilos, TTotalS: res.Duracion.Seconds(), Huella: res.Huella})
+			}
+		}
+	}()
 }

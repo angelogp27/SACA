@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"proyecto9/internal/cluster"
+	"proyecto9/internal/dataset"
 	"proyecto9/internal/entrenador"
 	"proyecto9/internal/hardware"
 	"proyecto9/internal/logistica"
@@ -30,6 +31,9 @@ const (
 
 var (
 	ErrOcupado          = errors.New("ya hay una corrida en curso")
+	ErrLimpiando        = errors.New("hay una limpieza en curso")
+	ErrMuestraDistinta  = errors.New("muestra_distinta")
+	ErrSinMuestra       = errors.New("el maestro no tiene muestra (data/muestra.bin): realiza la limpieza en el nodo del maestro")
 	ErrNodoNoDisponible = errors.New("nodo no disponible")
 	ErrSinNodos         = errors.New("no se eligió ningún nodo")
 )
@@ -39,8 +43,24 @@ type ConfigMaestro struct {
 	// Capacidad es cuántos nodos caben en la sala de espera. En el modo de
 	// una corrida es exactamente la cantidad de nodos que se esperan.
 	Capacidad int
-	Datos     *entrenador.Datos
-	Huella    string
+	// Datos y Huella son la muestra con la que arranca el maestro (puede
+	// no tener: Datos nil y Huella ""). Si RutaMuestra no es vacía, antes
+	// de cada corrida se vuelve a leer ese archivo: una limpieza puede
+	// haberlo regenerado.
+	Datos       *entrenador.Datos
+	Huella      string
+	RutaMuestra string
+	MesCorte    int
+	// AceptarOtraMuestra: en modo servidor un nodo entra a la sala aunque
+	// su muestra sea otra (o no tenga): puede limpiar y generarla desde la
+	// página. La huella se exige al empezar cada entrenamiento.
+	AceptarOtraMuestra bool
+	// NodoMaestro es el id del nodo trabajador que corre en la misma
+	// laptop que el maestro (la página lo dibuja como el maestro).
+	NodoMaestro string
+	// LimpiezaTerminada, si no es nil, recibe la limpieza al terminar o
+	// pararse; guardar dice si sus tiempos deben guardarse.
+	LimpiezaTerminada func(e EstadoLimpieza, guardar bool)
 	// EsperaGradiente es cuánto se espera a un nodo en cada época antes
 	// de abortar: un nodo colgado no debe colgar la demo.
 	EsperaGradiente time.Duration
@@ -98,6 +118,7 @@ type Resultado struct {
 	Nodos         []InfoNodo
 	Evaluacion    metricas.Clasificacion
 	Verificacion  *Verificacion
+	Normalizador  dataset.Normalizador // de la muestra de la corrida, para guardar el modelo
 }
 
 type tipoEvento int
@@ -126,6 +147,7 @@ type corridaActiva struct {
 	indice  map[string]int
 	eventos chan evento
 	fin     chan struct{}
+	huella  string // de la muestra de la corrida
 }
 
 func (c *corridaActiva) avisar(ev evento) {
@@ -156,6 +178,14 @@ type Maestro struct {
 	siguiente int
 	t1EpocaMs float64
 	cambios   chan struct{}
+
+	datos   *entrenador.Datos // muestra actual del maestro (nil = no tiene)
+	huella  string
+	cargaMu sync.Mutex // una sola recarga de la muestra a la vez
+
+	limpieza          *EstadoLimpieza // la limpieza en curso o la última
+	siguienteLimpieza int
+	consultas         map[string]bool // nodos a los que se pidió la huella y no respondieron
 }
 
 func NuevoMaestro(cfg ConfigMaestro) *Maestro {
@@ -166,13 +196,61 @@ func NuevoMaestro(cfg ConfigMaestro) *Maestro {
 		cfg.Capacidad = 16
 	}
 	return &Maestro{
-		cfg:      cfg,
-		registro: cluster.NuevoRegistro(cfg.Capacidad),
-		nodos:    map[string]*nodoSala{},
-		ocupados: map[string]bool{},
-		cambios:  make(chan struct{}, 1),
+		cfg:       cfg,
+		registro:  cluster.NuevoRegistro(cfg.Capacidad),
+		nodos:     map[string]*nodoSala{},
+		ocupados:  map[string]bool{},
+		cambios:   make(chan struct{}, 1),
+		datos:     cfg.Datos,
+		huella:    cfg.Huella,
+		consultas: map[string]bool{},
 	}
 }
+
+// recargar vuelve a leer la muestra del maestro si el archivo cambió (una
+// limpieza lo regeneró, o se copió otro). Sin archivo, el maestro queda
+// sin muestra y no puede empezar un entrenamiento.
+func (m *Maestro) recargar() error {
+	if m.cfg.RutaMuestra == "" {
+		return nil
+	}
+	m.cargaMu.Lock()
+	defer m.cargaMu.Unlock()
+	h, err := Huella(m.cfg.RutaMuestra)
+	if err != nil {
+		m.mu.Lock()
+		cambio := m.datos != nil
+		m.datos, m.huella = nil, ""
+		m.mu.Unlock()
+		if cambio {
+			m.publicar()
+		}
+		return nil
+	}
+	m.mu.Lock()
+	igual := h == m.huella && m.datos != nil
+	m.mu.Unlock()
+	if igual {
+		return nil
+	}
+	datos, h, err := PrepararLocal(m.cfg.RutaMuestra, m.cfg.MesCorte)
+	if err != nil {
+		return fmt.Errorf("no se pudo cargar la muestra del maestro %s: %w", m.cfg.RutaMuestra, err)
+	}
+	m.mu.Lock()
+	m.datos, m.huella = datos, h
+	sinT1 := m.t1EpocaMs == 0
+	m.mu.Unlock()
+	log.Printf("muestra del maestro: %s, huella %s, %d ejemplos de entrenamiento", m.cfg.RutaMuestra, Corta(h), datos.Entrenamiento.Len())
+	if sinT1 {
+		m.MedirT1(5)
+	}
+	m.publicar()
+	return nil
+}
+
+// Recargar es recargar para quien usa el maestro (p. ej. al arrancar).
+func (m *Maestro) Recargar() error { return m.recargar() }
 
 // senalar avisa (sin bloquear) que la sala cambió.
 func (m *Maestro) senalar() {
@@ -211,9 +289,12 @@ func (m *Maestro) Atender(conn net.Conn) {
 	rechazar := func(motivo string) {
 		c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoBaja, WorkerID: msg.WorkerID, Motivo: motivo})
 	}
-	if msg.Huella != m.cfg.Huella {
-		log.Printf("%s: %s rechazado, su muestra tiene otra huella (%s; la del maestro es %s)", remoto, msg.WorkerID, Corta(msg.Huella), Corta(m.cfg.Huella))
-		rechazar("muestra_distinta: copia la misma data/muestra.gob que el maestro")
+	m.mu.Lock()
+	huellaMaestro := m.huella
+	m.mu.Unlock()
+	if msg.Huella != huellaMaestro && !m.cfg.AceptarOtraMuestra {
+		log.Printf("%s: %s rechazado, su muestra tiene otra huella (%s; la del maestro es %s)", remoto, msg.WorkerID, Corta(msg.Huella), Corta(huellaMaestro))
+		rechazar("muestra_distinta: genera (limpieza) o copia la misma data/muestra.bin que el maestro")
 		return
 	}
 	m.mu.Lock()
@@ -250,7 +331,7 @@ func (m *Maestro) Atender(conn net.Conn) {
 	m.mu.Lock()
 	m.llegadas++
 	m.nodos[msg.WorkerID] = &nodoSala{
-		vista:    NodoVista{ID: msg.WorkerID, Motor: msg.Motor, Dispositivo: msg.Dispositivo, Hardware: msg.Hardware, Remoto: remoto, Estado: "libre", ConectadoDesde: time.Now()},
+		vista:    NodoVista{ID: msg.WorkerID, Motor: msg.Motor, Dispositivo: msg.Dispositivo, Hardware: msg.Hardware, Remoto: remoto, Estado: "libre", ConectadoDesde: time.Now(), Huella: msg.Huella},
 		conexion: c,
 		orden:    m.llegadas,
 	}
@@ -280,6 +361,7 @@ func (m *Maestro) Atender(conn net.Conn) {
 		return
 	}
 	m.registro.DarDeBaja(msg.WorkerID)
+	m.nodoSalioDeLimpieza(msg.WorkerID, motivo)
 	if activa != nil {
 		if _, participa := activa.indice[msg.WorkerID]; participa {
 			activa.avisar(evento{tipo: caida, id: msg.WorkerID, motivo: motivo})
@@ -300,6 +382,10 @@ func (m *Maestro) escuchar(c *protocolo.Conexion, id string) string {
 			return "caída de la conexión: " + err.Error()
 		case msg.Tipo == protocolo.TipoBaja:
 			return "baja: " + msg.Motivo
+		case msg.Tipo == protocolo.TipoProgresoLimpieza, msg.Tipo == protocolo.TipoLimpiezaTerminada:
+			m.mensajeLimpieza(id, msg)
+		case msg.Tipo == protocolo.TipoHuellaMuestra:
+			m.huellaRecibida(id, msg.Huella)
 		case msg.Tipo == protocolo.TipoGradienteParcial:
 			m.mu.Lock()
 			activa := m.activa
@@ -411,6 +497,8 @@ type Corrida struct {
 	activa *corridaActiva
 	nodos  []*nodoSala
 	estado *EstadoCorrida
+	datos  *entrenador.Datos // la muestra con la que empezó
+	huella string
 }
 
 // Iniciar valida y reserva una corrida. Falla con ErrOcupado si hay otra
@@ -419,10 +507,19 @@ func (m *Maestro) Iniciar(op OpcionesCorrida) (*Corrida, error) {
 	if op.Epocas < 1 {
 		return nil, errors.New("la corrida necesita al menos 1 época")
 	}
+	if err := m.recargar(); err != nil {
+		return nil, err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.activa != nil {
 		return nil, ErrOcupado
+	}
+	if m.limpiezaEnCurso() {
+		return nil, ErrLimpiando
+	}
+	if m.datos == nil {
+		return nil, ErrSinMuestra
 	}
 	ids := op.Nodos
 	if len(ids) == 0 {
@@ -435,6 +532,7 @@ func (m *Maestro) Iniciar(op OpcionesCorrida) (*Corrida, error) {
 	}
 	vistos := map[string]bool{}
 	var nodos []*nodoSala
+	var distintos []string
 	for _, id := range ids {
 		n, ok := m.nodos[id]
 		if !ok || vistos[id] {
@@ -442,10 +540,16 @@ func (m *Maestro) Iniciar(op OpcionesCorrida) (*Corrida, error) {
 		}
 		vistos[id] = true
 		nodos = append(nodos, n)
+		if n.vista.Huella != m.huella {
+			distintos = append(distintos, fmt.Sprintf("%s (%s)", id, cortaOVacia(n.vista.Huella)))
+		}
+	}
+	if len(distintos) > 0 {
+		return nil, fmt.Errorf("%w: estos nodos no tienen el mismo muestra.bin que el maestro (%s): %s", ErrMuestraDistinta, Corta(m.huella), strings.Join(distintos, ", "))
 	}
 
 	m.siguiente++
-	activa := &corridaActiva{id: m.siguiente, indice: map[string]int{}, eventos: make(chan evento, 64), fin: make(chan struct{})}
+	activa := &corridaActiva{id: m.siguiente, indice: map[string]int{}, eventos: make(chan evento, 64), fin: make(chan struct{}), huella: m.huella}
 	estado := &EstadoCorrida{ID: m.siguiente, Estado: EstadoEntrenando, Epocas: op.Epocas, Inicio: time.Now()}
 	for i, n := range nodos {
 		activa.indice[n.vista.ID] = i
@@ -454,7 +558,7 @@ func (m *Maestro) Iniciar(op OpcionesCorrida) (*Corrida, error) {
 	}
 	m.activa = activa
 	m.estado = estado
-	return &Corrida{m: m, op: op, activa: activa, nodos: nodos, estado: estado}, nil
+	return &Corrida{m: m, op: op, activa: activa, nodos: nodos, estado: estado, datos: m.datos, huella: m.huella}, nil
 }
 
 // Ejecutar corre el entrenamiento reservado por Iniciar. Si un nodo se
@@ -506,7 +610,7 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 	for i, nodo := range c.nodos {
 		err := nodo.conexion.Enviar(protocolo.Mensaje{
 			Tipo: protocolo.TipoParticionAsignada, WorkerID: nodo.vista.ID,
-			FiltroMongo: filtros[i],
+			FiltroMongo: filtros[i], Huella: c.huella,
 		})
 		if err != nil {
 			return nil, errCaida(0, nodo.vista.ID, "no se le pudo enviar la partición: "+err.Error())
@@ -520,9 +624,9 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 		}()
 	}
 
-	X := m.cfg.Datos.Entrenamiento.X
+	X := c.datos.Entrenamiento.X
 	modelo := logistica.NuevoModelo(len(X[0]))
-	res := &Resultado{ID: c.activa.id, Modelo: modelo}
+	res := &Resultado{ID: c.activa.id, Modelo: modelo, Normalizador: c.datos.Normalizador}
 	tCalcNodo := make([]time.Duration, n)
 	nNodo := make([]int, n)
 	motorNodo := make([]string, n)
@@ -630,7 +734,7 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 		}
 		res.Nodos = append(res.Nodos, InfoNodo{ID: nodo.vista.ID, Motor: motor, Dispositivo: nodo.vista.Dispositivo, Hardware: nodo.vista.Hardware, Remoto: nodo.vista.Remoto, Particion: i, N: nNodo[i], TCalculo: tCalcNodo[i]})
 	}
-	res.Evaluacion = entrenador.Evaluar(modelo, m.cfg.Datos.Prueba)
+	res.Evaluacion = entrenador.Evaluar(modelo, c.datos.Prueba)
 
 	if op.Verificar {
 		m.mu.Lock()
@@ -640,7 +744,7 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 		log.Printf("verificando: entreno lo mismo en secuencial en esta PC para comparar (%d ejemplos; puede tardar ~1 min, no cierres la ventana)...", len(X))
 		secuencial := logistica.NuevoModelo(len(X[0]))
 		inicioSec := time.Now()
-		perdidas := secuencial.EntrenarConAvance(X, m.cfg.Datos.Entrenamiento.Y, op.Tasa, op.Epocas, m.cfg.Datos.PesosClase, func(e int) {
+		perdidas := secuencial.EntrenarConAvance(X, c.datos.Entrenamiento.Y, op.Tasa, op.Epocas, c.datos.PesosClase, func(e int) {
 			m.mu.Lock()
 			c.estado.VerificacionEpoca = e
 			m.mu.Unlock()
@@ -648,7 +752,7 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 		})
 		v := &Verificacion{Perdidas: perdidas, Duracion: time.Since(inicioSec)}
 		v.Diferencia = math.Abs(final - perdidas[len(perdidas)-1])
-		v.Evaluacion = entrenador.Evaluar(secuencial, m.cfg.Datos.Prueba)
+		v.Evaluacion = entrenador.Evaluar(secuencial, c.datos.Prueba)
 		res.Verificacion = v
 		m.mu.Lock()
 		if t1 := float64(v.Duracion.Microseconds()) / 1000 / float64(op.Epocas); t1 > 0 {
@@ -736,13 +840,19 @@ func (c *Corrida) terminar(estado, mensaje string, res *Resultado) {
 // 2,5 millones de ejemplos recién cargados es más lenta (memoria fría) y
 // inflaba el T(1), y con él el speedup que ve la página.
 func (m *Maestro) MedirT1(epocas int) float64 {
-	X, y := m.cfg.Datos.Entrenamiento.X, m.cfg.Datos.Entrenamiento.Y
+	m.mu.Lock()
+	datos := m.datos
+	m.mu.Unlock()
+	if datos == nil {
+		return 0
+	}
+	X, y := datos.Entrenamiento.X, datos.Entrenamiento.Y
 	pesos := make([]float64, len(X[0]))
-	logistica.GradienteParcial(pesos, 0, X, y, m.cfg.Datos.PesosClase)
+	logistica.GradienteParcial(pesos, 0, X, y, datos.PesosClase)
 	tiempos := make([]float64, 0, epocas)
 	for e := 0; e < max(epocas, 1); e++ {
 		inicio := time.Now()
-		logistica.GradienteParcial(pesos, 0, X, y, m.cfg.Datos.PesosClase)
+		logistica.GradienteParcial(pesos, 0, X, y, datos.PesosClase)
 		tiempos = append(tiempos, ms(time.Since(inicio)))
 	}
 	sort.Float64s(tiempos)
@@ -757,9 +867,15 @@ func (m *Maestro) MedirT1(epocas int) float64 {
 func (m *Maestro) Instantanea() Instantanea {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	ejemplos := 0
+	if m.datos != nil {
+		ejemplos = m.datos.Entrenamiento.Len()
+	}
 	inst := Instantanea{
-		Huella:                m.cfg.Huella,
-		EjemplosEntrenamiento: m.cfg.Datos.Entrenamiento.Len(),
+		Huella:                m.huella,
+		EjemplosEntrenamiento: ejemplos,
+		Limpieza:              m.limpieza.copia(),
+		NodoMaestro:           m.cfg.NodoMaestro,
 		Capacidad:             m.cfg.Capacidad,
 		T1EpocaMs:             m.t1EpocaMs,
 		Ocupado:               m.activa != nil,
@@ -771,6 +887,8 @@ func (m *Maestro) Instantanea() Instantanea {
 		v := n.vista
 		if m.ocupados[v.ID] {
 			v.Estado = "en_corrida"
+		} else if m.limpiandoNodo(v.ID) {
+			v.Estado = "limpiando"
 		}
 		inst.Sala = append(inst.Sala, v)
 	}
@@ -785,6 +903,13 @@ func (m *Maestro) publicar() {
 
 func errCaida(epoca int, id, motivo string) error {
 	return fmt.Errorf("época %d: el nodo %s se cayó (%s); el modo síncrono no puede seguir sin su partición", epoca, id, motivo)
+}
+
+func cortaOVacia(h string) string {
+	if h == "" {
+		return "sin muestra"
+	}
+	return Corta(h)
 }
 
 func ms(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }

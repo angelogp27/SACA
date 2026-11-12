@@ -19,7 +19,7 @@
  * Escala del problema (Experimento 8): --ejemplos N recorta o repite cíclicamente la
  * muestra de entrenamiento hasta tener N ejemplos; no se compara con la referencia de Go.
  *
- * Interfaz común: docs/contrato_formato_binario.md.
+ * Interfaz común: docs/contratos/contrato_formato_binario.md.
  */
 #include <omp.h>
 

@@ -1,6 +1,6 @@
 // Package aqs procesa los archivos horarios crudos de la EPA (AQS) y los
 // convierte en registro.RegistroProcesado, aplicando las reglas de limpieza
-// de docs/contrato_registro_procesado.md. La validación de una fila
+// de docs/contratos/contrato_registro_procesado.md. La validación de una fila
 // (procesarFila) es la misma tanto para el cargador secuencial como para
 // el concurrente: lo único que cambia es qué porción del archivo lee cada
 // uno.
@@ -244,19 +244,22 @@ func (ix *Indice) internar(s string) string {
 // dependiera del orden de las goroutines: una condición de carrera lógica
 // que -race no detecta, porque no hay accesos simultáneos a memoria. La
 // regla es determinista: gana el monitor de POC más bajo (normalmente el
-// principal del sitio), llegue en el orden que llegue.
+// principal del sitio), llegue en el orden que llegue; con el mismo POC,
+// el valor más bajo. Las coordenadas (y estado/condado) salen del valor
+// ganador del gas de mayor prioridad (PrioridadCoord); si dos filas
+// empatan en todo, la de menor latitud y longitud. Así el registro es el
+// mismo bit a bit con cualquier número de hilos, condición necesaria para
+// que todos los nodos generen un muestra.bin con la misma huella.
 func (ix *Indice) Agregar(v ValorLeido) {
 	clave := v.EstacionID + "|" + v.TimestampUTC
 
 	reg, existe := ix.Registros[clave]
 	if !existe {
+		// Hay ~1500 estaciones y 8760 horas para 10,8 M de registros:
+		// internarlas ahorra unos 500 MB.
 		reg = &registro.RegistroProcesado{
-			EstacionID:   v.EstacionID,
-			TimestampUTC: v.TimestampUTC,
-			Latitud:      v.Latitud,
-			Longitud:     v.Longitud,
-			Estado:       ix.internar(v.Estado),
-			Condado:      ix.internar(v.Condado),
+			EstacionID:   ix.internar(v.EstacionID),
+			TimestampUTC: ix.internar(v.TimestampUTC),
 		}
 		ix.Registros[clave] = reg
 	}
@@ -275,10 +278,19 @@ func (ix *Indice) Agregar(v ValorLeido) {
 	default:
 		return
 	}
+	fuente := PrioridadCoord[g] + 1
 
 	if *campo != nil {
 		ix.Duplicados++
-		if v.POC >= int(reg.POC[g]) {
+		actual := **campo
+		switch {
+		case v.POC < int(reg.POC[g]), v.POC == int(reg.POC[g]) && v.Valor < actual:
+			// gana el nuevo valor
+		case v.POC == int(reg.POC[g]) && v.Valor == actual && reg.FuenteCoord == fuente && coordMenor(v, reg):
+			// mismo monitor y mismo valor: solo pueden cambiar las coordenadas
+			ix.fijarCoord(reg, v, fuente)
+			return
+		default:
 			return
 		}
 	}
@@ -286,6 +298,24 @@ func (ix *Indice) Agregar(v ValorLeido) {
 	*valor = v.Valor
 	*campo = valor
 	reg.POC[g] = uint8(v.POC)
+	if reg.FuenteCoord == 0 || fuente <= reg.FuenteCoord {
+		ix.fijarCoord(reg, v, fuente)
+	}
+}
+
+// PrioridadCoord ordena los gases (O3, NO2, SO2, CO) para elegir de cuál
+// salen las coordenadas del registro: primero NO2, que es el gas que
+// predice el modelo.
+var PrioridadCoord = [4]uint8{1, 0, 2, 3}
+
+func coordMenor(v ValorLeido, reg *registro.RegistroProcesado) bool {
+	return v.Latitud < reg.Latitud || v.Latitud == reg.Latitud && v.Longitud < reg.Longitud
+}
+
+func (ix *Indice) fijarCoord(reg *registro.RegistroProcesado, v ValorLeido, fuente uint8) {
+	reg.Latitud, reg.Longitud = v.Latitud, v.Longitud
+	reg.Estado, reg.Condado = ix.internar(v.Estado), ix.internar(v.Condado)
+	reg.FuenteCoord = fuente
 }
 
 // Procesar lee secuencialmente el CSV horario de un contaminante y agrega

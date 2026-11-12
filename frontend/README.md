@@ -29,7 +29,7 @@ go run ./entrenamiento/cmd/maestro -web 127.0.0.1:8080 -modo tcp_tailscale -resu
 powershell -ExecutionPolicy Bypass -File scripts/cluster-local.ps1 -Nodos 2 -Web -Muestra data/muestra_prueba.gob
 ```
 
-Sin el servidor, el panel muestra los resultados guardados del Experimento 2. Detalle para el día de la presentación: [docs/cluster/guia_maestro.md](../docs/cluster/guia_maestro.md), paso 8.
+Sin el servidor, el panel muestra los resultados guardados del Experimento 2. Detalle para el día de la presentación: [docs/cluster/tailscale/anterior/guia_maestro.md](../docs/cluster/tailscale/anterior/guia_maestro.md), paso 8.
 
 ```sh
 npm install

@@ -1,5 +1,5 @@
 // Esqueleto de la Parte C: por ahora solo expone /health, según
-// docs/contrato_api_rest.md. El resto de rutas (predicciones,
+// docs/contratos/contrato_api_rest.md. El resto de rutas (predicciones,
 // entrenamientos, WebSocket de telemetría) se agregan desde la semana 9.
 package main
 

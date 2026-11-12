@@ -4,18 +4,19 @@ Proyecto del curso **Programación Concurrente y Paralela (202W0805)**, UNMSM-FI
 
 SACA procesa en paralelo los **16,97 millones** de mediciones horarias de 2025 de la red de monitoreo de la EPA (EE. UU.). Con ellas entrena una regresión logística escrita desde cero que predice si el NO2 de una estación cruzará el umbral AQI 51 en la hora siguiente, y muestra los resultados en una SPA.
 
-El sistema está escrito en Go (backend) y React (frontend), con MongoDB como almacenamiento. Además, cada tecnología del sílabo (**Pthreads, OpenMP, MPI y CUDA**) tiene un núcleo de cómputo en C/C++ en `nativo/` que resuelve la misma parte del sistema con los mismos datos, para compararla con la versión en Go. Los núcleos nativos están en desarrollo desde la semana 8; ver [docs/contrato_formato_binario.md](docs/contrato_formato_binario.md). Las especificaciones están en [docs/](docs/) y el contexto completo del proyecto en [.context/proyecto9.md](.context/proyecto9.md).
+El sistema está escrito en Go (backend) y React (frontend), con MongoDB como almacenamiento. Además, cada tecnología del sílabo (**Pthreads, OpenMP, MPI y CUDA**) tiene un núcleo de cómputo en C/C++ en `nativo/` que resuelve la misma parte del sistema con los mismos datos, para compararla con la versión en Go. Los núcleos nativos están en desarrollo desde la semana 8; ver [docs/contratos/contrato_formato_binario.md](docs/contratos/contrato_formato_binario.md). Las especificaciones están en [docs/](docs/) y el contexto completo del proyecto en [.context/proyecto9.md](.context/proyecto9.md).
 
 ## Empieza aquí
 
 | Si quieres… | Lee / ejecuta |
 |---|---|
 | Ver el frontend con datos reales en 2 minutos | `cd frontend; npm install; npm run dev` |
-| Instalar y ejecutar todo paso a paso, con tutoriales | **[docs/guia_ejecucion.md](docs/guia_ejecucion.md)** |
+| Armar el clúster con las laptops del grupo (switch o Tailscale) | **[docs/cluster/README.md](docs/cluster/README.md)** · `bash scripts/saca.sh` o `scripts\saca.ps1` |
+| Instalar y ejecutar todo paso a paso, con tutoriales | **[docs/guias/guia_ejecucion.md](docs/guias/guia_ejecucion.md)** |
 | Comprobar que todo funciona en tu PC | `go run ./herramientas/cmd/e2e` (prueba end-to-end, ~2 min) |
-| Entender el diseño (diagramas y flujos) | [docs/arquitectura.md](docs/arquitectura.md) |
-| Ver qué hace cada programa y sus opciones | [docs/funcionalidades.md](docs/funcionalidades.md) |
-| Defender el proyecto (conceptos del curso y resultados) | [docs/conceptos_curso.md](docs/conceptos_curso.md), [docs/experimento1.md](docs/experimento1.md) |
+| Entender el diseño (diagramas y flujos) | [docs/proyecto/arquitectura.md](docs/proyecto/arquitectura.md) |
+| Ver qué hace cada programa y sus opciones | [docs/proyecto/funcionalidades.md](docs/proyecto/funcionalidades.md) |
+| Defender el proyecto (conceptos del curso y resultados) | [docs/proyecto/conceptos_curso.md](docs/proyecto/conceptos_curso.md), [docs/experimentos/experimento1.md](docs/experimentos/experimento1.md) |
 
 ## Arquitectura
 
@@ -50,7 +51,7 @@ CSV EPA (16.9 M filas) ──► [A] Cargador concurrente ──► MongoDB (10.
 | [frontend/](frontend/) | SPA React + Vite |
 | [scripts/](scripts/) | Pipeline y experimentos, en PowerShell (`.ps1`) y sh (`.sh`) |
 | [resultados/](resultados/) | CSV y tablas de los experimentos |
-| [docs/](docs/) | Contratos, experimentos y relación con el temario del curso |
+| [docs/](docs/README.md) | Guías, contratos, experimentos y relación con el temario del curso |
 
 ## Requisitos
 
@@ -114,7 +115,7 @@ go run ./entrenamiento/cmd/paralelo -goroutines 8 -estrategia reduccion
 go run ./entrenamiento/cmd/maestro -nodos 2
 go run ./entrenamiento/cmd/trabajador -id w1
 go run ./entrenamiento/cmd/trabajador -id w2
-#   en otra PC por Tailscale: scripts/nodo.ps1 -Maestro 100.x.y.z:9000 -Id nombre (ver docs/cluster/README.md)
+#   entre varias laptops: el lanzador scripts/saca.sh (o .ps1) y la página (ver docs/cluster/README.md)
 
 # Experimentos
 powershell -ExecutionPolicy Bypass -File scripts/experimento1.ps1    # o: sh scripts/experimento1.sh
@@ -132,7 +133,7 @@ go run ./herramientas/cmd/e2e
 
 ## Resultados principales
 
-Medidos en un AMD Ryzen 5 3600 (6 núcleos y 12 hilos), con 16 GB de RAM y SSD. Detalle y análisis en [docs/experimento1.md](docs/experimento1.md).
+Medidos en un AMD Ryzen 5 3600 (6 núcleos y 12 hilos), con 16 GB de RAM y SSD. Detalle y análisis en [docs/experimentos/experimento1.md](docs/experimentos/experimento1.md).
 
 | Qué | Resultado |
 |---|---|
@@ -147,14 +148,14 @@ Las tablas completas se generan en [resultados/experimento1.md](resultados/exper
 
 ## Documentación
 
-- [docs/guia_ejecucion.md](docs/guia_ejecucion.md): instalación, tutoriales y problemas frecuentes
-- [docs/arquitectura.md](docs/arquitectura.md): diagramas de componentes, datos y flujos
-- [docs/funcionalidades.md](docs/funcionalidades.md): catálogo de programas, opciones y ejemplos
-- [docs/contrato_registro_procesado.md](docs/contrato_registro_procesado.md): esquema del documento en MongoDB y reglas de limpieza
-- [docs/contrato_protocolo_tcp.md](docs/contrato_protocolo_tcp.md): protocolo maestro-trabajador
-- [docs/contrato_api_rest.md](docs/contrato_api_rest.md): API REST y WebSocket
-- [docs/experimento1.md](docs/experimento1.md): diseño, resultados y análisis de los experimentos 1 y 1b
-- [docs/contrato_formato_binario.md](docs/contrato_formato_binario.md): cómo Go entrega los datos a los núcleos en C/C++ y cómo estos reportan sus mediciones
-- [docs/guia_cluster.md](docs/guia_cluster.md): cómo armar el clúster heterogéneo con las PCs del grupo (2 con NVIDIA y el resto con CPU) usando Go TCP, MPI y el híbrido MPI + OpenMP + CUDA
-- [docs/conceptos_curso.md](docs/conceptos_curso.md): qué concepto del sílabo se aplica en cada parte del código
+- [docs/guias/guia_ejecucion.md](docs/guias/guia_ejecucion.md): instalación, tutoriales y problemas frecuentes
+- [docs/proyecto/arquitectura.md](docs/proyecto/arquitectura.md): diagramas de componentes, datos y flujos
+- [docs/proyecto/funcionalidades.md](docs/proyecto/funcionalidades.md): catálogo de programas, opciones y ejemplos
+- [docs/contratos/contrato_registro_procesado.md](docs/contratos/contrato_registro_procesado.md): esquema del documento en MongoDB y reglas de limpieza
+- [docs/contratos/contrato_protocolo_tcp.md](docs/contratos/contrato_protocolo_tcp.md): protocolo maestro-trabajador
+- [docs/contratos/contrato_api_rest.md](docs/contratos/contrato_api_rest.md): API REST y WebSocket
+- [docs/experimentos/experimento1.md](docs/experimentos/experimento1.md): diseño, resultados y análisis de los experimentos 1 y 1b
+- [docs/contratos/contrato_formato_binario.md](docs/contratos/contrato_formato_binario.md): cómo Go entrega los datos a los núcleos en C/C++ y cómo estos reportan sus mediciones
+- [docs/cluster/arquitectura_cluster.md](docs/cluster/arquitectura_cluster.md): cómo armar el clúster heterogéneo con las PCs del grupo (2 con NVIDIA y el resto con CPU) usando Go TCP, MPI y el híbrido MPI + OpenMP + CUDA
+- [docs/proyecto/conceptos_curso.md](docs/proyecto/conceptos_curso.md): qué concepto del sílabo se aplica en cada parte del código
 - [.context/avance_parcial.md](.context/avance_parcial.md): bitácora del avance del parcial (decisiones, hallazgos, pendientes)

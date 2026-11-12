@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Une esta PC (Linux o macOS) al clúster como nodo trabajador (ver
-# docs/cluster/guia_nodo_sin_nvidia.md o guia_nodo_con_nvidia.md):
+# docs/cluster/tailscale/anterior/guia_nodo_sin_nvidia.md o guia_nodo_con_nvidia.md):
 #   bash scripts/nodo.sh 100.101.102.103:9000 ana [muestra]
 # El tercer argumento (opcional) permite usar otra muestra, p. ej.
 # data/muestra_prueba.gob en una PC con poca RAM; debe ser la del maestro.
@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 
 MAESTRO=${1:?uso: scripts/nodo.sh IP_MAESTRO:PUERTO [id] [muestra]}
 ID=${2:-$(hostname | tr '[:upper:]' '[:lower:]')}
-MUESTRA=${3:-data/muestra.gob}
+MUESTRA=${3:-data/muestra.bin}
 MOTOR=${MOTOR:-auto}
 
 echo "== 1/4 programa del trabajador"

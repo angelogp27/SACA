@@ -1,0 +1,147 @@
+# Contrato — protocolo TCP maestro-trabajador (Parte B)
+
+Define los mensajes que intercambian el maestro y cada nodo trabajador durante el entrenamiento distribuido de la regresión logística.
+
+## Transporte y formato
+
+- TCP, un mensaje JSON por línea (delimitado por `\n`), leído con `bufio.Scanner` en ambos extremos.
+- Cada mensaje trae un campo `tipo` que identifica su forma; el resto de campos depende del tipo.
+
+## Secuencia
+
+1. El trabajador se conecta al maestro y envía `registro`.
+2. El maestro responde `particion_asignada` con el filtro que ese trabajador debe usar para leer su porción de datos desde MongoDB.
+3. El maestro difunde `parametros` a todos los trabajadores registrados al inicio de cada época.
+4. Cada trabajador calcula el gradiente parcial sobre su partición y responde `gradiente_parcial`.
+5. El maestro agrega los gradientes recibidos (según el modo, ver abajo), actualiza los parámetros y repite desde el paso 3 hasta convergencia.
+6. Al terminar, el maestro envía `entrenamiento_finalizado` a todos los trabajadores.
+7. Cualquiera de los dos lados puede cerrar la conexión enviando `baja` antes de desconectar.
+
+## Modo de agregación
+
+Se fija por configuración del maestro al lanzar el entrenamiento, no por mensaje:
+
+- **Síncrono**: el maestro espera `gradiente_parcial` de todos los trabajadores registrados antes de actualizar y difundir la nueva época.
+- **Asíncrono**: el maestro actualiza los parámetros apenas recibe cada `gradiente_parcial`, sin esperar al resto.
+
+## Mensajes
+
+### `registro` (trabajador → maestro)
+
+```json
+{ "tipo": "registro", "worker_id": "w1", "huella": "5e90db4b1158...", "motor": "cuda", "dispositivo": "NVIDIA GeForce RTX 3060, sm_86, 28 SM, 12.0 GB" }
+```
+
+- `huella` es el SHA-256 del archivo de la muestra (`data/muestra.bin`, o la antigua `data/muestra.gob`) que tiene el nodo; vacía si todavía no tiene. Con el maestro de una corrida (`-nodos N`), el maestro rechaza con `baja` (`motivo: muestra_distinta: ...`) a un nodo cuya huella no coincide con la suya: con otros datos, la suma de los gradientes no sería la del conjunto de entrenamiento. En modo servidor (`-web`) el nodo entra igual a la sala (puede generar su muestra con la limpieza) y la huella se exige al empezar cada entrenamiento: `POST /api/corridas` responde 409 `muestra_distinta` con la lista de nodos que no coinciden.
+- `motor` (`go` o `cuda`) y `dispositivo` (texto libre) son informativos, para la tabla de nodos del maestro.
+- `hardware` (opcional) es la huella de la máquina: `{ "host", "so", "cpu", "hilos", "nucleos", "ram_gb", "gpu", "driver" }`. El trabajador la detecta solo (`internal/hardware`; la GPU sale de `nvidia-smi`). El maestro la muestra en la tabla de nodos, la anota en el CSV (columna `maquina`) y la sirve en `/api/estado`, para comprobar en qué equipos corrió cada experimento.
+
+### `particion_asignada` (maestro → trabajador)
+
+```json
+{
+  "tipo": "particion_asignada",
+  "worker_id": "w1",
+  "filtro_mongo": { "estacion_id_hash_mod": 4, "estacion_id_hash_resto": 0 }
+}
+```
+
+`filtro_mongo` es el criterio que el trabajador usa para quedarse con su porción: las estaciones cuyo hash FNV-32a de `estacion_id` módulo `mod` es `resto`. Así cada trabajador tiene un subconjunto disjunto y estable entre épocas. Pese al nombre, que se conserva para no romper el contrato, la implementación actual no consulta MongoDB: el trabajador filtra su copia local de la muestra (`distribuido.Filtrar`).
+
+Con el reparto proporcional (`-reparto proporcional -pesos a=1,b=3` en el maestro, Experimento 9) el filtro lleva además `"estacion_id_hash_restos": [0, 1, 2, ...]` con `mod` = 1024: al nodo le tocan **varias** cubetas del hash, en proporción a su peso (`particion.RepartirProporcional`, método del mayor resto). Es el equivalente de `MPI_Scatterv` con tamaños distintos. Si `restos` viene vacío, vale el `resto` único de siempre. Un trabajador viejo, que ignora `restos`, no sirve para este reparto.
+
+### Modo servidor: sala de espera y varias corridas
+
+Con el maestro en modo servidor (`maestro -web`), el trabajador se registra y queda en una **sala de espera**: el maestro **no** le envía `particion_asignada` al registrarse, sino al comenzar cada corrida, con `mod` = cantidad de nodos elegidos para esa corrida y `resto` = la posición del nodo entre ellos. Así, la partición cambia de una corrida a otra según los nodos elegidos en la página.
+
+- `parametros` y `gradiente_parcial` llevan `corrida` (número de corrida). El trabajador repite el que recibió, y el maestro descarta un gradiente atrasado de una corrida anterior.
+- `entrenamiento_finalizado` lleva `continuar: true`: el trabajador **no se cierra** y vuelve a la sala a esperar otra `particion_asignada`. Si la corrida se canceló o abortó, el mismo mensaje lleva `motivo` (`corrida_cancelado` o `corrida_abortado`) y también `continuar: true`.
+- `baja` con `motivo: sesion_terminada` cierra al trabajador a propósito (botones **Quitar** y **Terminar sesión** de la página). Con `maestro_cerrando`, el trabajador lanzado con `-reconectar` vuelve a intentar hasta que el maestro regrese.
+- Con el maestro de una corrida (`maestro -nodos N`), `continuar` no se envía (es `false`) y el trabajador termina como siempre.
+
+`particion_asignada` lleva además `huella`, la de la muestra de la corrida. El trabajador relee su `data/muestra.bin` si cambió; si su huella no es esa, responde `huella_muestra` con la suya y el maestro aborta la corrida.
+
+### Limpieza (modo servidor)
+
+Cada nodo limpia **sus propios** CSV (`data/raw`) y genera su `data/muestra.bin` (formato v2 de `contrato_formato_binario.md`, idéntico byte a byte en todos los nodos). Por la red solo viajan avisos, avances y huellas, nunca datos. No puede haber limpieza y entrenamiento a la vez.
+
+| Mensaje | Dirección | Campos |
+|---|---|---|
+| `iniciar_limpieza` | maestro → trabajador | `corrida` (número de limpieza), `tecnologias` (`["pthreads","go"]`, se ejecutan **una tras otra** para no pelear por la CPU), `hilos` (0 = todos los núcleos lógicos del nodo) |
+| `progreso_limpieza` | trabajador → maestro | `corrida`, `tecnologia`, `hilos`, `avance` (0-1), `cpu` (% de toda la CPU del nodo que usa el proceso de limpieza), cada ~250 ms |
+| `limpieza_terminada` | trabajador → maestro | `corrida`, `tecnologia`, `hilos`, `t_total_s`, `huella` del `.bin` generado; o `motivo` si falló o se canceló. Una por tecnología |
+| `cancelar_limpieza` | maestro → trabajador | `corrida`: el nodo mata al cargador; un `.bin` a medias nunca reemplaza al bueno (se escribe en `.tmp` y se renombra al final) |
+| `consultar_huella` | maestro → trabajador | — |
+| `huella_muestra` | trabajador → maestro | `huella` de su `data/muestra.bin` en este momento (`""` si no tiene) |
+
+Un nodo que se conecta durante una limpieza puede sumarse a ella (`POST /api/limpiezas` con su id): recibe el mismo número de limpieza, las mismas tecnologías y los mismos hilos.
+
+El avance va de 0 a 0,8 mientras se leen los CSV (bytes leídos / bytes totales) y de 0,8 a 1 mientras se etiqueta, ordena, normaliza y escribe la muestra. El % de CPU lo mide el nodo desde afuera del cargador (`/proc/<pid>/stat` en Linux, `GetProcessTimes` en Windows).
+
+API del maestro para la página: `POST /api/limpiezas` `{"nodos":[...],"tecnologias":[...],"hilos":0}`, `POST /api/limpiezas/cancelar` `{"guardar":true|false}` (los tiempos de las tecnologías terminadas se agregan a `resultados/limpieza.csv` si `guardar`; al terminar normalmente se guardan siempre) y `POST /api/huellas/verificar` (pregunta la huella a todos los nodos libres y devuelve el estado). `/api/estado` incluye `limpieza` (por nodo y tecnología: estado, avance, serie `[avance, cpu]`, `t_total_s`, huella) y la `huella` de cada nodo de la sala.
+
+### `parametros` (maestro → trabajador)
+
+```json
+{
+  "tipo": "parametros",
+  "corrida": 3,
+  "epoca": 7,
+  "pesos": [0.12, -0.03, 0.44, "..."],
+  "sesgo": -2.003
+}
+```
+
+### `gradiente_parcial` (trabajador → maestro)
+
+```json
+{
+  "tipo": "gradiente_parcial",
+  "worker_id": "w1",
+  "epoca": 7,
+  "gradiente": [0.001, -0.0004, 0.002, "..."],
+  "gradiente_sesgo": 0.0123,
+  "perdida": 2810.44,
+  "n_muestras": 214300,
+  "t_calculo_ms": 3.21,
+  "motor": "cuda"
+}
+```
+
+- `gradiente`, `gradiente_sesgo` y `perdida` son **sumas** (no promedios) sobre las `n_muestras` filas de la partición. El maestro suma las de todos los trabajadores en el orden de las particiones y divide entre el total.
+- Si la suma de `n_muestras` no da el tamaño del conjunto de entrenamiento, el maestro aborta.
+- `t_calculo_ms` es el tiempo que el nodo dedicó a calcular, sin la red. El maestro lo usa para separar cálculo de comunicación.
+- `motor` indica con qué se calculó realmente: si el motor CUDA no pasa la validación, el nodo cae a `go`.
+
+### `entrenamiento_finalizado` (maestro → trabajador)
+
+```json
+{ "tipo": "entrenamiento_finalizado", "epoca_final": 40, "perdida_final": 0.312, "continuar": true }
+```
+
+### `baja` (cualquiera → cualquiera)
+
+```json
+{ "tipo": "baja", "worker_id": "w1", "motivo": "cierre_normal" }
+```
+
+## Caída de un nodo
+
+Implementado hoy (modo síncrono): si un nodo se desconecta, no se le pueden enviar los parámetros o no envía su gradiente dentro de `-espera` (2 min por defecto), el maestro **aborta** el entrenamiento con un mensaje que nombra al nodo y la época, y despide a los demás con `baja`.
+
+Diseño para más adelante: el maestro da de baja al nodo del registro activo y sigue.
+
+- En modo síncrono, deja de esperar su `gradiente_parcial` para esa época y reparte de nuevo su partición entre los trabajadores restantes en la siguiente.
+- En modo asíncrono, simplemente ya no llegan más gradientes de ese `worker_id`; no bloquea a los demás.
+
+## Estado de implementación
+
+- Semana 7: `internal/protocolo` (mensajes), `internal/cluster` (registro de nodos con mutex), `entrenamiento/cmd/maestro` y `entrenamiento/cmd/trabajador` implementan los pasos 1, 2 y 7: registro, asignación de partición por `internal/particion` (hash FNV-32a de `estacion_id`), rechazo de nodos sobrantes con `baja` (`motivo: registro_rechazado`) y detección de bajas y caídas.
+- 15 de octubre de 2026: pasos 3 a 6 en modo síncrono (`internal/distribuido`):
+  - difusión de `parametros`, `gradiente_parcial` y agregación;
+  - campos `huella`, `motor`, `dispositivo`, `perdida` y `t_calculo_ms`;
+  - rechazo por muestra distinta y aborto ante la caída de un nodo.
+
+  Cada trabajador calcula con goroutines o con el motor CUDA (`nativo/cuda/gradiente_servidor.cu`), al que habla por stdin/stdout con el protocolo binario de `internal/distribuido/externo.go`. La pérdida final coincide con la del entrenamiento secuencial (diferencia ~1e-15).
+- 15 de octubre de 2026 (noche): modo servidor con sala de espera, partición por corrida, `corrida`, `continuar`, `sesion_terminada` y reconexión del trabajador (`-reconectar`). El motor externo admite la orden 2 (recargar otra partición). API HTTP y eventos en vivo para la página: ver `entrenamiento/cmd/maestro/web.go`.
+- Pendiente: modo asíncrono y redistribución de la partición de un nodo caído (Experimento 4).

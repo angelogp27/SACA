@@ -1,5 +1,5 @@
 // Package registro define el esquema del documento que el cargador escribe
-// en MongoDB, según docs/contrato_registro_procesado.md.
+// en MongoDB, según docs/contratos/contrato_registro_procesado.md.
 package registro
 
 // RegistroProcesado es el resultado de limpiar y unir por (estacion_id,
@@ -23,4 +23,10 @@ type RegistroProcesado struct {
 	// cargador para elegir entre monitores repetidos; no se guarda en
 	// MongoDB.
 	POC [4]uint8 `bson:"-" json:"-"`
+
+	// FuenteCoord indica de qué gas salieron Latitud, Longitud, Estado y
+	// Condado (prioridad + 1: NO2, O3, SO2, CO; 0 = ninguno). Con eso el
+	// cargador elige las coordenadas igual sin importar el orden en que
+	// lleguen las filas. No se guarda en MongoDB.
+	FuenteCoord uint8 `bson:"-" json:"-"`
 }

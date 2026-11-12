@@ -3,7 +3,7 @@
 // muestra). En cada corrida le asigna a cada nodo una partición disjunta
 // de las estaciones y entrena la regresión logística en modo síncrono: en
 // cada época difunde los parámetros, espera el gradiente parcial de cada
-// nodo, los suma y actualiza (docs/contrato_protocolo_tcp.md).
+// nodo, los suma y actualiza (docs/contratos/contrato_protocolo_tcp.md).
 //
 // Dos modos:
 //   - De una corrida (por defecto): espera -nodos nodos, entrena una vez,
@@ -24,6 +24,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -41,6 +42,10 @@ type configuracion struct {
 	maquina   string
 	// pesos: reparto proporcional (Experimento 9); nil = reparto igual.
 	pesos map[string]float64
+	// Al terminar bien una corrida en modo servidor: dónde guardar el modelo
+	// y con qué regenerar los datos del mapa (exportar, que usa MongoDB).
+	rutaModelo, exportar string
+	datosPagina          []string
 }
 
 func main() {
@@ -48,7 +53,7 @@ func main() {
 	nodos := flag.Int("nodos", 2, "modo de una corrida: número de nodos trabajadores; el entrenamiento empieza cuando están todos")
 	web := flag.String("web", "", "modo servidor: dirección HTTP de la API para la página, p. ej. 127.0.0.1:8080")
 	capacidad := flag.Int("capacidad", 16, "modo servidor: máximo de nodos en la sala")
-	rutaMuestra := flag.String("muestra", "data/muestra.gob", "muestra de entrenamiento; los nodos deben tener una copia idéntica")
+	rutaMuestra := flag.String("muestra", "data/muestra.bin", "muestra de entrenamiento (.bin v2, o la antigua .gob); los nodos deben tener una copia idéntica")
 	mesCorte := flag.Int("mes-corte", 10, "los meses >= mes-corte se reservan para evaluar (partición temporal)")
 	tasa := flag.Float64("tasa", 0.1, "tasa de aprendizaje")
 	epocas := flag.Int("epocas", 200, "número de épocas (en modo servidor, el valor inicial de la página)")
@@ -58,6 +63,11 @@ func main() {
 	modo := flag.String("modo", "tcp_sincrono", "nombre del modo en el CSV (p. ej. tcp_local o tcp_tailscale)")
 	maquina := flag.String("maquina", "", "texto libre que describe el clúster; en modo servidor se arma solo con los nodos de cada corrida")
 	reparto := flag.String("reparto", "igual", "reparto de la muestra entre los nodos: igual, o proporcional (necesita -pesos)")
+	rutaModelo := flag.String("modelo", "", "modo servidor: JSON donde guardar el modelo de cada corrida terminada (p. ej. data/modelo.json)")
+	exportar := flag.String("exportar", "", "modo servidor: ejecutable de herramientas/cmd/exportar para regenerar el mapa tras cada corrida terminada (necesita MongoDB)")
+	datosPagina := flag.String("datos-pagina", "frontend/public/datos,frontend/dist/datos", "modo servidor: directorios donde dejar los JSON del mapa regenerado (separados por comas; se ignoran los que no existen)")
+	nodoLocal := flag.String("nodo-local", "", "modo servidor: id del nodo trabajador que corre en esta misma laptop (lo pone el lanzador)")
+	resultadoLimpieza := flag.String("resultado-limpieza", "resultados/limpieza.csv", "modo servidor: CSV al que se agregan los tiempos de cada limpieza (vacío = no guardar)")
 	pesosFlag := flag.String("pesos", "", "pesos del reparto proporcional, p. ej. angelo=1,josue=4; al terminar cada corrida el maestro sugiere unos a partir de lo medido")
 	flag.Parse()
 
@@ -69,10 +79,17 @@ func main() {
 		log.Fatal("-nodos debe ser >= 1")
 	}
 	datos, huella, err := distribuido.PrepararLocal(*rutaMuestra, *mesCorte)
-	if err != nil {
+	switch {
+	case err != nil && *web == "":
 		log.Fatalf("no se pudo preparar la muestra %s: %v", *rutaMuestra, err)
+	case err != nil:
+		// En modo servidor la muestra se puede generar desde la página
+		// (limpieza); se vuelve a leer antes de cada entrenamiento.
+		log.Printf("todavía no hay una muestra válida en %s (%v): genérala con la limpieza desde la página", *rutaMuestra, err)
+		datos, huella = nil, ""
+	default:
+		log.Printf("muestra %s, huella %s (los nodos deben mostrar la misma)", *rutaMuestra, distribuido.Corta(huella))
 	}
-	log.Printf("muestra %s, huella %s (los nodos deben mostrar la misma)", *rutaMuestra, distribuido.Corta(huella))
 
 	ctx, cancelar := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancelar()
@@ -84,12 +101,25 @@ func main() {
 	defer oyente.Close()
 	puerto := oyente.Addr().(*net.TCPAddr).Port
 
-	cfgMaestro := distribuido.ConfigMaestro{Capacidad: *nodos, Datos: datos, Huella: huella, EsperaGradiente: *espera}
+	cfgMaestro := distribuido.ConfigMaestro{Capacidad: *nodos, Datos: datos, Huella: huella, RutaMuestra: *rutaMuestra, MesCorte: *mesCorte, EsperaGradiente: *espera}
 	var difusor *difusor
 	if *web != "" {
 		difusor = nuevoDifusor()
 		cfgMaestro.Capacidad = *capacidad
 		cfgMaestro.Notificar = difusor.Publicar
+		cfgMaestro.AceptarOtraMuestra = true
+		cfgMaestro.NodoMaestro = *nodoLocal
+		ruta := *resultadoLimpieza
+		cfgMaestro.LimpiezaTerminada = func(e distribuido.EstadoLimpieza, guardar bool) {
+			if !guardar || ruta == "" {
+				return
+			}
+			if n, err := guardarLimpieza(ruta, e); err != nil {
+				log.Printf("no se pudo escribir %s: %v", ruta, err)
+			} else if n > 0 {
+				log.Printf("limpieza %d: %d resultado(s) agregados a %s", e.ID, n, ruta)
+			}
+		}
 	}
 	m := distribuido.NuevoMaestro(cfgMaestro)
 
@@ -111,7 +141,8 @@ func main() {
 		}
 	}()
 
-	cfg := configuracion{epocas: *epocas, tasa: *tasa, verificar: *verificar, resultado: *resultado, modo: *modo, maquina: *maquina, pesos: pesos}
+	cfg := configuracion{epocas: *epocas, tasa: *tasa, verificar: *verificar, resultado: *resultado, modo: *modo, maquina: *maquina, pesos: pesos,
+		rutaModelo: *rutaModelo, exportar: *exportar, datosPagina: strings.Split(*datosPagina, ",")}
 	if *web != "" {
 		if err := servir(ctx, *web, m, difusor, cfg); err != nil {
 			log.Fatal(err)
@@ -313,4 +344,43 @@ func direccionesLocales() []string {
 		}
 	}
 	return ips
+}
+
+var encabezadoLimpieza = []string{"limpieza", "nodo", "tecnologia", "hilos", "t_total_s", "huella", "maquina"}
+
+// guardarLimpieza agrega una fila por cada tecnología terminada de cada
+// nodo (las paradas o con error no se guardan).
+func guardarLimpieza(ruta string, e distribuido.EstadoLimpieza) (int, error) {
+	var filas [][]string
+	for _, n := range e.Nodos {
+		maquina := ""
+		if n.Hardware != nil {
+			maquina = n.Hardware.Resumen()
+		}
+		for _, t := range n.Tecnologias {
+			if t.Estado != distribuido.LimpiezaTerminada {
+				continue
+			}
+			filas = append(filas, []string{strconv.Itoa(e.ID), n.ID, t.Tecnologia, strconv.Itoa(t.Hilos),
+				strconv.FormatFloat(t.TTotalS, 'f', 3, 64), distribuido.Corta(t.Huella), maquina})
+		}
+	}
+	if len(filas) == 0 {
+		return 0, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(ruta), 0o755); err != nil {
+		return 0, err
+	}
+	_, errStat := os.Stat(ruta)
+	f, err := os.OpenFile(ruta, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	w := csv.NewWriter(f)
+	if os.IsNotExist(errStat) {
+		w.Write(encabezadoLimpieza)
+	}
+	w.WriteAll(filas)
+	return len(filas), w.Error()
 }

@@ -2,7 +2,7 @@
 // gradiente desde cero, sin librerías de ML. GradienteParcial es la pieza
 // que se reutiliza sin cambios en la Parte B distribuida: cada nodo
 // trabajador la corre sobre su propia partición y el maestro suma los
-// resultados (ver docs/contrato_protocolo_tcp.md, mensaje
+// resultados (ver docs/contratos/contrato_protocolo_tcp.md, mensaje
 // "gradiente_parcial").
 package logistica
 

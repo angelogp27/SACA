@@ -19,10 +19,10 @@
  * Compilar:  mpicc -O3 -o bin/entrenamiento_mpi nativo/mpi/entrenamiento/entrenamiento.c -lm
  * Ejecutar:  mpiexec -n 4 bin/entrenamiento_mpi --datos data/muestra.bin --modo colectivo \
  *                --resultado resultados/experimento7.csv
- * Varias PCs: mpiexec --hostfile hosts -n 8 ...  (ver docs/guia_cluster.md)
+ * Varias PCs: mpiexec --hostfile hosts -n 8 ...  (ver docs/cluster/arquitectura_cluster.md)
  *
  * El número de procesos lo da mpiexec -n, no --hilos. En el CSV va en la
- * columna "goroutines" (docs/contrato_formato_binario.md).
+ * columna "goroutines" (docs/contratos/contrato_formato_binario.md).
  */
 #include <mpi.h>
 

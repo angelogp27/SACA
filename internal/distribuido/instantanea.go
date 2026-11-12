@@ -18,6 +18,8 @@ type Instantanea struct {
 	Sala                  []NodoVista      `json:"sala"`
 	Corrida               *EstadoCorrida   `json:"corrida"`
 	Historial             []ResumenCorrida `json:"historial"`
+	Limpieza              *EstadoLimpieza  `json:"limpieza"`
+	NodoMaestro           string           `json:"nodo_maestro,omitempty"` // id del nodo que corre en la laptop del maestro
 }
 
 // NodoVista es un nodo conectado al maestro.
@@ -27,8 +29,9 @@ type NodoVista struct {
 	Dispositivo    string         `json:"dispositivo"`
 	Hardware       *hardware.Info `json:"hardware,omitempty"`
 	Remoto         string         `json:"remoto"`
-	Estado         string         `json:"estado"` // "libre" o "en_corrida"
+	Estado         string         `json:"estado"` // "libre", "en_corrida" o "limpiando"
 	ConectadoDesde time.Time      `json:"conectado_desde"`
+	Huella         string         `json:"huella"` // de su muestra.bin; "" si no tiene
 }
 
 // Estados de una corrida.

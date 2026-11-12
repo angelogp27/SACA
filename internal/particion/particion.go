@@ -3,7 +3,7 @@
 // Parte B) por hash de estacion_id. Todas las lecturas de una misma
 // estación caen siempre en la misma partición, y la asignación no cambia
 // entre corridas ni entre épocas: es el criterio "estacion_id_hash_mod" /
-// "estacion_id_hash_resto" de docs/contrato_protocolo_tcp.md.
+// "estacion_id_hash_resto" de docs/contratos/contrato_protocolo_tcp.md.
 package particion
 
 import "hash/fnv"

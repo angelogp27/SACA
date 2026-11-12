@@ -3,3 +3,11 @@ presentacion_semana5.md
 /bin/
 /data/*.gob
 /data/*.bin
+
+# Salidas locales de cada sesión del clúster (lanzador saca). Para guardar
+# una medición en el repo, renómbrala (p. ej. resultados/cluster_switch.csv).
+/resultados/cluster.csv
+/resultados/limpieza.csv
+/resultados/experimento2_lan.csv
+# .bin a medias de una limpieza interrumpida
+/data/*.tmp

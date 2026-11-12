@@ -18,7 +18,7 @@ Cada integrante necesita los temas 1-3, la base común. Después basta con profu
    - Ley de Amdahl y métrica de Karp-Flatt.
    - Por qué se usa la mediana de varias repeticiones.
 
-   Ver `experimentos/cmd/analisis` y [docs/experimento1.md](../docs/experimento1.md).
+   Ver `experimentos/cmd/analisis` y [docs/experimentos/experimento1.md](../docs/experimentos/experimento1.md).
 4. **Regresión logística y descenso de gradiente.** Solo lo esencial: sigmoide, log loss, y que el gradiente es una suma sobre ejemplos independientes. Por eso se puede repartir entre hilos, procesos o hilos de GPU, y por eso todas las implementaciones deben dar la misma pérdida.
 5. **Procesar archivos grandes sin cargarlos en memoria.** `bufio`, partir un archivo en bloques de bytes ajustados al salto de línea. Es el diseño de la Parte A en Go y en Pthreads.
 
@@ -26,7 +26,7 @@ Cada integrante necesita los temas 1-3, la base común. Después basta con profu
 
 6. **C para estos núcleos.**
    - Punteros y arreglos, `malloc`/`free`.
-   - Leer un archivo binario con `fread` (formato en [docs/contrato_formato_binario.md](../docs/contrato_formato_binario.md)).
+   - Leer un archivo binario con `fread` (formato en [docs/contratos/contrato_formato_binario.md](../docs/contratos/contrato_formato_binario.md)).
    - Medir tiempo con `clock_gettime` u `omp_get_wtime`.
    - Compilar con gcc de MSYS2 en Windows (`C:\msys64\ucrt64\bin\gcc.exe`) o con gcc en Linux.
 7. **Pthreads** (sílabo semanas 5-6; Experimento 5).
@@ -58,7 +58,7 @@ Cada integrante necesita los temas 1-3, la base común. Después basta con profu
     - Modelo híbrido MPI + OpenMP + CUDA y balanceo de carga en un clúster heterogéneo.
     - Modelo de costo de la comunicación (latencia + tamaño/ancho de banda).
 
-    Guía paso a paso: [docs/guia_cluster.md](../docs/guia_cluster.md). Referencia: Pacheco y Malensek, cap. 2 (hardware paralelo y redes de interconexión).
+    Guía paso a paso: [docs/cluster/arquitectura_cluster.md](../docs/cluster/arquitectura_cluster.md). Referencia: Pacheco y Malensek, cap. 2 (hardware paralelo y redes de interconexión).
 
 ## Sistema e infraestructura
 

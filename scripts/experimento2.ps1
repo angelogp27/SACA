@@ -3,7 +3,7 @@
 # nodo), contra el entrenamiento secuencial T(1) que el maestro corre en
 # cada repetición (-verificar). Mide el costo del protocolo sin la red
 # real; las corridas en el clúster por Tailscale se agregan al mismo CSV
-# con -modo tcp_tailscale (ver docs/cluster/guia_maestro.md).
+# con -modo tcp_tailscale (ver docs/cluster/tailscale/anterior/guia_maestro.md).
 # Uso (desde la raíz del repo):
 #   powershell -ExecutionPolicy Bypass -File scripts/experimento2.ps1
 #   ... -Muestra data/muestra_prueba.gob -Nombre experimento2_prueba
@@ -22,7 +22,7 @@ Set-Location (Join-Path $PSScriptRoot "..")
 . (Join-Path $PSScriptRoot "memoria.ps1")
 $Nodos = ConvertTo-ListaNodos $Nodos
 
-if (-not (Test-Path $Muestra)) { throw "falta $Muestra (ver docs/cluster/guia_maestro.md)" }
+if (-not (Test-Path $Muestra)) { throw "falta $Muestra (ver docs/cluster/tailscale/anterior/guia_maestro.md)" }
 Write-Host "== nodos: $($Nodos -join ', ')"
 Assert-MemoriaSuficiente -Muestra $Muestra -Procesos (($Nodos | Measure-Object -Maximum).Maximum + 1)
 New-Item -ItemType Directory -Force bin, bin/logs, resultados | Out-Null

@@ -19,10 +19,13 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"proyecto9/internal/aqs"
+	"proyecto9/internal/distribuido"
 	"proyecto9/internal/medicion"
+	"proyecto9/internal/muestrabin"
 	"proyecto9/internal/particion"
 	"proyecto9/internal/persistencia"
 	"proyecto9/internal/registro"
@@ -44,6 +47,8 @@ func main() {
 	agregadoras := flag.Int("agregadoras", 1, "goroutines agregadoras, cada una indexa las estaciones de su partición (0 = tantas como trabajadoras)")
 	sinMongo := flag.Bool("sin-mongo", false, "no escribir en MongoDB (mide solo el procesamiento)")
 	rutaResultado := flag.String("resultado", "", "CSV al que se agrega una fila con los tiempos de esta corrida")
+	progreso := flag.Bool("progreso", false, "imprime en la salida estándar \"SACA_PROGRESO <avance 0-1>\" cada 250 ms (lo lee el nodo del clúster)")
+	rutaBin := flag.String("bin", "", "si se indica, escribe ahí la muestra de entrenamiento (p. ej. data/muestra.bin, formato v2) directamente desde los registros en memoria")
 	flag.Parse()
 
 	if *goroutines < 1 || *bloquesPorGoroutine < 1 || *agregadoras < 0 {
@@ -61,6 +66,14 @@ func main() {
 		log.Fatalf("error calculando los bloques: %v", err)
 	}
 	log.Printf("%d bloques repartidos entre %d goroutines trabajadoras y %d agregadoras", len(bloques), *goroutines, *agregadoras)
+	var bytesTotal int64
+	for _, b := range bloques {
+		bytesTotal += b.fin - b.inicio
+	}
+	if *progreso {
+		parar := informarAvance()
+		defer parar()
+	}
 
 	entradaBloques := make(chan bloque)
 	salidas := make([]chan aqs.ValorLeido, *agregadoras)
@@ -80,7 +93,7 @@ func main() {
 	var trabajadoras sync.WaitGroup
 	for i := 0; i < *goroutines; i++ {
 		trabajadoras.Add(1)
-		go trabajador(entradaBloques, salidas, &total, &muTotal, &trabajadoras)
+		go trabajador(entradaBloques, salidas, &total, &muTotal, &trabajadoras, bytesTotal)
 	}
 
 	go func() {
@@ -117,6 +130,7 @@ func main() {
 		}(k)
 	}
 	agregadorasWG.Wait()
+	avance.Store(800)
 
 	// El tiempo de indexado que cuenta es el de la agregadora más cargada:
 	// es el camino crítico de la fase serial.
@@ -142,6 +156,25 @@ func main() {
 	}
 	log.Printf("total: %s", &total)
 	log.Printf("registros unicos (estacion, hora): %d (%d valores de monitores repetidos resueltos por POC)", corrida.Registros, duplicados)
+
+	if *rutaBin != "" {
+		inicioBin := time.Now()
+		m, err := muestrabin.Construir(mapas, muestrabin.MesCorte)
+		if err != nil {
+			log.Fatalf("no se pudo armar la muestra: %v", err)
+		}
+		avance.Store(950)
+		if err := m.Escribir(*rutaBin); err != nil {
+			log.Fatalf("no se pudo escribir %s: %v", *rutaBin, err)
+		}
+		avance.Store(1000)
+		huella, err := distribuido.Huella(*rutaBin)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("muestra %s: %d de entrenamiento, %d de prueba, %d estaciones, huella %s (%s)", *rutaBin,
+			len(m.YEnt), len(m.YPru), len(m.Estaciones), distribuido.Corta(huella), time.Since(inicioBin).Round(time.Millisecond))
+	}
 
 	if !*sinMongo {
 		inicioMongo := time.Now()
@@ -184,7 +217,7 @@ func despachar(archivos map[string]string, n int) ([]bloque, error) {
 // procesa cada uno de forma independiente, emitiendo sus valores válidos a
 // medida que los encuentra. Cada valor va a la agregadora dueña de su
 // estación.
-func trabajador(entrada <-chan bloque, salidas []chan aqs.ValorLeido, total *aqs.Conteo, mu *sync.Mutex, wg *sync.WaitGroup) {
+func trabajador(entrada <-chan bloque, salidas []chan aqs.ValorLeido, total *aqs.Conteo, mu *sync.Mutex, wg *sync.WaitGroup, bytesTotal int64) {
 	defer wg.Done()
 	enviar := func(v aqs.ValorLeido) { salidas[particion.Asignar(v.EstacionID, len(salidas))] <- v }
 	for b := range entrada {
@@ -195,7 +228,39 @@ func trabajador(entrada <-chan bloque, salidas []chan aqs.ValorLeido, total *aqs
 		mu.Lock()
 		total.Sumar(c)
 		mu.Unlock()
+		// La lectura es el 80 % del avance; el resto, armar y escribir la muestra.
+		hechos := bytesLeidos.Add(b.fin - b.inicio)
+		avance.Store(800 * hechos / max(bytesTotal, 1))
 	}
+}
+
+// avance (en milésimas) y bytesLeidos son contadores atómicos: los
+// actualizan todas las trabajadoras y los lee la goroutine que informa.
+var (
+	avance      atomic.Int64
+	bytesLeidos atomic.Int64
+)
+
+// informarAvance imprime el avance cada 250 ms hasta que se llama a la
+// función que devuelve (que imprime el último valor).
+func informarAvance() func() {
+	listo := make(chan struct{})
+	terminado := make(chan struct{})
+	go func() {
+		defer close(terminado)
+		t := time.NewTicker(250 * time.Millisecond)
+		defer t.Stop()
+		for {
+			select {
+			case <-t.C:
+				fmt.Printf("SACA_PROGRESO %.4f\n", float64(avance.Load())/1000)
+			case <-listo:
+				fmt.Printf("SACA_PROGRESO %.4f\n", float64(avance.Load())/1000)
+				return
+			}
+		}
+	}()
+	return func() { close(listo); <-terminado }
 }
 
 // modo distingue en los resultados del experimento el diseño original

@@ -23,7 +23,7 @@ Cumplir todo lo que el cronograma pide hasta la semana 7, más dos valores agreg
 | 6 | Escritura por lotes en Mongo, cierre ordenado de channels, `-race` | ✅ Escritores concurrentes; `go test -race ./...` en verde | `internal/persistencia`, tests |
 | 6 | Particionar el dataset por nodo | ✅ Hash FNV de `estacion_id` | `internal/particion` |
 | 6 | Mapa con metadatos de `annual_conc_by_monitor` | ✅ Nombre local, ciudad y CBSA reales | `herramientas/cmd/exportar`, `PanelMapa` |
-| 7 | Experimento 1 (1..16 goroutines) + speedup + Amdahl | ✅ 3 repeticiones, mediana, Karp-Flatt | `scripts/experimento1.*`, `experimentos/cmd/analisis`, `docs/experimento1.md` |
+| 7 | Experimento 1 (1..16 goroutines) + speedup + Amdahl | ✅ 3 repeticiones, mediana, Karp-Flatt | `scripts/experimento1.*`, `experimentos/cmd/analisis`, `docs/experimentos/experimento1.md` |
 | 7 | Maestro TCP que acepta y registra nodos | ✅ Más rechazo de sobrantes y detección de caídas | `entrenamiento/cmd/maestro`, `trabajador`, `internal/cluster`, `internal/protocolo` |
 | — | **Valor agregado 1**: entrenamiento paralelo + Experimento 1b + métricas del modelo | ✅ | `internal/logistica/paralelo.go`, `entrenamiento/cmd/paralelo`, `internal/metricas` |
 | — | **Valor agregado 2**: frontend con datos reales | ✅ Mapa, serie con probabilidad del modelo, panel de rendimiento real | `frontend/` |
@@ -69,7 +69,7 @@ Cumplir todo lo que el cronograma pide hasta la semana 7, más dos valores agreg
 - **1 agregadora:** S(p) entre 1,03 y 1,13. La fracción serial medida es f = 0,797, así que Amdahl da un techo de 1,25×: lo predijo bien. Karp-Flatt ≈ f.
 - **Agregadoras particionadas:** S(2) = 1,54, S(4) = 2,30, S(8) = 3,21, **S(16) = 3,77** (35,1 s), con Karp-Flatt estable en ~0,21. Supera el techo de Amdahl del diseño original porque paraleliza lo que antes era serial.
 
-Análisis completo en [docs/experimento1.md](../docs/experimento1.md); tablas en [resultados/experimento1.md](../resultados/experimento1.md).
+Análisis completo en [docs/experimentos/experimento1.md](../docs/experimentos/experimento1.md); tablas en [resultados/experimento1.md](../resultados/experimento1.md).
 
 ### Cierre de esta entrega (14 de octubre de 2026)
 
@@ -83,8 +83,8 @@ El grupo decidió implementar MPI, Pthreads, OpenMP y CUDA dentro del proyecto, 
 
 - [proyecto9.md](proyecto9.md): §1, §6 "Núcleos nativos", §7, §8 (8 experimentos), §10 (cronograma de las semanas 3-16), §12, §13, §15 y §17;
 - [plan_aprendizaje.md](plan_aprendizaje.md);
-- [docs/conceptos_curso.md](../docs/conceptos_curso.md);
-- el nuevo [docs/contrato_formato_binario.md](../docs/contrato_formato_binario.md).
+- [docs/proyecto/conceptos_curso.md](../docs/proyecto/conceptos_curso.md);
+- el nuevo [docs/contratos/contrato_formato_binario.md](../docs/contratos/contrato_formato_binario.md).
 
 Entorno comprobado en la PC de desarrollo (Ryzen 5 3600, Windows 11):
 
@@ -104,7 +104,7 @@ Semana 8, para el parcial si alcanza el tiempo (temas de las semanas 3-7 del sí
 4. `nativo/pthreads/cargador`: productor-consumidor con buffer acotado y variables de condición; validar los conteos contra Go (16 972 287 leídas, 1625 excluidas).
 5. `nativo/mpi/entrenamiento`, versiones punto a punto y colectiva: instalar antes MS-MPI.
 
-Clúster físico ([docs/guia_cluster.md](../docs/guia_cluster.md)). El grupo tiene **2 PCs con NVIDIA** y las demás aportan CPU:
+Clúster físico ([docs/cluster/arquitectura_cluster.md](../docs/cluster/arquitectura_cluster.md)). El grupo tiene **2 PCs con NVIDIA** y las demás aportan CPU:
 
 - Semana 8: inventario de las PCs y elección del sistema operativo común para MPI.
 - Semana 9: maestro Go con trabajadores en PCs reales.
@@ -128,9 +128,9 @@ Fase 3 (semanas 9-12):
 - `scripts/mongo-local.ps1`: MongoDB portable para Windows sin Docker. El pipeline lo usa con `-MongoLocal`.
 - Pipeline probado de punta a punta con `-MongoLocal`: 2,8 min sin la descarga, y el modelo resultó idéntico al versionado (se reutiliza la caché de la muestra).
 - Documentación para ejecutar el proyecto:
-  - [docs/guia_ejecucion.md](../docs/guia_ejecucion.md): instalación, 5 tutoriales, problemas frecuentes;
-  - [docs/arquitectura.md](../docs/arquitectura.md): diagramas de componentes, datos y flujos;
-  - [docs/funcionalidades.md](../docs/funcionalidades.md): catálogo de programas y opciones.
+  - [docs/guias/guia_ejecucion.md](../docs/guias/guia_ejecucion.md): instalación, 5 tutoriales, problemas frecuentes;
+  - [docs/proyecto/arquitectura.md](../docs/proyecto/arquitectura.md): diagramas de componentes, datos y flujos;
+  - [docs/proyecto/funcionalidades.md](../docs/proyecto/funcionalidades.md): catálogo de programas y opciones.
 
 ## Clúster distribuido para la presentación virtual (15 de octubre de 2026)
 
@@ -154,7 +154,7 @@ El grupo debe presentar el avance del clúster de forma **virtual**: las PCs est
 **Entregables**
 - Código: `internal/distribuido`, `entrenamiento/cmd/maestro` y `trabajador`, `nativo/cuda/`.
 - Scripts: `scripts/cluster-local.*`, `nodo.*`, `experimento2.ps1`.
-- Documentos: guías por rol en [docs/cluster/](../docs/cluster/README.md) (maestro, nodo sin GPU NVIDIA y nodo con GPU NVIDIA, para quien no conoce el código) y [docs/guia_presentacion_cluster.md](../docs/guia_presentacion_cluster.md) (guion, demo, plan B y preguntas).
+- Documentos: guías por rol en [docs/cluster/](../docs/cluster/README.md) (maestro, nodo sin GPU NVIDIA y nodo con GPU NVIDIA, para quien no conoce el código) y [docs/presentacion/guia_presentacion_cluster.md](../docs/presentacion/guia_presentacion_cluster.md) (guion, demo, plan B y preguntas).
 - La prueba e2e (paso 12) ahora entrena distribuido y compara con el secuencial: **TODO OK**.
 
 **Pendiente antes de presentar**

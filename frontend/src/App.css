@@ -19,19 +19,6 @@
   flex-wrap: wrap;
 }
 
-.app-shell.presentando {
-  max-width: 1400px;
-  padding: 10px 20px;
-}
-
-.app-shell.presentando .app-header {
-  margin-bottom: 10px;
-}
-
-.app-shell.presentando .app-header h1 {
-  font-size: 18px;
-}
-
 .app-header h1 {
   font-size: 26px;
   letter-spacing: -0.3px;
@@ -101,4 +88,68 @@
   flex-direction: column;
   gap: 8px;
   align-items: flex-start;
+}
+
+.vistas {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--gridline);
+}
+
+.vistas button {
+  font: inherit;
+  font-size: 14px;
+  min-height: 40px;
+  min-width: 88px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.vistas button[aria-selected='true'] {
+  background: var(--surface);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.vistas {
+  align-self: flex-end;
+}
+
+.app-marca {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin: 8px 0 12px;
+}
+
+.app-sigla {
+  font-size: 64px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.app-nombre {
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+@media (max-width: 600px) {
+  .app-sigla {
+    font-size: 48px;
+  }
+
+  .app-nombre {
+    font-size: 18px;
+  }
 }

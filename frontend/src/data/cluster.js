@@ -5,10 +5,13 @@
 // quitar un nodo, terminar la sesión) son POST a la misma API.
 import { useEffect, useState } from 'react'
 
-export function useCluster() {
+// activo = false no abre la conexión (p. ej. la laptop todavía no está en
+// un clúster y el lanzador no tiene a quién reenviar /api).
+export function useCluster(activo = true) {
   const [estado, setEstado] = useState({ conectado: false, inst: null })
 
   useEffect(() => {
+    if (!activo) return undefined
     let fuente
     let reintento
     let vigente = true
@@ -34,10 +37,12 @@ export function useCluster() {
       clearTimeout(reintento)
       fuente?.close()
     }
-  }, [])
+  }, [activo])
 
-  return estado
+  return activo ? estado : SIN_CLUSTER
 }
+
+const SIN_CLUSTER = { conectado: false, inst: null }
 
 async function post(ruta, cuerpo) {
   const resp = await fetch(ruta, {
@@ -54,6 +59,11 @@ async function post(ruta, cuerpo) {
 
 export const apiCluster = {
   entrenar: (nodos, epocas, verificar) => post('/api/corridas', { nodos, epocas, verificar }),
+  // Limpieza: cada nodo limpia sus CSV y genera su muestra.bin; si ya hay
+  // una en curso, los nodos se suman a ella.
+  limpiar: (nodos, tecnologias = ['pthreads', 'go'], hilos = 0) => post('/api/limpiezas', { nodos, tecnologias, hilos }),
+  pararLimpieza: (guardar) => post('/api/limpiezas/cancelar', { guardar }),
+  verificarHuellas: () => post('/api/huellas/verificar'),
   cancelar: () => post('/api/corridas/cancelar'),
   quitar: (id) => post('/api/nodos/quitar', { id }),
   terminarSesion: () => post('/api/sesion/terminar'),

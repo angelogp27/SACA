@@ -1,10 +1,11 @@
 // Exporta la muestra de entrenamiento al formato binario que leen los
-// núcleos nativos de nativo/ (docs/contrato_formato_binario.md, archivo 1)
+// núcleos nativos de nativo/ (docs/contratos/contrato_formato_binario.md, archivo 1)
 // y entrena la versión secuencial en Go para dejar el resultado de
 // referencia: la pérdida final de cualquier núcleo nativo debe coincidir
 // con ella dentro de 1e-6.
 //
 //	go run ./herramientas/cmd/exportar-muestra -muestra data/muestra.gob -salida data/muestra.bin
+//	go run ./herramientas/cmd/exportar-muestra -muestra data/muestra.bin   # solo la referencia (muestra v2 del cargador)
 package main
 
 import (
@@ -41,10 +42,16 @@ func main() {
 	d := len(ent.X[0])
 	log.Printf("entrenamiento: %d ejemplos, prueba: %d, d=%d", len(ent.X), len(prueba.X), d)
 
-	if err := escribir(*salida, d, datos.PesosClase, ent, prueba); err != nil {
-		log.Fatal(err)
+	// Una muestra .bin (v2, la que escribe el cargador con -bin) ya está en
+	// el formato de los núcleos nativos: solo falta la referencia.
+	if strings.EqualFold(filepath.Ext(*rutaMuestra), ".bin") {
+		*salida = *rutaMuestra
+	} else {
+		if err := escribir(*salida, d, datos.PesosClase, ent, prueba); err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("escrito %s", *salida)
 	}
-	log.Printf("escrito %s", *salida)
 
 	log.Printf("entrenando la referencia secuencial (%d épocas, tasa %g)...", *epocas, *tasa)
 	inicio := time.Now()

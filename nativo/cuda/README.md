@@ -2,7 +2,7 @@
 
 `gradiente_servidor.cu` calcula en una GPU NVIDIA el gradiente parcial de la regresión logística sobre la partición de un nodo del clúster.
 
-No usa la red. Lo lanza el trabajador Go (`entrenamiento/cmd/trabajador -motor cuda`) y se comunican por stdin/stdout con un protocolo binario simple (ver el comentario al inicio del `.cu` y `internal/distribuido/externo.go`). Go se encarga de la red y del protocolo con el maestro, y CUDA del cálculo: es el modelo híbrido de [docs/guia_cluster.md](../../docs/guia_cluster.md) §6, con TCP en lugar de MPI.
+No usa la red. Lo lanza el trabajador Go (`entrenamiento/cmd/trabajador -motor cuda`) y se comunican por stdin/stdout con un protocolo binario simple (ver el comentario al inicio del `.cu` y `internal/distribuido/externo.go`). Go se encarga de la red y del protocolo con el maestro, y CUDA del cálculo: es el modelo híbrido de [docs/cluster/arquitectura_cluster.md](../../docs/cluster/arquitectura_cluster.md) §6, con TCP en lugar de MPI.
 
 ```
 maestro (Go) ──TCP──► trabajador (Go) ──stdin/stdout──► gradiente_cuda.exe ──► GPU
@@ -17,7 +17,7 @@ maestro (Go) ──TCP──► trabajador (Go) ──stdin/stdout──► grad
 
 **Corrección.** Antes de la primera época, el trabajador compara el gradiente de la GPU con el de Go en dos puntos. Si no coinciden (tolerancia relativa 1e-8), avisa y calcula con goroutines. La demo nunca se cae por el motor CUDA.
 
-> Para integrantes que no conocen el código: la guía paso a paso, con la salida que se debe ver en cada paso, es [docs/cluster/guia_nodo_con_nvidia.md](../../docs/cluster/guia_nodo_con_nvidia.md).
+> Para integrantes que no conocen el código: la guía paso a paso, con la salida que se debe ver en cada paso, es [docs/cluster/tailscale/anterior/guia_nodo_con_nvidia.md](../../docs/cluster/tailscale/anterior/guia_nodo_con_nvidia.md).
 
 ## Compilar en una PC con GPU NVIDIA
 

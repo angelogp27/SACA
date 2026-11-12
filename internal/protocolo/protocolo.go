@@ -1,5 +1,5 @@
 // Package protocolo implementa los mensajes del protocolo TCP
-// maestro-trabajador de docs/contrato_protocolo_tcp.md: un objeto JSON por
+// maestro-trabajador de docs/contratos/contrato_protocolo_tcp.md: un objeto JSON por
 // línea, con un campo "tipo" que identifica su forma. Es el equivalente
 // del send/recv de MPI, pero sobre conexiones TCP entre procesos (o
 // contenedores) que no comparten memoria.
@@ -22,6 +22,16 @@ const (
 	TipoGradienteParcial        = "gradiente_parcial"
 	TipoEntrenamientoFinalizado = "entrenamiento_finalizado"
 	TipoBaja                    = "baja"
+
+	// Limpieza (docs/contratos/contrato_protocolo_tcp.md, "Limpieza"): cada nodo
+	// limpia sus propios CSV y genera su data/muestra.bin; por la red solo
+	// viajan avisos, avances y huellas.
+	TipoIniciarLimpieza   = "iniciar_limpieza"   // maestro → trabajador
+	TipoCancelarLimpieza  = "cancelar_limpieza"  // maestro → trabajador
+	TipoProgresoLimpieza  = "progreso_limpieza"  // trabajador → maestro
+	TipoLimpiezaTerminada = "limpieza_terminada" // trabajador → maestro, una por tecnología
+	TipoConsultarHuella   = "consultar_huella"   // maestro → trabajador
+	TipoHuellaMuestra     = "huella_muestra"     // trabajador → maestro
 )
 
 // FiltroMongo indica qué porción de los datos le toca a un trabajador:
@@ -78,8 +88,20 @@ type Mensaje struct {
 	PerdidaFinal float64 `json:"perdida_final,omitempty"`
 	Continuar    bool    `json:"continuar,omitempty"`
 
-	// baja y entrenamiento_finalizado (motivo de una corrida cancelada)
+	// baja y entrenamiento_finalizado (motivo de una corrida cancelada);
+	// en limpieza_terminada, el error si la tecnología no terminó.
 	Motivo string `json:"motivo,omitempty"`
+
+	// Limpieza. Corrida es aquí el número de limpieza. Tecnologias se
+	// ejecutan una tras otra (nunca a la vez, para no pelear por la CPU);
+	// Hilos = 0 usa todos los núcleos lógicos del nodo. Avance va de 0 a 1
+	// y CPU es el uso del proceso de limpieza en % de toda la CPU del nodo.
+	Tecnologias []string `json:"tecnologias,omitempty"`
+	Tecnologia  string   `json:"tecnologia,omitempty"`
+	Hilos       int      `json:"hilos,omitempty"`
+	Avance      float64  `json:"avance,omitempty"`
+	CPU         float64  `json:"cpu,omitempty"`
+	TTotalS     float64  `json:"t_total_s,omitempty"`
 }
 
 // Conexion envuelve un extremo del protocolo. Enviar es seguro para varias

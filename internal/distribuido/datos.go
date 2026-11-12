@@ -1,5 +1,5 @@
 // Package distribuido reúne lo que comparten el maestro y los trabajadores
-// del entrenamiento distribuido por TCP (Parte B, docs/contrato_protocolo_tcp.md):
+// del entrenamiento distribuido por TCP (Parte B, docs/contratos/contrato_protocolo_tcp.md):
 // la preparación local de la muestra, el filtrado por partición, la
 // agregación de los gradientes parciales y los motores de cálculo de cada
 // nodo (goroutines en Go o un proceso externo en CUDA).
@@ -10,14 +10,19 @@ import (
 	"encoding/hex"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"proyecto9/internal/dataset"
 	"proyecto9/internal/entrenador"
+	"proyecto9/internal/muestrabin"
 	"proyecto9/internal/particion"
 )
 
-// PrepararLocal carga la caché de la muestra (data/muestra.gob) y la
-// prepara igual que entrenador.Preparar, sin MongoDB. Devuelve también la
+// PrepararLocal carga la muestra del nodo sin MongoDB: un data/muestra.bin
+// (versión 2, ya normalizado, el que genera el cargador con -bin) o la
+// caché antigua data/muestra.gob, que se prepara igual que
+// entrenador.Preparar. Devuelve también la
 // huella del archivo: si dos nodos tienen la misma huella, tienen los
 // mismos datos y, como la preparación es determinista, la misma
 // normalización y los mismos pesos de clase.
@@ -25,6 +30,13 @@ func PrepararLocal(rutaMuestra string, mesCorte int) (*entrenador.Datos, string,
 	huella, err := Huella(rutaMuestra)
 	if err != nil {
 		return nil, "", err
+	}
+	if strings.EqualFold(filepath.Ext(rutaMuestra), ".bin") {
+		datos, err := muestrabin.Leer(rutaMuestra)
+		if err != nil {
+			return nil, "", err
+		}
+		return datos, huella, nil
 	}
 	muestra, err := dataset.Cargar(rutaMuestra)
 	if err != nil {

@@ -10,7 +10,7 @@ NODOS=${1:-3}
 EPOCAS=${2:-200}
 PUERTO=${PUERTO:-9000}
 MOTOR=${MOTOR:-auto}
-MUESTRA=${MUESTRA:-data/muestra.gob}
+MUESTRA=${MUESTRA:-data/muestra.bin}
 
 [ -f "$MUESTRA" ] || { echo "falta $MUESTRA (ver docs/cluster/, paso 'Copiar la muestra' de tu guía)"; exit 1; }
 mkdir -p bin/logs
