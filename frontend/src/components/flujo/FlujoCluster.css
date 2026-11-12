@@ -608,3 +608,127 @@ button.nodo-caja {
 .flujo-aviso h3 {
   font-size: 22px;
 }
+
+.ajustes-modelo {
+  border: 1px solid var(--gridline);
+  border-radius: 10px;
+  padding: 8px 14px 12px;
+  margin: 4px 0 0;
+  text-align: left;
+  font-size: 14px;
+}
+
+.ajustes-modelo legend {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  padding: 0 4px;
+}
+
+.ajustes-numeros {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.ajustes-numeros label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ajustes-numeros input {
+  font: inherit;
+  width: 90px;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--baseline);
+  border-radius: 8px;
+  background: var(--page);
+  color: var(--text-primary);
+}
+
+.nodo-nombre .nodo-extra {
+  color: var(--serie-3);
+  font-weight: 700;
+}
+
+.ajustes-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.ajustes-select select {
+  font: inherit;
+  min-height: 36px;
+  border: 1px solid var(--baseline);
+  border-radius: 8px;
+  background: var(--page);
+  color: var(--text-primary);
+  padding: 0 8px;
+}
+
+.flujo-topologia {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(280px, 1.4fr);
+  gap: 16px;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.flujo-topologia .detalle {
+  margin-top: 8px;
+}
+
+.flujo-topologia svg {
+  width: 100%;
+  height: auto;
+  max-height: 230px;
+}
+
+.topo-nodo {
+  fill: color-mix(in srgb, var(--serie-3) 22%, var(--surface));
+  stroke: var(--serie-3);
+  stroke-width: 2;
+}
+
+.topo-maestro {
+  fill: color-mix(in srgb, var(--serie-1) 25%, var(--surface));
+  stroke: var(--serie-1);
+  stroke-width: 3;
+}
+
+.topo-texto {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  fill: var(--text-primary);
+}
+
+.topo-nombre {
+  font-family: var(--mono);
+  font-size: 11px;
+  fill: var(--text-secondary);
+}
+
+@media (max-width: 700px) {
+  .flujo-topologia {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sala-botones-fila {
+  flex-direction: row;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}

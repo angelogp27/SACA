@@ -90,8 +90,9 @@ Qué puertos usa SACA:
 | UDP **9001** | Anuncios del clúster (para que "Unirse" encuentre al maestro y "Iniciar" sepa si ya hay uno) | En **todas** |
 | TCP **9000** | Los nodos se conectan al maestro | En el maestro |
 | TCP **8080** | Las otras laptops ven el clúster en vivo (su página habla con la API del maestro) | En el maestro |
+| TCP **9002** | Los nodos se suman los gradientes **entre ellos** (comunicación en árbol o en anillo) | En **todas** |
 
-Como **cualquier** laptop puede ser el maestro, lo más simple es abrir los tres en todas.
+Como **cualquier** laptop puede ser el maestro, lo más simple es abrir los cuatro en todas.
 
 - **Fedora:** con `connection.zone trusted` del paso 2 ya está todo abierto en el cable. Compruébalo: `firewall-cmd --get-zone-of-interface=enp5s0f4u1c2` → `trusted`.
 - **Windows** (PowerShell como administrador):
@@ -99,6 +100,7 @@ Como **cualquier** laptop puede ser el maestro, lo más simple es abrir los tres
   ```powershell
   New-NetFirewallRule -DisplayName "SACA anuncios" -Direction Inbound -Protocol UDP -LocalPort 9001 -Action Allow -Profile Private
   New-NetFirewallRule -DisplayName "SACA maestro" -Direction Inbound -Protocol TCP -LocalPort 9000,8080 -Action Allow -Profile Private
+  New-NetFirewallRule -DisplayName "SACA pares" -Direction Inbound -Protocol TCP -LocalPort 9002 -Action Allow -Profile Private
   ```
 
   `-Profile Private` funciona porque en el paso 2 marcaste el cable como red **Privada**.
@@ -157,6 +159,7 @@ Solo la laptop del maestro tiene los botones; las demás ven todo en vivo. Los t
 - **"No se detectó ningún clúster"**: el anuncio UDP no llega (firewall del puerto 9001, red Pública o el maestro aún no inició). Escribe la IP del maestro en el campo y pulsa *Unirse*.
 - **"No se pudo conectar con el maestro 192.168.50.x:9000"**: falta abrir el TCP 9000 en el maestro, o el maestro se cerró.
 - **Las otras laptops no ven el clúster en vivo** (pero sus nodos sí aparecen en el maestro): falta abrir el TCP 8080 en el maestro.
+- **"No se pudo conectar con el par …:9002"** al entrenar en árbol o anillo: falta abrir el TCP 9002 en esa laptop. Mientras tanto, elige *Todo por el maestro*.
 - **Cambiar de maestro**: en el maestro actual, *Apagar clúster*; en la laptop nueva, *Iniciar clúster*; las demás, *Salir del clúster* y *Unirse*.
 - **Un nodo llega tarde a la limpieza**: aparece arriba a la derecha de la pantalla de limpieza; tócalo para sumarlo. También puede llegar después y limpiar desde *Realizar limpieza*.
 - **"Ya hay una página de SACA abierta"** (`no se pudo abrir la página en el puerto 8090`): ya hay un `saca` corriendo en esa laptop; usa esa ventana o ciérrala con Ctrl+C.
@@ -183,5 +186,5 @@ Solo la laptop del maestro tiene los botones; las demás ven todo en vivo. Los t
   ```powershell
   Remove-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress 192.168.50.2 -Confirm:$false
   Set-NetIPInterface -InterfaceAlias "Ethernet" -Dhcp Enabled
-  Remove-NetFirewallRule -DisplayName "SACA anuncios", "SACA maestro"
+  Remove-NetFirewallRule -DisplayName "SACA anuncios", "SACA maestro", "SACA pares"
   ```

@@ -69,3 +69,8 @@
 .nota {
   margin-top: 6px;
 }
+
+.mapa-modo {
+  margin-top: 8px;
+  display: inline-flex;
+}

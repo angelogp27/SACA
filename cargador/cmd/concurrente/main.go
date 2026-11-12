@@ -158,6 +158,10 @@ func main() {
 	log.Printf("registros unicos (estacion, hora): %d (%d valores de monitores repetidos resueltos por POC)", corrida.Registros, duplicados)
 
 	if *rutaBin != "" {
+		if *progreso {
+			// Fin de la limpieza: empieza la preparación de variables.
+			fmt.Println("SACA_FASE variables")
+		}
 		inicioBin := time.Now()
 		m, err := muestrabin.Construir(mapas, muestrabin.MesCorte)
 		if err != nil {

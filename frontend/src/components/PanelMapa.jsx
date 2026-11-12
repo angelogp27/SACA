@@ -29,20 +29,43 @@ function nivelRiesgo(indice) {
   return 'good'
 }
 
+// Alerta del modelo: la probabilidad más alta del día de que el NO2 supere
+// el umbral la hora siguiente (predicción distribuida del clúster).
+function nivelAlerta(p) {
+  if (p >= 0.5) return 'critical'
+  if (p >= 0.2) return 'warning'
+  return 'good'
+}
+
+const NIVELES_ALERTA = {
+  good: { etiqueta: 'Sin alerta', icono: '●', color: 'var(--status-good)', detalle: 'prob. < 20 %' },
+  warning: { etiqueta: 'Atención', icono: '▲', color: 'var(--status-warning)', detalle: '20-50 %' },
+  critical: { etiqueta: 'Alerta', icono: '◆', color: 'var(--status-critical)', detalle: '≥ 50 %' },
+}
+
 const NIVELES = {
   good: { etiqueta: 'Bajo', icono: '●', color: 'var(--status-good)', detalle: '< 2% de horas' },
   warning: { etiqueta: 'Moderado', icono: '▲', color: 'var(--status-warning)', detalle: '2-10% de horas' },
   critical: { etiqueta: 'Alto', icono: '◆', color: 'var(--status-critical)', detalle: '≥ 10% de horas' },
 }
 
-export default function PanelMapa({ estaciones, seleccionada, onSeleccionar }) {
+export default function PanelMapa({ estaciones, seleccionada, onSeleccionar, dia }) {
   const [hover, setHover] = useState(null)
-  const visibles = estaciones.lista.filter(dentroDelMapa)
-  const fuera = estaciones.lista.length - visibles.length
+  const hayAlerta = estaciones.lista.some((e) => Number.isFinite(e.alerta))
+  const [modoElegido, setModo] = useState('historico')
+  const modo = hayAlerta ? modoElegido : 'historico'
+  const enAlerta = modo === 'alerta'
+  // En modo alerta solo se dibujan las estaciones con predicción (NO2).
+  const lista = enAlerta ? estaciones.lista.filter((e) => Number.isFinite(e.alerta)) : estaciones.lista
+  const valor = (e) => (enAlerta ? e.alerta : e.indice)
+  const nivelDe = (e) => (enAlerta ? nivelAlerta(e.alerta) : nivelRiesgo(e.indice))
+  const niveles = enAlerta ? NIVELES_ALERTA : NIVELES
+  const visibles = lista.filter(dentroDelMapa)
+  const fuera = lista.length - visibles.length
   // Las de mayor riesgo se dibujan al final para quedar encima.
-  const ordenadas = [...visibles].sort((a, b) => a.indice - b.indice)
+  const ordenadas = [...visibles].sort((a, b) => valor(a) - valor(b))
   const conteo = { good: 0, warning: 0, critical: 0 }
-  estaciones.lista.forEach((e) => conteo[nivelRiesgo(e.indice)]++)
+  lista.forEach((e) => conteo[nivelDe(e)]++)
   const radio = estaciones.real ? 2.6 : 6
   const enfocada = hover ?? estaciones.lista.find((e) => e.id === seleccionada)
 
@@ -51,17 +74,25 @@ export default function PanelMapa({ estaciones, seleccionada, onSeleccionar }) {
       <figcaption>
         <h3>Mapa de estaciones</h3>
         <p>
-          {estaciones.real
-            ? `${estaciones.lista.length} estaciones · riesgo histórico 2025: % de horas sobre el umbral AQI 51 del gas dominante`
-            : 'Riesgo previsto (datos de ejemplo)'}
+          {!estaciones.real
+            ? 'Riesgo previsto (datos de ejemplo)'
+            : enAlerta
+              ? `${lista.length} estaciones con NO2 · alerta del modelo el ${dia ?? 'día de la serie'}: probabilidad más alta de superar 53 ppb la hora siguiente (predicción distribuida)`
+              : `${estaciones.lista.length} estaciones · riesgo histórico 2025: % de horas sobre el umbral AQI 51 del gas dominante`}
         </p>
+        {hayAlerta && (
+          <div className="vistas mapa-modo" role="tablist" aria-label="Color del mapa">
+            <button type="button" role="tab" aria-selected={!enAlerta} onClick={() => setModo('historico')}>Riesgo histórico</button>
+            <button type="button" role="tab" aria-selected={enAlerta} onClick={() => setModo('alerta')}>Alerta del modelo</button>
+          </div>
+        )}
       </figcaption>
 
       <svg viewBox={`0 0 ${ANCHO} ${ALTO}`} role="img" aria-label="Mapa de estaciones de monitoreo coloreadas por nivel de riesgo">
         <rect x="0" y="0" width={ANCHO} height={ALTO} fill="var(--surface)" />
         {ordenadas.map((e) => {
           const { x, y } = proyectar(e.lat, e.lon)
-          const nivel = nivelRiesgo(e.indice)
+          const nivel = nivelDe(e)
           const activa = e.id === seleccionada
           return (
             <g
@@ -74,11 +105,11 @@ export default function PanelMapa({ estaciones, seleccionada, onSeleccionar }) {
               tabIndex={0}
               role="button"
               aria-pressed={activa}
-              aria-label={`${e.nombre}: riesgo ${NIVELES[nivel].etiqueta}`}
+              aria-label={`${e.nombre}: ${niveles[nivel].etiqueta}`}
             >
               <circle cx={x} cy={y} r={radio + 5} className="area-toque" />
               <circle cx={x} cy={y} r={(activa ? radio * 1.8 : radio) + 1.5} fill="var(--surface)" />
-              <circle cx={x} cy={y} r={activa ? radio * 1.8 : radio} fill={NIVELES[nivel].color} />
+              <circle cx={x} cy={y} r={activa ? radio * 1.8 : radio} fill={niveles[nivel].color} />
             </g>
           )
         })}
@@ -90,8 +121,10 @@ export default function PanelMapa({ estaciones, seleccionada, onSeleccionar }) {
             <strong>{enfocada.nombre}</strong>
             <span>
               {enfocada.detalle && `${enfocada.detalle} · `}
-              {enfocada.id} · {NIVELES[nivelRiesgo(enfocada.indice)].icono} {NIVELES[nivelRiesgo(enfocada.indice)].etiqueta}
-              {` (${(enfocada.indice * 100).toFixed(1)}% de horas sobre el umbral${enfocada.contaminante ? ` de ${enfocada.contaminante}` : ''})`}
+              {enfocada.id} · {niveles[nivelDe(enfocada)].icono} {niveles[nivelDe(enfocada)].etiqueta}
+              {enAlerta
+                ? ` (probabilidad máxima del día ${(enfocada.alerta * 100).toFixed(1)}%)`
+                : ` (${(enfocada.indice * 100).toFixed(1)}% de horas sobre el umbral${enfocada.contaminante ? ` de ${enfocada.contaminante}` : ''})`}
             </span>
           </>
         ) : (
@@ -100,7 +133,7 @@ export default function PanelMapa({ estaciones, seleccionada, onSeleccionar }) {
       </div>
 
       <ul className="leyenda-estado">
-        {Object.entries(NIVELES).map(([clave, n]) => (
+        {Object.entries(niveles).map(([clave, n]) => (
           <li key={clave}>
             <span className="pastilla" style={{ background: n.color }} />
             {n.etiqueta} <span className="leyenda-detalle">({conteo[clave]}, {n.detalle})</span>

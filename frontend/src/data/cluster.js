@@ -62,11 +62,15 @@ async function post(ruta, cuerpo) {
 }
 
 export const apiCluster = {
-  entrenar: (nodos, epocas, verificar) => post('/api/corridas', { nodos, epocas, verificar }),
+  // opciones (Fase 2): { modelo: 'logistica' | 'red', pasos } (mini-lotes por época de la red).
+  entrenar: (nodos, epocas, verificar, opciones = {}) => post('/api/corridas', { nodos, epocas, verificar, ...opciones }),
   // Limpieza: cada nodo limpia sus CSV y genera su muestra.bin; si ya hay
   // una en curso, los nodos se suman a ella.
   limpiar: (nodos, tecnologias = ['pthreads', 'go'], hilos = 0) => post('/api/limpiezas', { nodos, tecnologias, hilos }),
   pararLimpieza: (guardar) => post('/api/limpiezas/cancelar', { guardar }),
+  // Fase 5: cada nodo predice todas las horas de sus estaciones con el
+  // último modelo y el maestro junta los resultados.
+  predecir: (nodos) => post('/api/predicciones', { nodos }),
   verificarHuellas: () => post('/api/huellas/verificar'),
   cancelar: () => post('/api/corridas/cancelar'),
   quitar: (id) => post('/api/nodos/quitar', { id }),

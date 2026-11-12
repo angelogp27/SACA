@@ -33,6 +33,7 @@ import (
 	"proyecto9/internal/distribuido"
 	"proyecto9/internal/hardware"
 	"proyecto9/internal/limpieza"
+	"proyecto9/internal/pares"
 	"proyecto9/internal/protocolo"
 )
 
@@ -47,6 +48,7 @@ func main() {
 	hilos := flag.Int("hilos", 0, "goroutines del motor go (0 = todos los núcleos lógicos)")
 	dirDatos := flag.String("datos", "data/raw", "directorio con los 4 CSV de la EPA, para la limpieza que pide el maestro")
 	sinLimpieza := flag.Bool("sin-limpieza", false, "no aceptar pedidos de limpieza del maestro")
+	dirPares := flag.String("pares", ":9002", "dirección donde este nodo escucha a los otros nodos (comunicación en árbol o anillo); vacío = no participa")
 	reconectar := flag.Bool("reconectar", false, "si se pierde la conexión con el maestro, volver a intentar en vez de terminar")
 	flag.Parse()
 
@@ -72,6 +74,16 @@ func main() {
 	defer cancelar()
 
 	cfg := &distribuido.ConfigTrabajador{ID: *id, Datos: datos, Huella: huella, RutaMuestra: *rutaMuestra, MesCorte: *mesCorte, Motor: motor, Respaldo: respaldo, Hardware: &hw}
+	if *dirPares != "" {
+		p, err := pares.Escuchar(*dirPares)
+		if err != nil {
+			log.Printf("AVISO: no se pudo abrir el puerto de pares %s (%v): este nodo solo podrá entrenar con comunicación por el maestro", *dirPares, err)
+		} else {
+			cfg.Pares = p
+			defer p.Cerrar()
+			log.Printf("escuchando a los otros nodos en el puerto %d (árbol o anillo)", p.Puerto())
+		}
+	}
 	if !*sinLimpieza {
 		lim := limpieza.PorDefecto()
 		lim.DirDatos, lim.RutaBin = *dirDatos, *rutaMuestra

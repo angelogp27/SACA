@@ -27,8 +27,10 @@ func TestEjecutarReal(t *testing.T) {
 		for _, a := range avances {
 			maxCPU = max(maxCPU, a.CPU)
 		}
-		t.Logf("%s: %s, %d hilos, %d avances, último %.3f, CPU máx %.0f%%, huella %s", tec, res.Duracion.Round(time.Millisecond), res.Hilos, len(avances), avances[len(avances)-1].Avance, maxCPU, res.Huella[:12])
-		if avances[len(avances)-1].Avance != 1 || maxCPU <= 0 {
+		t.Logf("%s: %s (limpieza %s + variables %s), %d hilos, %d avances, último %s %.3f, CPU máx %.0f%%, huella %s", tec, res.Duracion.Round(time.Millisecond),
+			res.Limpieza.Round(time.Millisecond), res.Variables.Round(time.Millisecond), res.Hilos, len(avances), avances[len(avances)-1].Fase, avances[len(avances)-1].Avance, maxCPU, res.Huella[:12])
+		ultimo := avances[len(avances)-1]
+		if ultimo.Avance != 1 || ultimo.Fase != FaseVariables || maxCPU <= 0 || res.Variables <= 0 {
 			t.Fatal("avance o CPU incorrectos")
 		}
 		huellas = append(huellas, res.Huella)

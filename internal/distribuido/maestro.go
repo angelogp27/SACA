@@ -9,6 +9,7 @@ import (
 	"math"
 	"net"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,8 +20,10 @@ import (
 	"proyecto9/internal/hardware"
 	"proyecto9/internal/logistica"
 	"proyecto9/internal/metricas"
+	"proyecto9/internal/pares"
 	"proyecto9/internal/particion"
 	"proyecto9/internal/protocolo"
+	"proyecto9/internal/red"
 )
 
 // Motivos de "baja" que el trabajador entiende.
@@ -61,6 +64,9 @@ type ConfigMaestro struct {
 	// LimpiezaTerminada, si no es nil, recibe la limpieza al terminar o
 	// pararse; guardar dice si sus tiempos deben guardarse.
 	LimpiezaTerminada func(e EstadoLimpieza, guardar bool)
+	// PrediccionTerminada, si no es nil, recibe las predicciones de todos
+	// los nodos (Fase 5) para regenerar los datos del mapa.
+	PrediccionTerminada func(e EstadoPrediccion, filas []FilaPrediccion, modelo ModeloEntrenado)
 	// EsperaGradiente es cuánto se espera a un nodo en cada época antes
 	// de abortar: un nodo colgado no debe colgar la demo.
 	EsperaGradiente time.Duration
@@ -82,6 +88,15 @@ type OpcionesCorrida struct {
 	// CerrarSala: al terminar el entrenamiento no se aceptan más nodos (modo
 	// de una corrida: uno que llegue tarde no se registra en vano).
 	CerrarSala bool
+	// Comunicacion de la red neuronal (Fase 4): "central" (todo por el
+	// maestro), "arbol" o "anillo" (los nodos suman entre ellos).
+	Comunicacion string
+	// Modelo: "" o "logistica" (regresión logística, por lotes completos) o
+	// "red" (red neuronal por mini-lotes, Fase 2). Capas son las capas
+	// ocultas de la red; PasosPorEpoca, los mini-lotes por época.
+	Modelo        string
+	Capas         []int
+	PasosPorEpoca int
 	// Pesos reparte la muestra en proporción al peso de cada nodo (por id)
 	// en vez de en partes iguales (Experimento 9). Debe tener un peso
 	// positivo para cada nodo de la corrida; nil = reparto igual.
@@ -119,6 +134,11 @@ type Resultado struct {
 	Evaluacion    metricas.Clasificacion
 	Verificacion  *Verificacion
 	Normalizador  dataset.Normalizador // de la muestra de la corrida, para guardar el modelo
+	// Red: el modelo cuando la corrida es de la red neuronal (Modelo es nil).
+	Red *ResultadoRed
+	// T1EpocaMs: una época en secuencial medida en esta corrida (la red); 0
+	// = usar la de la regresión logística.
+	T1EpocaMs float64
 }
 
 type tipoEvento int
@@ -139,6 +159,11 @@ type nodoSala struct {
 	vista    NodoVista
 	conexion *protocolo.Conexion
 	orden    int
+	// puertoPares: donde escucha a los otros nodos (0 = no puede);
+	// ipLocal: la IP de ESTE maestro por la que llegó el nodo (sirve para
+	// dar a los demás la dirección del nodo que corre junto al maestro).
+	puertoPares int
+	ipLocal     string
 }
 
 // corridaActiva recibe los mensajes de los nodos que participan en ella.
@@ -186,6 +211,19 @@ type Maestro struct {
 	limpieza          *EstadoLimpieza // la limpieza en curso o la última
 	siguienteLimpieza int
 	consultas         map[string]bool // nodos a los que se pidió la huella y no respondieron
+
+	// Rendimiento medido de cada nodo (por id), para proponer el reparto
+	// proporcional (Fase 3): ejemplos por ms de cálculo en el último
+	// entrenamiento, y 1/segundos de su última limpieza con Go.
+	rendEntreno  map[string]float64
+	rendLimpieza map[string]float64
+
+	// Predicción distribuida (Fase 5).
+	ultimoModelo        *ModeloEntrenado
+	prediccion          *EstadoPrediccion
+	siguientePrediccion int
+	predFilas           map[string][]FilaPrediccion
+	predLista           []string
 }
 
 func NuevoMaestro(cfg ConfigMaestro) *Maestro {
@@ -196,14 +234,16 @@ func NuevoMaestro(cfg ConfigMaestro) *Maestro {
 		cfg.Capacidad = 16
 	}
 	return &Maestro{
-		cfg:       cfg,
-		registro:  cluster.NuevoRegistro(cfg.Capacidad),
-		nodos:     map[string]*nodoSala{},
-		ocupados:  map[string]bool{},
-		cambios:   make(chan struct{}, 1),
-		datos:     cfg.Datos,
-		huella:    cfg.Huella,
-		consultas: map[string]bool{},
+		cfg:          cfg,
+		registro:     cluster.NuevoRegistro(cfg.Capacidad),
+		nodos:        map[string]*nodoSala{},
+		ocupados:     map[string]bool{},
+		cambios:      make(chan struct{}, 1),
+		datos:        cfg.Datos,
+		huella:       cfg.Huella,
+		consultas:    map[string]bool{},
+		rendEntreno:  map[string]float64{},
+		rendLimpieza: map[string]float64{},
 	}
 }
 
@@ -331,9 +371,11 @@ func (m *Maestro) Atender(conn net.Conn) {
 	m.mu.Lock()
 	m.llegadas++
 	m.nodos[msg.WorkerID] = &nodoSala{
-		vista:    NodoVista{ID: msg.WorkerID, Motor: msg.Motor, Dispositivo: msg.Dispositivo, Hardware: msg.Hardware, Remoto: remoto, Estado: "libre", ConectadoDesde: time.Now(), Huella: msg.Huella},
-		conexion: c,
-		orden:    m.llegadas,
+		vista:       NodoVista{ID: msg.WorkerID, Motor: msg.Motor, Dispositivo: msg.Dispositivo, Hardware: msg.Hardware, Remoto: remoto, Estado: "libre", ConectadoDesde: time.Now(), Huella: msg.Huella},
+		conexion:    c,
+		orden:       m.llegadas,
+		puertoPares: msg.PuertoPares,
+		ipLocal:     soloIP(conn.LocalAddr().String()),
 	}
 	enSala := len(m.nodos)
 	m.mu.Unlock()
@@ -362,6 +404,7 @@ func (m *Maestro) Atender(conn net.Conn) {
 	}
 	m.registro.DarDeBaja(msg.WorkerID)
 	m.nodoSalioDeLimpieza(msg.WorkerID, motivo)
+	m.nodoSalioDePrediccion(msg.WorkerID, motivo)
 	if activa != nil {
 		if _, participa := activa.indice[msg.WorkerID]; participa {
 			activa.avisar(evento{tipo: caida, id: msg.WorkerID, motivo: motivo})
@@ -384,6 +427,8 @@ func (m *Maestro) escuchar(c *protocolo.Conexion, id string) string {
 			return "baja: " + msg.Motivo
 		case msg.Tipo == protocolo.TipoProgresoLimpieza, msg.Tipo == protocolo.TipoLimpiezaTerminada:
 			m.mensajeLimpieza(id, msg)
+		case msg.Tipo == protocolo.TipoPredicciones:
+			m.mensajePrediccion(id, msg)
 		case msg.Tipo == protocolo.TipoHuellaMuestra:
 			m.huellaRecibida(id, msg.Huella)
 		case msg.Tipo == protocolo.TipoGradienteParcial:
@@ -507,6 +552,28 @@ func (m *Maestro) Iniciar(op OpcionesCorrida) (*Corrida, error) {
 	if op.Epocas < 1 {
 		return nil, errors.New("la corrida necesita al menos 1 época")
 	}
+	switch op.Modelo {
+	case "", "logistica":
+		op.Modelo = "logistica"
+	case "red":
+		if len(op.Capas) == 0 {
+			op.Capas = red.CapasPorDefecto
+		}
+		if op.PasosPorEpoca < 1 {
+			op.PasosPorEpoca = PasosRedPorDefecto
+		}
+		if op.Tasa <= 0 || op.Tasa == 0.1 {
+			op.Tasa = TasaRedPorDefecto // la tasa de la logística es demasiado alta para Adam
+		}
+		if op.Comunicacion == "" {
+			op.Comunicacion = pares.Central
+		}
+		if !pares.Valido(op.Comunicacion) {
+			return nil, fmt.Errorf("comunicación desconocida %q (usa central, arbol o anillo)", op.Comunicacion)
+		}
+	default:
+		return nil, fmt.Errorf("modelo desconocido %q (usa logistica o red)", op.Modelo)
+	}
 	if err := m.recargar(); err != nil {
 		return nil, err
 	}
@@ -517,6 +584,9 @@ func (m *Maestro) Iniciar(op OpcionesCorrida) (*Corrida, error) {
 	}
 	if m.limpiezaEnCurso() {
 		return nil, ErrLimpiando
+	}
+	if m.prediccionEnCurso() {
+		return nil, fmt.Errorf("%w: hay una predicción en curso", ErrOcupado)
 	}
 	if m.datos == nil {
 		return nil, ErrSinMuestra
@@ -544,13 +614,25 @@ func (m *Maestro) Iniciar(op OpcionesCorrida) (*Corrida, error) {
 			distintos = append(distintos, fmt.Sprintf("%s (%s)", id, cortaOVacia(n.vista.Huella)))
 		}
 	}
+	if op.Modelo == "red" && op.Comunicacion != pares.Central {
+		for _, n := range nodos {
+			if n.puertoPares == 0 {
+				return nil, fmt.Errorf("%w: %s no tiene puerto de pares (actualiza su programa) y no puede comunicarse en %s", ErrNodoNoDisponible, n.vista.ID, op.Comunicacion)
+			}
+		}
+	}
 	if len(distintos) > 0 {
 		return nil, fmt.Errorf("%w: estos nodos no tienen el mismo muestra.bin que el maestro (%s): %s", ErrMuestraDistinta, Corta(m.huella), strings.Join(distintos, ", "))
 	}
 
 	m.siguiente++
 	activa := &corridaActiva{id: m.siguiente, indice: map[string]int{}, eventos: make(chan evento, 64), fin: make(chan struct{}), huella: m.huella}
-	estado := &EstadoCorrida{ID: m.siguiente, Estado: EstadoEntrenando, Epocas: op.Epocas, Inicio: time.Now()}
+	estado := &EstadoCorrida{ID: m.siguiente, Estado: EstadoEntrenando, Epocas: op.Epocas, Inicio: time.Now(), Modelo: describirModelo(op), PasosPorEpoca: op.PasosPorEpoca, Comunicacion: op.Comunicacion}
+	if op.Modelo == "red" {
+		estado.Parametros = red.NumParametros(red.Arquitectura(len(m.datos.Entrenamiento.X[0]), op.Capas))
+	} else {
+		estado.Parametros = len(m.datos.Entrenamiento.X[0]) + 1
+	}
 	for i, n := range nodos {
 		activa.indice[n.vista.ID] = i
 		m.ocupados[n.vista.ID] = true
@@ -610,7 +692,8 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 	for i, nodo := range c.nodos {
 		err := nodo.conexion.Enviar(protocolo.Mensaje{
 			Tipo: protocolo.TipoParticionAsignada, WorkerID: nodo.vista.ID,
-			FiltroMongo: filtros[i], Huella: c.huella,
+			FiltroMongo: filtros[i], Huella: c.huella, Modelo: modeloMsg(op), Capas: capasMsg(op, c.datos), PasosPorEpoca: op.PasosPorEpoca,
+			Comunicacion: comunicacionMsg(op), Rango: i, Pares: c.direccionesPares(), Epocas: op.Epocas, Tasa: op.Tasa,
 		})
 		if err != nil {
 			return nil, errCaida(0, nodo.vista.ID, "no se le pudo enviar la partición: "+err.Error())
@@ -622,6 +705,10 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 			m.cerrada = true
 			m.mu.Unlock()
 		}()
+	}
+
+	if op.Modelo == "red" {
+		return c.entrenarRed(ctx)
 	}
 
 	X := c.datos.Entrenamiento.X
@@ -809,7 +896,7 @@ func (c *Corrida) terminar(estado, mensaje string, res *Resultado) {
 	defer m.mu.Unlock()
 	est := c.estado
 	est.Estado, est.Mensaje = estado, mensaje
-	r := ResumenCorrida{ID: est.ID, Epocas: est.Epocas, Estado: estado}
+	r := ResumenCorrida{ID: est.ID, Epocas: est.Epocas, Estado: estado, Modelo: est.Modelo}
 	for _, n := range est.Nodos {
 		r.Nodos = append(r.Nodos, n.ID)
 		r.Motores = append(r.Motores, n.Motor)
@@ -825,11 +912,31 @@ func (c *Corrida) terminar(estado, mensaje string, res *Resultado) {
 		if v := res.Verificacion; v != nil {
 			r.Verificado, r.Diferencia, r.TSecuencialS = true, v.Diferencia, v.Duracion.Seconds()
 		}
-		if m.t1EpocaMs > 0 && r.TEpocaMs > 0 {
-			r.Speedup = m.t1EpocaMs / r.TEpocaMs
+		t1 := m.t1EpocaMs
+		if res.Red != nil {
+			t1 = res.T1EpocaMs // la red solo tiene T(1) si se verificó; la de la logística no sirve
+		}
+		if t1 > 0 && r.TEpocaMs > 0 {
+			r.Speedup = t1 / r.TEpocaMs
 			r.Eficiencia = r.Speedup / float64(len(r.Nodos))
 		}
 		est.Resultado = &r
+		if estado == EstadoTerminado {
+			mod := &ModeloEntrenado{Nombre: est.Modelo, Evaluacion: res.Evaluacion, Huella: c.huella}
+			if res.Red != nil {
+				mod.Capas, mod.Params = res.Red.Capas, append([]float64(nil), res.Red.Params...)
+			} else if res.Modelo != nil {
+				mod.Params = append(append([]float64(nil), res.Modelo.Pesos...), res.Modelo.Sesgo)
+			}
+			if len(mod.Params) > 0 {
+				m.ultimoModelo = mod
+			}
+		}
+		for _, n := range res.Nodos {
+			if n.TCalculo > 0 && n.N > 0 {
+				m.rendEntreno[n.ID] = float64(n.N) / (ms(n.TCalculo) / epocas)
+			}
+		}
 	}
 	m.historial = append(m.historial, r)
 }
@@ -875,13 +982,19 @@ func (m *Maestro) Instantanea() Instantanea {
 		Huella:                m.huella,
 		EjemplosEntrenamiento: ejemplos,
 		Limpieza:              m.limpieza.copia(),
+		PesosSugeridos:        map[string]float64{},
 		NodoMaestro:           m.cfg.NodoMaestro,
+		Prediccion:            m.prediccion.copia(),
 		Capacidad:             m.cfg.Capacidad,
 		T1EpocaMs:             m.t1EpocaMs,
 		Ocupado:               m.activa != nil,
 		Sala:                  []NodoVista{},
 		Corrida:               m.estado.copia(),
 		Historial:             append([]ResumenCorrida{}, m.historial...),
+	}
+	inst.PesosSugeridos, inst.OrigenPesos = m.pesosSugeridos()
+	if m.ultimoModelo != nil {
+		inst.ModeloListo = m.ultimoModelo.Nombre
 	}
 	for _, n := range m.ordenSala() {
 		v := n.vista
@@ -913,3 +1026,96 @@ func cortaOVacia(h string) string {
 }
 
 func ms(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
+
+func modeloMsg(op OpcionesCorrida) string {
+	if op.Modelo == "red" {
+		return "red"
+	}
+	return ""
+}
+
+func capasMsg(op OpcionesCorrida, d *entrenador.Datos) []int {
+	if op.Modelo != "red" {
+		return nil
+	}
+	return red.Arquitectura(len(d.Entrenamiento.X[0]), op.Capas)
+}
+
+// pesosSugeridos propone el reparto proporcional para los nodos de la sala
+// (Fase 3): su rendimiento en el último entrenamiento, relativo al más
+// lento; si alguno no entrenó todavía, su velocidad en la limpieza con Go.
+// Sin mediciones de todos, no propone nada (reparto igual). Requiere m.mu.
+func (m *Maestro) pesosSugeridos() (map[string]float64, string) {
+	for _, fuente := range []struct {
+		rend   map[string]float64
+		origen string
+	}{{m.rendEntreno, "entrenamiento"}, {m.rendLimpieza, "limpieza"}} {
+		pesos := map[string]float64{}
+		minimo := 0.0
+		completo := len(m.nodos) > 0
+		for id := range m.nodos {
+			r, ok := fuente.rend[id]
+			if !ok || r <= 0 {
+				completo = false
+				break
+			}
+			pesos[id] = r
+			if minimo == 0 || r < minimo {
+				minimo = r
+			}
+		}
+		if !completo {
+			continue
+		}
+		for id, r := range pesos {
+			pesos[id] = math.Round(100*r/minimo) / 100
+		}
+		return pesos, fuente.origen
+	}
+	return map[string]float64{}, ""
+}
+
+func comunicacionMsg(op OpcionesCorrida) string {
+	if op.Modelo == "red" && op.Comunicacion != pares.Central {
+		return op.Comunicacion
+	}
+	return ""
+}
+
+// direccionesPares: la dirección de pares de cada nodo de la corrida, en
+// orden de rango. El nodo que corre en la laptop del maestro se conectó por
+// 127.0.0.1: a los demás se les da la IP del maestro por la que ellos
+// llegaron (la misma laptop).
+func (c *Corrida) direccionesPares() []string {
+	if comunicacionMsg(c.op) == "" {
+		return nil
+	}
+	ipMaestro := ""
+	for _, n := range c.nodos {
+		if ip := soloIP(n.vista.Remoto); !esLoopback(ip) {
+			ipMaestro = n.ipLocal
+			break
+		}
+	}
+	dirs := make([]string, len(c.nodos))
+	for i, n := range c.nodos {
+		ip := soloIP(n.vista.Remoto)
+		if esLoopback(ip) && ipMaestro != "" {
+			ip = ipMaestro
+		}
+		dirs[i] = net.JoinHostPort(ip, strconv.Itoa(n.puertoPares))
+	}
+	return dirs
+}
+
+func soloIP(dir string) string {
+	if h, _, err := net.SplitHostPort(dir); err == nil {
+		return h
+	}
+	return dir
+}
+
+func esLoopback(ip string) bool {
+	p := net.ParseIP(ip)
+	return p != nil && p.IsLoopback()
+}

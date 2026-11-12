@@ -42,6 +42,8 @@ La versión 2 tiene el mismo encabezado (con `versión = 2`) y el mismo cuerpo q
 | ids de estación (ordenados) | `char[16]` × n_estaciones, rellenos con `\0` |
 | estación de cada fila de entrenamiento | `uint32` × n_entrenamiento (índice en la tabla) |
 | estación de cada fila de prueba | `uint32` × n_prueba |
+| hora de cada fila de entrenamiento | `int64` × n_entrenamiento (horas desde 1970-01-01 UTC; desde la Fase 5) |
+| hora de cada fila de prueba | `int64` × n_prueba |
 
 La versión 1 (sin ese final) la sigue escribiendo `exportar-muestra` desde la antigua `muestra.gob`; con `-muestra data/muestra.bin` solo escribe la referencia.
 
@@ -52,7 +54,7 @@ La versión 1 (sin ese final) la sigue escribiendo `exportar-muestra` desde la a
 | 0 | `char[4]` | magia | `"SACA"` |
 | 4 | `uint32` | versión | `1` |
 | 8 | `uint32` | tipo | `1` = muestra |
-| 12 | `uint32` | d | número de variables (hoy 12, ver `dataset.NombresFeatures`) |
+| 12 | `uint32` | d | número de variables (hoy 20 en la v2: las 12 base y 8 de la serie del NO2, ver `dataset.NombresFeatures`; 12 en la v1) |
 | 16 | `uint64` | n_entrenamiento | filas de entrenamiento |
 | 24 | `uint64` | n_prueba | filas de prueba |
 | 32 | `float64` | peso_clase_0 | `logistica.CalcularPesosClase` sobre el entrenamiento |

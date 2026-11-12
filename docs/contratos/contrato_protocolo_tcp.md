@@ -80,6 +80,23 @@ El avance va de 0 a 0,8 mientras se leen los CSV (bytes leídos / bytes totales)
 
 API del maestro para la página: `POST /api/limpiezas` `{"nodos":[...],"tecnologias":[...],"hilos":0}`, `POST /api/limpiezas/cancelar` `{"guardar":true|false}` (los tiempos de las tecnologías terminadas se agregan a `resultados/limpieza.csv` si `guardar`; al terminar normalmente se guardan siempre) y `POST /api/huellas/verificar` (pregunta la huella a todos los nodos libres y devuelve el estado). `/api/estado` incluye `limpieza` (por nodo y tecnología: estado, avance, serie `[avance, cpu]`, `t_total_s`, huella) y la `huella` de cada nodo de la sala.
 
+### Red neuronal por mini-lotes (Fase 2)
+
+`particion_asignada` lleva `modelo: "red"`, `capas` (p. ej. `[20,64,32,1]`) y `pasos_por_epoca`. Cada época son `pasos_por_epoca` pasos: en el paso `s`, cada nodo calcula el gradiente de su tramo `s` (`internal/red.Lote`, sin barajar) y el maestro los suma en orden de nodo y actualiza con Adam. `parametros` y `gradiente_parcial` llevan `paso` y los vectores en binario: `params_bin` y `grad_bin` (float64 little-endian, en base64 dentro del JSON).
+
+### Comunicación entre nodos: árbol y anillo (Fase 4)
+
+En `registro` el nodo informa `puerto_pares` (TCP 9002). Con `comunicacion: "arbol"` o `"anillo"`, `particion_asignada` lleva además `rango`, `pares` (la dirección de pares de cada rango), `epocas` y `tasa`. Los nodos se conectan entre ellos (`internal/pares`; en el cable: saludo `corrida` y `rango` en uint32, luego mensajes = largo uint64 + float64 little-endian) y suman el gradiente con una reducción en árbol binomial o un *allreduce* en anillo: todos obtienen los mismos bits y cada uno aplica Adam. El maestro solo envía `parametros` sin vector (la señal del paso) y recibe `gradiente_parcial` sin vector, con `t_red_ms` y `bytes_pares`; el rango 0 adjunta `params_bin` en el último paso.
+
+### Predicción distribuida (Fase 5)
+
+| Mensaje | Dirección | Campos |
+|---|---|---|
+| `predecir` | maestro → trabajador | `corrida` (número de predicción), `filtro_mongo` (estaciones del nodo), `capas` (vacío = regresión logística) y `params_bin` (la red, o los pesos y el sesgo al final) |
+| `predicciones` | trabajador → maestro | `predicciones_bin`: filas de 20 bytes (estación uint32 = índice en la lista ordenada de estaciones de `muestra.bin`, hora int64 desde 1970, probabilidad float32, NO2 observado float32), `total` de filas del nodo, `ultimo` en el último trozo; `motivo` si falló. Trozos de 50 000 filas |
+
+API: `POST /api/predicciones` `{"nodos":[...]}`; `/api/estado` incluye `prediccion` (por nodo: filas, MB, tiempos) y `modelo_listo`.
+
 ### `parametros` (maestro → trabajador)
 
 ```json

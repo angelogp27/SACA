@@ -38,7 +38,9 @@ function RolLaptop({ lanzador }) {
 }
 
 function App() {
-  const datos = useDatosReales()
+  // Sube cuando termina una predicción distribuida: recarga mapa y series.
+  const [versionDatos, setVersionDatos] = useState(0)
+  const datos = useDatosReales(versionDatos)
   const estaciones = useMemo(() => estacionesParaPaneles(datos.estaciones), [datos.estaciones])
   const [elegida, setElegida] = useState(null)
   // La página abre en el flujo del clúster; sin el lanzador local
@@ -90,11 +92,18 @@ function App() {
 
       {vistaActual === 'cluster' ? (
         <main>
-          <FlujoCluster datos={datos} lanzador={lanzador} />
+          <FlujoCluster
+            datos={datos}
+            lanzador={lanzador}
+            onVerMapa={() => {
+              setVersionDatos((v) => v + 1)
+              setVista('tablero')
+            }}
+          />
         </main>
       ) : (
       <main className="dashboard">
-        <PanelMapa estaciones={estaciones} seleccionada={estacion?.id} onSeleccionar={setElegida} />
+        <PanelMapa estaciones={estaciones} seleccionada={estacion?.id} onSeleccionar={setElegida} dia={resumen?.dia_series} />
         {estacion && <PanelLineaTiempo estacion={estacion} serie={serie} />}
         <PanelRendimiento
           experimento1={datos.experimento1}

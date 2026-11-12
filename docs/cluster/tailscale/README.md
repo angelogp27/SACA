@@ -26,6 +26,7 @@ Como cualquiera puede ser el maestro, lo ideal es que **todos** compartan su má
 |---|---|---|
 | TCP **9000** | Los nodos se conectan al maestro | En el maestro |
 | TCP **8080** | Las otras laptops ven el clúster en vivo | En el maestro |
+| TCP **9002** | Los nodos se suman los gradientes entre ellos (árbol o anillo) | En **todas** |
 | UDP 9001 | Anuncios: **no sirve por Tailscale** (no hay broadcast) | No hace falta |
 
 - **Fedora:** deja pasar todo lo que llega por la interfaz de Tailscale:
@@ -37,7 +38,7 @@ Como cualquiera puede ser el maestro, lo ideal es que **todos** compartan su má
 - **Windows** (PowerShell como administrador). La regla se limita a las IPs de Tailscale (`100.64.0.0/10`), sin importar si Windows marcó esa red como pública o privada:
 
   ```powershell
-  New-NetFirewallRule -DisplayName "SACA maestro (Tailscale)" -Direction Inbound -Protocol TCP -LocalPort 9000,8080 -RemoteAddress 100.64.0.0/10 -Action Allow
+  New-NetFirewallRule -DisplayName "SACA maestro (Tailscale)" -Direction Inbound -Protocol TCP -LocalPort 9000,8080,9002 -RemoteAddress 100.64.0.0/10 -Action Allow
   ```
 
 ---

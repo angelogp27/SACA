@@ -8,12 +8,15 @@ import { estaciones as estacionesMock, lineaTiempoMock, experimentoSpeedupMock }
 const ARCHIVOS = ['estaciones', 'series', 'resumen', 'experimento1', 'experimento1b', 'experimento2', 'experimento2_prueba', 'experimento2_anterior']
 
 async function cargar(nombre) {
-  const resp = await fetch(`${import.meta.env.BASE_URL}datos/${nombre}.json`)
+  // Sin caché: la predicción distribuida los regenera durante la sesión.
+  const resp = await fetch(`${import.meta.env.BASE_URL}datos/${nombre}.json`, { cache: 'no-store' })
   if (!resp.ok) throw new Error(`${nombre}: HTTP ${resp.status}`)
   return resp.json()
 }
 
-export function useDatosReales() {
+// version: al cambiar (p. ej. terminó una predicción distribuida), se
+// vuelven a cargar los archivos.
+export function useDatosReales(version = 0) {
   const [estado, setEstado] = useState({ cargando: true })
 
   useEffect(() => {
@@ -32,7 +35,7 @@ export function useDatosReales() {
     return () => {
       vigente = false
     }
-  }, [])
+  }, [version])
 
   return estado
 }
@@ -53,6 +56,7 @@ export function estacionesParaPaneles(estaciones) {
         indice: e.indice,
         contaminante: e.contaminante,
         gases: e.gases,
+        alerta: e.alerta, // probabilidad máxima del día según el modelo (predicción distribuida)
       })),
     }
   }

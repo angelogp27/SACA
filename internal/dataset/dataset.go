@@ -27,10 +27,66 @@ import (
 // tabla de .context/proyecto9.md §4.
 const UmbralNO2 = 53.0
 
-// NombresFeatures documenta el orden del vector que arma VectorFeatures.
+// NombresFeatures documenta el orden del vector completo (muestra.bin v2
+// con rezagos): las 12 variables de VectorFeatures y, al final, las 8 de
+// VariablesRezago. La muestra antigua (muestra.gob) usa solo las 12
+// primeras.
 var NombresFeatures = []string{
 	"no2_ppb", "o3_ppm", "so2_ppb", "co_ppm", "latitud", "longitud",
 	"sin_hora", "cos_hora", "sin_dia_semana", "cos_dia_semana", "sin_mes", "cos_mes",
+	"no2_t1", "no2_t2", "no2_t3", "no2_t6", "no2_t12", "no2_t24", "no2_media24", "no2_max24",
+}
+
+// NumBase es el número de variables de VectorFeatures.
+const NumBase = 12
+
+// Rezagos del NO2 que pide el enunciado (horas antes de t), y la ventana
+// de la media y el máximo móviles.
+var Rezagos = []int{1, 2, 3, 6, 12, 24}
+
+const VentanaHoras = 24
+
+// Historia devuelve el NO2 de la misma estación horasAtras horas antes de
+// la lectura actual, y false si esa hora no se midió.
+type Historia func(horasAtras int) (float64, bool)
+
+// VariablesRezago calcula las 8 variables de la serie propia del NO2:
+// t-1, t-2, t-3, t-6, t-12 y t-24, y la media y el máximo de las 24 horas
+// anteriores. Una hora sin medición toma el valor actual (persistencia);
+// la media y el máximo usan solo las horas medidas y, si no hay ninguna,
+// el valor actual. El cargador de Pthreads aplica exactamente la misma
+// regla, en el mismo orden de suma (de t-1 a t-24), para que muestra.bin
+// salga idéntico.
+func VariablesRezago(actual float64, h Historia) []float64 {
+	x := make([]float64, 0, len(Rezagos)+2)
+	for _, k := range Rezagos {
+		v, ok := h(k)
+		if !ok {
+			v = actual
+		}
+		x = append(x, v)
+	}
+	suma, n, maximo := 0.0, 0, 0.0
+	for k := 1; k <= VentanaHoras; k++ {
+		v, ok := h(k)
+		if !ok {
+			continue
+		}
+		if n == 0 || v > maximo {
+			maximo = v
+		}
+		suma += v
+		n++
+	}
+	if n == 0 {
+		return append(x, actual, actual)
+	}
+	return append(x, suma/float64(n), maximo)
+}
+
+// VectorCompleto son las 20 variables de una lectura con NO2.
+func VectorCompleto(r *registro.RegistroProcesado, h Historia) []float64 {
+	return append(VectorFeatures(r), VariablesRezago(*r.NO2Ppb, h)...)
 }
 
 // Muestra es un conjunto de ejemplos etiquetados. EstacionID y Mes se
@@ -41,6 +97,9 @@ type Muestra struct {
 	Y          []float64
 	EstacionID []string
 	Mes        []int
+	// Hora de cada ejemplo (horas desde 1970-01-01 UTC); solo en la muestra
+	// leída de muestra.bin (sirve para la predicción distribuida).
+	Hora []int64
 }
 
 func (m *Muestra) Len() int { return len(m.Y) }
@@ -366,9 +425,18 @@ func CargarModelo(ruta string) (*ModeloGuardado, error) {
 }
 
 // Probabilidad de que el NO2 de la estación supere el umbral
-// HorizonteHoras después de la lectura r.
-func (m *ModeloGuardado) Probabilidad(r *registro.RegistroProcesado) float64 {
+// HorizonteHoras después de la lectura r. Un modelo con rezagos (más de
+// NumBase pesos) necesita la historia de la estación; uno de 12 no la usa.
+func (m *ModeloGuardado) Probabilidad(r *registro.RegistroProcesado, h Historia) float64 {
 	x := VectorFeatures(r)
+	if len(m.Pesos) > NumBase {
+		if h == nil || r.NO2Ppb == nil {
+			h = func(int) (float64, bool) { return 0, false }
+		}
+		if r.NO2Ppb != nil {
+			x = VectorCompleto(r, h)
+		}
+	}
 	z := m.Sesgo
 	for j, v := range x {
 		z += m.Pesos[j] * (v - m.Normalizador.Medias[j]) / m.Normalizador.Desviaciones[j]

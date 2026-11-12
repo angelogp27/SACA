@@ -32,6 +32,12 @@ const (
 	TipoLimpiezaTerminada = "limpieza_terminada" // trabajador → maestro, una por tecnología
 	TipoConsultarHuella   = "consultar_huella"   // maestro → trabajador
 	TipoHuellaMuestra     = "huella_muestra"     // trabajador → maestro
+
+	// Predicción distribuida (Fase 5): el maestro manda el modelo y la
+	// partición; cada nodo predice todas las horas de sus estaciones y le
+	// devuelve los resultados en trozos binarios (el gather).
+	TipoPredecir     = "predecir"     // maestro → trabajador
+	TipoPredicciones = "predicciones" // trabajador → maestro, uno por trozo
 )
 
 // FiltroMongo indica qué porción de los datos le toca a un trabajador:
@@ -102,6 +108,46 @@ type Mensaje struct {
 	Avance      float64  `json:"avance,omitempty"`
 	CPU         float64  `json:"cpu,omitempty"`
 	TTotalS     float64  `json:"t_total_s,omitempty"`
+	// Red neuronal por mini-lotes (Fase 2 de docs/plan_avance.md). En
+	// particion_asignada: Modelo ("red"; vacío = regresión logística),
+	// Capas y PasosPorEpoca. En parametros y gradiente_parcial: Paso dentro
+	// de la época y los vectores en binario (float64 little-endian; en el
+	// JSON van en base64), en vez de Pesos/Gradiente como texto.
+	Modelo        string `json:"modelo,omitempty"`
+	Capas         []int  `json:"capas,omitempty"`
+	PasosPorEpoca int    `json:"pasos_por_epoca,omitempty"`
+	Paso          int    `json:"paso,omitempty"`
+	ParamsBin     []byte `json:"params_bin,omitempty"`
+	GradBin       []byte `json:"grad_bin,omitempty"`
+
+	// Comunicación entre nodos (Fase 4). En registro: PuertoPares, donde el
+	// nodo escucha a los otros nodos. En particion_asignada: Comunicacion
+	// ("arbol" o "anillo"; vacío = todo por el maestro), el Rango del nodo,
+	// la dirección de pares de cada rango, las Epocas y la Tasa (cada nodo
+	// aplica Adam por su cuenta). En gradiente_parcial: TRedMs (lo que tardó
+	// la suma entre nodos) y BytesPares (lo que envió a otros nodos).
+	PuertoPares  int      `json:"puerto_pares,omitempty"`
+	Comunicacion string   `json:"comunicacion,omitempty"`
+	Rango        int      `json:"rango,omitempty"`
+	Pares        []string `json:"pares,omitempty"`
+	Epocas       int      `json:"epocas,omitempty"`
+	Tasa         float64  `json:"tasa,omitempty"`
+	TRedMs       float64  `json:"t_red_ms,omitempty"`
+	BytesPares   int64    `json:"bytes_pares,omitempty"`
+
+	// Predicciones: filas de 20 bytes (estación uint32 = índice en la lista
+	// ordenada de estaciones de muestra.bin, hora int64 desde 1970, prob
+	// float32, NO2 observado float32), Total de filas del nodo y Ultimo en
+	// el último trozo.
+	PrediccionesBin []byte `json:"predicciones_bin,omitempty"`
+	Total           int    `json:"total,omitempty"`
+	Ultimo          bool   `json:"ultimo,omitempty"`
+
+	// Fase de la limpieza a la que se refiere el avance ("limpieza" o
+	// "variables"), y el tiempo de cada una al terminar.
+	Fase        string  `json:"fase,omitempty"`
+	TLimpiezaS  float64 `json:"t_limpieza_s,omitempty"`
+	TVariablesS float64 `json:"t_variables_s,omitempty"`
 }
 
 // Conexion envuelve un extremo del protocolo. Enviar es seguro para varias

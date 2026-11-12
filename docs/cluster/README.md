@@ -18,8 +18,11 @@ Cada guía de red trae sus **casos especiales**: laptop ya configurada, otra hue
 
 1. **Inicio**: *Iniciar clúster* (esta laptop es el maestro; se niega si otra ya lo inició) o *Unirse al clúster* (detecta al maestro en la red local; por Tailscale se escribe su IP).
 2. **Clúster iniciado**: los nodos conectados, cada uno con su nombre, su tipo (Maestro o Nodo) y su IP. El color de la tarjeta indica el procesador (naranja = AMD Ryzen, celeste = Intel), el logo de NVIDIA indica GPU, y el maestro va más resaltado. Los lugares que quedan se ven como *(Libre)*. *Iniciar limpieza* o *Saltar limpieza* (si ya limpiaron: solo comprueba las huellas).
-3. **Limpieza**: por cada nodo, el número de hilos, el % de CPU a lo largo del avance y el tiempo total, primero con **Pthreads** y luego con **Go** (uno tras otro, para no pelear por la CPU). Los nodos que llegan tarde aparecen arriba a la derecha y se pueden sumar. *Parar limpieza* pregunta si guardar los resultados ya completados.
-4. **Antes de entrenar**: se eligen los nodos (gris = no participa) e *Iniciar entrenamiento* comprueba que todos tengan el mismo `muestra.bin` que el maestro. Después se ve el entrenamiento en vivo.
+3. **Limpieza**: por cada nodo, el número de hilos, el % de uso del CPU a lo largo del avance y el tiempo de **leer, validar y unir** los CSV, con **Pthreads** y luego con **Go** (uno tras otro, para no pelear por la CPU). Los nodos que llegan tarde aparecen arriba a la derecha y se pueden sumar. *Parar limpieza* pregunta si guardar los resultados ya completados.
+4. **Preparación de variables**: lo mismo para la segunda fase: calcular las 20 variables (incluidos los rezagos del NO2 y la media y el máximo de 24 h), la etiqueta y la normalización, y escribir `muestra.bin`.
+5. **Antes de entrenar**: se eligen los nodos (gris = no participa), el **modelo** (red neuronal 20→64→32→1 por mini-lotes, o regresión logística), las épocas, el **reparto de los datos** (según la capacidad medida de cada nodo, o partes iguales) y la **comunicación** de la red (en árbol o en anillo entre los nodos, o todo por el maestro). *Iniciar entrenamiento* comprueba que todos tengan el mismo `muestra.bin` que el maestro.
+6. **Entrenamiento**: el diagrama de la comunicación, y en vivo la pérdida, el cálculo frente a la red, los MB por época y el cálculo de cada nodo.
+7. **Predicción distribuida**: con el modelo entrenado, cada nodo predice todas las horas de sus estaciones y le envía los resultados al maestro, que actualiza el mapa (*Alerta del modelo*) y la línea de tiempo. *Ver en el mapa* abre el Tablero.
 
 Solo la laptop del maestro tiene los botones; las demás ven todo en vivo. El clúster admite **hasta 8 laptops**, contando la del maestro; los lugares que quedan se ven como *(Libre)*. Arriba a la izquierda, la laptop del maestro muestra su nombre y la IP a la que deben unirse los demás: la del switch (`192.168.50.x`) si existe; si no, la de Tailscale.
 
@@ -38,7 +41,9 @@ Solo la laptop del maestro tiene los botones; las demás ven todo en vivo. El cl
 - **Limpieza:** cada nodo lee **sus** CSV (`data/raw`) y genera `data/muestra.bin`. Por la red solo viajan avisos, el avance y la huella; nunca los datos.
 - **Huella:** el SHA-256 del `muestra.bin`, los primeros 12 caracteres. Los dos cargadores escriben el archivo **byte a byte igual** con cualquier número de hilos, así que todas las laptops deben obtener la misma huella. Si una no coincide, no entrena.
 - **Entrenamiento:** el maestro reparte las estaciones entre los nodos; en cada época manda el modelo, cada nodo calcula su gradiente y el maestro los suma.
-- **MongoDB** ya no participa en la limpieza ni en el entrenamiento. Solo se usa en la laptop del maestro para **regenerar el mapa** al terminar un entrenamiento (si no está corriendo, el mapa queda como estaba).
+- **MongoDB** ya no participa en la limpieza, el entrenamiento ni la predicción. La predicción distribuida regenera el mapa sin él; solo se usa si se entrena con la regresión logística y se quiere regenerar el mapa por el camino anterior (`exportar`).
+- **Puertos:** UDP 9001 (anuncios), TCP 9000 y 8080 (maestro) y TCP 9002 (entre nodos, para el árbol y el anillo). Ver la guía de tu red.
+- **Plan de avance** (las 5 fases y sus mediciones): [../plan_avance.md](../plan_avance.md).
 
 ## 4. Palabras que vas a ver
 

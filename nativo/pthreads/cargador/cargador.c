@@ -580,7 +580,9 @@ static int64_t *limites_bloques(const char *ruta, int n) {
 
 /* ---------- muestra.bin v2 (internal/muestrabin) ---------- */
 
-#define D_VARIABLES 12
+#define D_VARIABLES 20 /* dataset.NombresFeatures: 12 base + 8 de la serie del NO2 */
+#define VENTANA_HORAS 24
+static const int REZAGOS[6] = {1, 2, 3, 6, 12, 24};
 #define MES_CORTE 10
 #define UMBRAL_NO2 53.0
 
@@ -643,6 +645,26 @@ static void *etiquetar(void *arg) {
         f->x[9] = SACA_COS_DIA[dsem];
         f->x[10] = SACA_SIN_MES[f->mes];
         f->x[11] = SACA_COS_MES[f->mes];
+        /* Serie propia del NO2 (dataset.VariablesRezago): t-1..t-24; una hora
+         * sin medición toma el valor actual. Media y máximo de las 24 h
+         * anteriores, sumando de t-1 a t-24 como en Go. */
+        const double actual = r->v[NO2];
+        for (int j = 0; j < 6; j++) {
+            const Registro *p = indice_buscar(ix, r->est, r->minuto - 60LL * REZAGOS[j]);
+            f->x[12 + j] = (p && p->tiene[NO2]) ? p->v[NO2] : actual;
+        }
+        double suma = 0, maximo = 0;
+        int n = 0;
+        for (int k = 1; k <= VENTANA_HORAS; k++) {
+            const Registro *p = indice_buscar(ix, r->est, r->minuto - 60LL * k);
+            if (!p || !p->tiene[NO2]) continue;
+            const double v = p->v[NO2];
+            if (n == 0 || v > maximo) maximo = v;
+            suma += v;
+            n++;
+        }
+        f->x[18] = n ? suma / (double)n : actual;
+        f->x[19] = n ? maximo : actual;
         f->y = fut->v[NO2] > UMBRAL_NO2 ? 1.0 : 0.0;
     }
     return NULL;
@@ -663,6 +685,12 @@ static void escribir_f64(FILE *f, const double *v, size_t n) {
  * hora), normaliza en una pasada secuencial y escribe el archivo. */
 static void escribir_muestra(const char *ruta, Agregadora *ags, int k) {
     const double t0 = saca_ahora();
+    /* Fin de la limpieza, empieza la preparación de variables (el nodo mide
+     * las dos fases por separado). */
+    if (informar) {
+        printf("SACA_FASE variables\n");
+        fflush(stdout);
+    }
     Etiquetado *et = calloc((size_t)k, sizeof *et);
     pthread_t *th = malloc((size_t)k * sizeof(pthread_t));
     for (int a = 0; a < k; a++) {
@@ -698,8 +726,9 @@ static void escribir_muestra(const char *ruta, Agregadora *ags, int k) {
     if (n_ent == 0 || n_pru == 0) saca_fallar("la partición temporal dejó un conjunto vacío", NULL);
     double *Xe = malloc(n_ent * d * 8), *ye = malloc(n_ent * 8), *Xp = malloc(n_pru * d * 8), *yp = malloc(n_pru * 8);
     uint32_t *ee = malloc(n_ent * 4), *ep = malloc(n_pru * 4);
+    int64_t *he = malloc(n_ent * 8), *hp = malloc(n_pru * 8); /* hora de cada fila */
     char *ids = calloc(n_est ? n_est : 1, 16);
-    if (!Xe || !ye || !Xp || !yp || !ee || !ep || !ids) saca_fallar("sin memoria para la muestra", NULL);
+    if (!Xe || !ye || !Xp || !yp || !ee || !ep || !he || !hp || !ids) saca_fallar("sin memoria para la muestra", NULL);
     size_t ie = 0, ip = 0;
     int64_t est = -1;
     for (size_t i = 0; i < n; i++) {
@@ -707,10 +736,12 @@ static void escribir_muestra(const char *ruta, Agregadora *ags, int k) {
         if (filas[i].mes < MES_CORTE) {
             memcpy(Xe + ie * d, filas[i].x, d * 8);
             ye[ie] = filas[i].y;
+            he[ie] = filas[i].hora;
             ee[ie++] = (uint32_t)est;
         } else {
             memcpy(Xp + ip * d, filas[i].x, d * 8);
             yp[ip] = filas[i].y;
+            hp[ip] = filas[i].hora;
             ep[ip++] = (uint32_t)est;
         }
     }
@@ -769,10 +800,12 @@ static void escribir_muestra(const char *ruta, Agregadora *ags, int k) {
     ok = ok && fwrite(ids, 16, n_est, f) == n_est;
     ok = ok && fwrite(ee, 4, n_ent, f) == n_ent;
     ok = ok && fwrite(ep, 4, n_pru, f) == n_pru;
+    ok = ok && fwrite(he, 8, n_ent, f) == n_ent; /* horas (Fase 5) */
+    ok = ok && fwrite(hp, 8, n_pru, f) == n_pru;
     if (fclose(f) != 0 || !ok) saca_fallar("no se pudo escribir", tmp);
     remove(ruta); /* en Windows rename no reemplaza un archivo existente */
     if (rename(tmp, ruta) != 0) saca_fallar("no se pudo renombrar la muestra a", ruta);
-    free(Xe), free(ye), free(Xp), free(yp), free(ee), free(ep), free(ids);
+    free(Xe), free(ye), free(Xp), free(yp), free(ee), free(ep), free(he), free(hp), free(ids);
     fijar_avance(1000);
     fprintf(stderr, "muestra %s: %zu de entrenamiento, %zu de prueba, %zu estaciones (%.3f s)\n", ruta, n_ent, n_pru, n_est, saca_ahora() - t0);
 }

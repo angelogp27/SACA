@@ -20,6 +20,15 @@ type Instantanea struct {
 	Historial             []ResumenCorrida `json:"historial"`
 	Limpieza              *EstadoLimpieza  `json:"limpieza"`
 	NodoMaestro           string           `json:"nodo_maestro,omitempty"` // id del nodo que corre en la laptop del maestro
+	// PesosSugeridos: reparto proporcional propuesto por nodo (1 = el más
+	// lento), medido en el último entrenamiento o, si falta, en la limpieza
+	// (OrigenPesos). Vacío = no hay mediciones de todos.
+	PesosSugeridos map[string]float64 `json:"pesos_sugeridos"`
+	OrigenPesos    string             `json:"origen_pesos,omitempty"`
+	// Predicción distribuida (Fase 5): la en curso o la última, y el último
+	// modelo entrenado con el que se puede predecir ("" = ninguno).
+	Prediccion  *EstadoPrediccion `json:"prediccion"`
+	ModeloListo string            `json:"modelo_listo,omitempty"`
 }
 
 // NodoVista es un nodo conectado al maestro.
@@ -51,7 +60,15 @@ type EstadoCorrida struct {
 
 	Nodos  []NodoCorrida `json:"nodos"`
 	Epocas int           `json:"epocas"`
-	Epoca  int           `json:"epoca"` // épocas completadas
+	// Modelo ("logistica" o "red(64-32)"), cuántos parámetros viajan en
+	// cada vector y cuántos pasos (mini-lotes) tiene una época.
+	Modelo        string `json:"modelo"`
+	Parametros    int    `json:"parametros"`
+	PasosPorEpoca int    `json:"pasos_por_epoca,omitempty"`
+	Comunicacion  string `json:"comunicacion,omitempty"` // central, arbol o anillo (red neuronal)
+	// MBEpoca: megabytes que pasaron por la red en cada época (red neuronal).
+	MBEpoca []float64 `json:"mb_epoca"`
+	Epoca   int       `json:"epoca"` // épocas completadas
 	// VerificacionEpoca: épocas completadas del entrenamiento secuencial de
 	// verificación (estado "verificando").
 	VerificacionEpoca int       `json:"verificacion_epoca"`
@@ -80,6 +97,7 @@ type NodoCorrida struct {
 // ResumenCorrida es una fila del historial (y el resultado de una corrida).
 type ResumenCorrida struct {
 	ID              int      `json:"id"`
+	Modelo          string   `json:"modelo"`
 	Nodos           []string `json:"nodos"`
 	Motores         []string `json:"motores"`
 	Epocas          int      `json:"epocas"`
@@ -111,6 +129,7 @@ func (e *EstadoCorrida) copia() *EstadoCorrida {
 	c.TEpocaMs = copiarSerie(e.TEpocaMs)
 	c.TCalculoMs = copiarSerie(e.TCalculoMs)
 	c.TRedMs = copiarSerie(e.TRedMs)
+	c.MBEpoca = copiarSerie(e.MBEpoca)
 	c.Nodos = make([]NodoCorrida, len(e.Nodos))
 	for i, n := range e.Nodos {
 		n.CalculoMs = copiarSerie(n.CalculoMs)

@@ -107,6 +107,7 @@ func (a *api) rutas() *http.ServeMux {
 	mux.HandleFunc("POST /api/limpiezas", a.nuevaLimpieza)
 	mux.HandleFunc("POST /api/limpiezas/cancelar", a.cancelarLimpieza)
 	mux.HandleFunc("POST /api/huellas/verificar", a.verificarHuellas)
+	mux.HandleFunc("POST /api/predicciones", a.nuevaPrediccion)
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, r *http.Request) {
 		responder(w, http.StatusOK, map[string]any{"epocas": a.cfg.epocas, "tasa": a.cfg.tasa, "verificar": a.cfg.verificar})
 	})
@@ -174,6 +175,15 @@ type pedidoCorrida struct {
 	Nodos     []string `json:"nodos"`
 	Epocas    int      `json:"epocas"`
 	Verificar bool     `json:"verificar"`
+	// Modelo: "logistica" (por defecto) o "red"; Capas ocultas y Pasos
+	// (mini-lotes por época) de la red.
+	Modelo string `json:"modelo"`
+	Capas  []int  `json:"capas"`
+	Pasos  int    `json:"pasos"`
+	// Comunicacion de la red (Fase 4): central, arbol o anillo.
+	Comunicacion string `json:"comunicacion"`
+	// Pesos: reparto proporcional (Fase 3); vacío = partes iguales.
+	Pesos map[string]float64 `json:"pesos"`
 }
 
 func (a *api) nuevaCorrida(w http.ResponseWriter, r *http.Request) {
@@ -190,7 +200,18 @@ func (a *api) nuevaCorrida(w http.ResponseWriter, r *http.Request) {
 		fallo(w, http.StatusBadRequest, distribuido.ErrSinNodos)
 		return
 	}
-	corrida, err := a.m.Iniciar(distribuido.OpcionesCorrida{Nodos: p.Nodos, Epocas: p.Epocas, Tasa: a.cfg.tasa, Verificar: p.Verificar, Continuar: true})
+	if p.Pasos < 0 || p.Pasos > 10000 || len(p.Capas) > 6 {
+		fallo(w, http.StatusBadRequest, errors.New("pasos entre 1 y 10000 y como máximo 6 capas ocultas"))
+		return
+	}
+	for _, c := range p.Capas {
+		if c < 1 || c > 1024 {
+			fallo(w, http.StatusBadRequest, errors.New("cada capa oculta debe tener entre 1 y 1024 neuronas"))
+			return
+		}
+	}
+	corrida, err := a.m.Iniciar(distribuido.OpcionesCorrida{Nodos: p.Nodos, Epocas: p.Epocas, Tasa: a.cfg.tasa, Verificar: p.Verificar, Continuar: true,
+		Modelo: p.Modelo, Capas: p.Capas, PasosPorEpoca: p.Pasos, Pesos: pesosValidos(p.Pesos, p.Nodos), Comunicacion: p.Comunicacion})
 	switch {
 	case errors.Is(err, distribuido.ErrOcupado), errors.Is(err, distribuido.ErrLimpiando),
 		errors.Is(err, distribuido.ErrMuestraDistinta), errors.Is(err, distribuido.ErrSinMuestra):
@@ -217,7 +238,14 @@ func (a *api) nuevaCorrida(w http.ResponseWriter, r *http.Request) {
 		if a.cfg.resultado == "" {
 			return
 		}
-		modo, maquina := combinacion(a.cfg.modo, res.Nodos, a.m.Instantanea().EjemplosEntrenamiento)
+		base := a.cfg.modo
+		if res.Red != nil {
+			base += "_red"
+			if c := a.m.Instantanea().Corrida; c != nil && c.Comunicacion != "" && c.Comunicacion != "central" {
+				base += "_" + c.Comunicacion
+			}
+		}
+		modo, maquina := combinacion(base, res.Nodos, a.m.Instantanea().EjemplosEntrenamiento)
 		if a.cfg.maquina != "" {
 			maquina = a.cfg.maquina
 		}
@@ -342,6 +370,20 @@ func (a *api) verificarHuellas(w http.ResponseWriter, r *http.Request) {
 	responder(w, http.StatusOK, a.m.Instantanea())
 }
 
+// nuevaPrediccion: cada nodo predice todas las horas de sus estaciones con
+// el último modelo entrenado y el maestro junta los resultados (Fase 5).
+func (a *api) nuevaPrediccion(w http.ResponseWriter, r *http.Request) {
+	var p struct {
+		Nodos []string `json:"nodos"`
+	}
+	json.NewDecoder(r.Body).Decode(&p)
+	if err := a.m.IniciarPrediccion(p.Nodos); err != nil {
+		fallo(w, http.StatusConflict, err)
+		return
+	}
+	responder(w, http.StatusAccepted, map[string]any{"ok": true})
+}
+
 // servir es el modo servidor: la API queda escuchando hasta Ctrl+C.
 func servir(ctx context.Context, direccion string, m *distribuido.Maestro, d *difusor, cfg configuracion) error {
 	if t1 := m.MedirT1(5); t1 > 0 {
@@ -375,11 +417,11 @@ func servir(ctx context.Context, direccion string, m *distribuido.Maestro, d *di
 // modelo). Es lo único que sigue usando MongoDB: si no está corriendo, se
 // avisa y la página conserva el mapa anterior.
 func regenerarMapa(cfg configuracion, res *distribuido.Resultado, epocas int) {
-	if cfg.rutaModelo == "" {
-		return
+	if cfg.rutaModelo == "" || res.Modelo == nil {
+		return // la red neuronal actualiza el mapa con la predicción distribuida
 	}
 	modelo := dataset.ModeloGuardado{
-		Features: dataset.NombresFeatures, Pesos: res.Modelo.Pesos, Sesgo: res.Modelo.Sesgo,
+		Features: dataset.NombresFeatures[:len(res.Modelo.Pesos)], Pesos: res.Modelo.Pesos, Sesgo: res.Modelo.Sesgo,
 		Normalizador: res.Normalizador, HorizonteHoras: 1, UmbralNO2: dataset.UmbralNO2,
 		Modo: cfg.modo, Epocas: epocas, F1: res.Evaluacion.F1, AUC: res.Evaluacion.AUC,
 		Precision: res.Evaluacion.Precision, Exhaustividad: res.Evaluacion.Exhaustividad,
@@ -431,4 +473,18 @@ func ultimaLinea(s string) string {
 		return s[i+1:]
 	}
 	return s
+}
+
+// pesosValidos deja el reparto proporcional solo si trae un peso positivo
+// para cada nodo elegido; si no, reparto igual.
+func pesosValidos(pesos map[string]float64, nodos []string) map[string]float64 {
+	if len(pesos) == 0 {
+		return nil
+	}
+	for _, id := range nodos {
+		if !(pesos[id] > 0) {
+			return nil
+		}
+	}
+	return pesos
 }

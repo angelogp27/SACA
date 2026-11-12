@@ -33,6 +33,8 @@ import (
 )
 
 const (
+	// D es el número de variables (dataset.NombresFeatures).
+	D = 20
 	// Version del formato que escribe este paquete.
 	Version = 2
 	// MesCorte: los meses >= MesCorte son de prueba.
@@ -48,7 +50,7 @@ type fila struct {
 	estacion string
 	hora     int64 // horas desde 1970-01-01 UTC
 	mes      int
-	x        [12]float64
+	x        [D]float64
 	y        float64
 }
 
@@ -62,6 +64,8 @@ type Muestra struct {
 	Estaciones   []string // ordenadas
 	EstEnt       []uint32 // índice en Estaciones de cada fila
 	EstPru       []uint32
+	HoraEnt      []int64 // hora de cada fila (horas desde 1970-01-01 UTC)
+	HoraPru      []int64
 }
 
 // Construir etiqueta los registros de cada índice (uno por agregadora; una
@@ -103,6 +107,24 @@ func Construir(indices []map[string]*registro.RegistroProcesado, mesCorte int) (
 }
 
 func etiquetar(ix map[string]*registro.RegistroProcesado) ([]fila, error) {
+	// NO2 por estación y hora (horas desde 1970), para los rezagos: una
+	// búsqueda por entero en vez de armar claves de texto 24 veces por fila.
+	no2 := map[string]map[int64]float64{}
+	for _, r := range ix {
+		if r.NO2Ppb == nil {
+			continue
+		}
+		t, err := time.Parse(time.RFC3339, r.TimestampUTC)
+		if err != nil {
+			return nil, fmt.Errorf("hora inválida %q en %s", r.TimestampUTC, r.EstacionID)
+		}
+		serie := no2[r.EstacionID]
+		if serie == nil {
+			serie = map[int64]float64{}
+			no2[r.EstacionID] = serie
+		}
+		serie[t.Unix()/3600] = *r.NO2Ppb
+	}
 	var filas []fila
 	for _, r := range ix {
 		if r.NO2Ppb == nil {
@@ -117,7 +139,12 @@ func etiquetar(ix map[string]*registro.RegistroProcesado) ([]fila, error) {
 			continue
 		}
 		f := fila{estacion: r.EstacionID, hora: t.Unix() / 3600, mes: int(t.Month())}
-		copy(f.x[:], dataset.VectorFeatures(r))
+		serie := no2[r.EstacionID]
+		historia := func(k int) (float64, bool) {
+			v, ok := serie[f.hora-int64(k)]
+			return v, ok
+		}
+		copy(f.x[:], dataset.VectorCompleto(r, historia))
 		if *futuro.NO2Ppb > dataset.UmbralNO2 {
 			f.y = 1
 		}
@@ -127,7 +154,7 @@ func etiquetar(ix map[string]*registro.RegistroProcesado) ([]fila, error) {
 }
 
 func armar(filas []fila, mesCorte int) (*Muestra, error) {
-	const d = 12
+	const d = D
 	m := &Muestra{D: d}
 	idEstacion := map[string]uint32{}
 	for _, f := range filas {
@@ -143,10 +170,12 @@ func armar(filas []fila, mesCorte int) (*Muestra, error) {
 			m.XEnt = append(m.XEnt, f.x[:]...)
 			m.YEnt = append(m.YEnt, f.y)
 			m.EstEnt = append(m.EstEnt, est)
+			m.HoraEnt = append(m.HoraEnt, f.hora)
 		} else {
 			m.XPru = append(m.XPru, f.x[:]...)
 			m.YPru = append(m.YPru, f.y)
 			m.EstPru = append(m.EstPru, est)
+			m.HoraPru = append(m.HoraPru, f.hora)
 		}
 	}
 	if len(m.YEnt) == 0 || len(m.YPru) == 0 {
@@ -260,7 +289,15 @@ func (m *Muestra) escribir(w io.Writer) error {
 	if err := binary.Write(w, le, m.EstEnt); err != nil {
 		return err
 	}
-	return binary.Write(w, le, m.EstPru)
+	if err := binary.Write(w, le, m.EstPru); err != nil {
+		return err
+	}
+	// Al final, la hora de cada fila (entrenamiento y prueba): los lectores
+	// que no la conocen terminan antes y no se enteran.
+	if err := binary.Write(w, le, m.HoraEnt); err != nil {
+		return err
+	}
+	return binary.Write(w, le, m.HoraPru)
 }
 
 // Leer carga un muestra.bin versión 2 y lo devuelve listo para entrenar
@@ -352,6 +389,20 @@ func Leer(ruta string) (*entrenador.Datos, error) {
 		return nil, err
 	}
 
+	// Horas de cada fila (archivos generados desde la Fase 5; si faltan, nil).
+	horas := func(n int) []int64 {
+		v := make([]int64, n)
+		if binary.Read(r, le, v) != nil {
+			return nil
+		}
+		return v
+	}
+	horaEnt := horas(nEnt)
+	horaPru := horas(nPru)
+	if horaEnt == nil || horaPru == nil {
+		horaEnt, horaPru = nil, nil
+	}
+
 	filas := func(X []float64, n int) [][]float64 {
 		out := make([][]float64, n)
 		for i := range out {
@@ -360,8 +411,8 @@ func Leer(ruta string) (*entrenador.Datos, error) {
 		return out
 	}
 	return &entrenador.Datos{
-		Entrenamiento: &dataset.Muestra{X: filas(xe, nEnt), Y: ye, EstacionID: estEnt},
-		Prueba:        &dataset.Muestra{X: filas(xp, nPru), Y: yp, EstacionID: estPru},
+		Entrenamiento: &dataset.Muestra{X: filas(xe, nEnt), Y: ye, EstacionID: estEnt, Hora: horaEnt},
+		Prueba:        &dataset.Muestra{X: filas(xp, nPru), Y: yp, EstacionID: estPru, Hora: horaPru},
 		PesosClase:    pc,
 		Normalizador:  dataset.Normalizador{Medias: medias, Desviaciones: desv},
 	}, nil

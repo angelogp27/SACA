@@ -77,7 +77,17 @@ function conceptos(inst, corrida, lento) {
   if (corrida.epoca === 0) {
     lista.push({ tema: 'Sem. 4 · Scatter · Sem. 10 · Descomposición de datos', texto: `Partición enviada: cada uno de los ${corrida.nodos.length} nodos se queda con un grupo distinto de estaciones (hash de estacion_id).` })
   } else {
-    lista.push({ tema: 'Sem. 3-4 · Broadcast + reduce', texto: `Época ${corrida.epoca}: el maestro difunde los 13 pesos, cada nodo calcula su gradiente parcial y el maestro los suma.` })
+    const esRed = (corrida.modelo ?? '').startsWith('red')
+    const params = (corrida.parametros || 13).toLocaleString('es-PE')
+    if (!esRed) {
+      lista.push({ tema: 'Sem. 3-4 · Broadcast + reduce', texto: `Época ${corrida.epoca}: el maestro difunde los ${params} pesos, cada nodo calcula su gradiente parcial y el maestro los suma.` })
+    } else if (corrida.comunicacion === 'arbol') {
+      lista.push({ tema: 'Sem. 3-4 · Reducción en árbol (MPI_Allreduce)', texto: `Época ${corrida.epoca}: en cada uno de los ${corrida.pasos_por_epoca} mini-lotes, los nodos suman sus gradientes de ${params} valores de a pares, nivel por nivel, y la suma vuelve por el mismo árbol; cada nodo actualiza sus pesos.` })
+    } else if (corrida.comunicacion === 'anillo') {
+      lista.push({ tema: 'Sem. 3-4 · Allreduce en anillo', texto: `Época ${corrida.epoca}: en cada uno de los ${corrida.pasos_por_epoca} mini-lotes, cada nodo pasa un trozo del gradiente al siguiente; todos los enlaces trabajan a la vez y todos terminan con la misma suma.` })
+    } else {
+      lista.push({ tema: 'Sem. 3-4 · Broadcast + reduce', texto: `Época ${corrida.epoca}: en cada uno de los ${corrida.pasos_por_epoca} mini-lotes, el maestro difunde los ${params} pesos, cada nodo calcula el gradiente de su mini-lote y el maestro los suma.` })
+    }
   }
   if (lento && corrida.nodos.length > 1) {
     lista.push({ tema: 'Sem. 6 · Barrera · Sem. 10 · Balanceo', texto: `Barrera síncrona: la época termina cuando llega el más lento (${lento.id}, ${fmt(promedioFinal(lento.calculo_ms))} ms de cálculo).` })
@@ -208,7 +218,9 @@ function Corrida({ inst, corrida: cruda }) {
   const sumaEpoca = corrida.t_epoca_ms.reduce((a, b) => a + b, 0)
   const sumaRed = corrida.t_red_ms.reduce((a, b) => a + b, 0)
   const pctRed = sumaEpoca > 0 ? (100 * sumaRed) / sumaEpoca : 0
-  const speedup = tEpoca > 0 && t1 > 0 ? t1 / tEpoca : NaN
+  // La red neuronal mide su propio T(1) al verificar: en vivo no hay base.
+  const esRed = (cruda.modelo ?? '').startsWith('red')
+  const speedup = esRed ? (cruda.resultado?.speedup || NaN) : tEpoca > 0 && t1 > 0 ? t1 / tEpoca : NaN
   const throughput = tEpoca > 0 ? inst.ejemplos_entrenamiento / (tEpoca / 1000) : NaN
   const lento = corrida.nodos.reduce((a, b) => (a && promedioFinal(a.calculo_ms) >= promedioFinal(b.calculo_ms) ? a : b), null)
   const progreso = corrida.epocas ? (100 * corrida.epoca) / corrida.epocas : 0
@@ -224,7 +236,7 @@ function Corrida({ inst, corrida: cruda }) {
   return (
     <div className="corrida">
       <div className="corrida-cabecera">
-        <strong>Corrida #{corrida.id} · {etiquetaEstado}</strong>
+        <strong>Corrida #{corrida.id} · {etiquetaEstado} · {esRed ? `red neuronal ${cruda.modelo.slice(3)}` : 'regresión logística'}</strong>
         <span>época {corrida.epoca} / {corrida.epocas}</span>
       </div>
       <div className="progreso" aria-label={`Progreso ${Math.round(progreso)}%`}>
@@ -239,6 +251,12 @@ function Corrida({ inst, corrida: cruda }) {
         <Kpi etiqueta="Speedup en vivo" valor={`${fmt(speedup)}×`} detalle={`${textoEficiencia(speedup / n)} · T(1) = ${fmt(t1, 0)} ms/época`} tema="S(p), E(p)" />
         <Kpi etiqueta="Throughput" valor={`${fmtEjemplos(throughput)}/s`} detalle="ejemplos procesados por segundo" />
         <Kpi etiqueta="Pérdida" valor={fmt(corrida.perdidas.at(-1) ?? NaN, 4)} detalle="log-loss ponderada" />
+        <Kpi
+          etiqueta="Datos por la red"
+          valor={esRed ? `${fmt(promedioFinal(cruda.mb_epoca ?? []), 1)} MB/época` : `${fmt((cruda.parametros || 13) * 8 * 2 * n / 1024, 1)} KB/época`}
+          detalle={`${(cruda.parametros || 13).toLocaleString('es-PE')} parámetros${esRed ? ` · ${cruda.pasos_por_epoca} mini-lotes` : ''}`}
+          tema="Sem. 3-4 · Paso de mensajes"
+        />
       </div>
 
       <div className="graficas-vivo">
@@ -264,7 +282,7 @@ function Corrida({ inst, corrida: cruda }) {
           epocas={corrida.epocas}
           formatoY={(v) => `${v.toFixed(v < 10 ? 1 : 0)}×`}
           referencia={{ valor: n, etiqueta: `ideal con ${n} nodo${n === 1 ? '' : 's'}` }}
-          series={[{ nombre: 'Speedup', color: 'var(--serie-1)', valores: t1 > 0 ? mediaMovil(corrida.t_epoca_ms).map((t) => t1 / t) : [] }]}
+          series={[{ nombre: 'Speedup', color: 'var(--serie-1)', valores: t1 > 0 && !esRed ? mediaMovil(corrida.t_epoca_ms).map((t) => t1 / t) : [] }]}
         />
         <GraficaLineas
           titulo="Pérdida por época"

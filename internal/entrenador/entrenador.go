@@ -143,7 +143,7 @@ func Reportar(c *Config, r Corrida, m *logistica.Modelo, n dataset.Normalizador)
 
 	if c.RutaModelo != "" {
 		guardado := dataset.ModeloGuardado{
-			Features:       dataset.NombresFeatures,
+			Features:       dataset.NombresFeatures[:len(m.Pesos)],
 			Pesos:          m.Pesos,
 			Sesgo:          m.Sesgo,
 			Normalizador:   n,

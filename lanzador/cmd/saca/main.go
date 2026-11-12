@@ -46,9 +46,10 @@ import (
 const maxLaptops = 8
 
 type config struct {
-	puertoUI, puertoWeb, puertoTCP, puertoUDP int
-	dirFrontend, dirBin, rutaMuestra          string
-	dirDatos, resultado                       string
+	puertoUI, puertoWeb, puertoTCP, puertoUDP, puertoPares int
+	dirFrontend, dirBin, rutaMuestra                       string
+	dirDatos, resultado                                    string
+	datosPagina                                            string
 }
 
 type lanzador struct {
@@ -72,12 +73,14 @@ func main() {
 	flag.IntVar(&c.puertoUI, "puerto", 8090, "puerto local de la página")
 	flag.IntVar(&c.puertoWeb, "puerto-web", 8080, "puerto de la API del maestro (debe estar abierto en el firewall de la laptop del maestro)")
 	flag.IntVar(&c.puertoTCP, "puerto-tcp", 9000, "puerto TCP del protocolo maestro-trabajador")
+	flag.IntVar(&c.puertoPares, "puerto-pares", 9002, "puerto TCP donde cada nodo escucha a los otros nodos (comunicación en árbol o anillo)")
 	flag.IntVar(&c.puertoUDP, "puerto-anuncios", 9001, "puerto UDP de los anuncios del clúster en la LAN")
 	flag.StringVar(&c.dirFrontend, "frontend", filepath.Join("frontend", "dist"), "frontend compilado (cd frontend; npm run build)")
 	flag.StringVar(&c.dirBin, "bin", "bin", "directorio de los ejecutables compilados")
 	flag.StringVar(&c.rutaMuestra, "muestra", filepath.Join("data", "muestra.bin"), "muestra de entrenamiento de esta laptop")
 	flag.StringVar(&c.dirDatos, "datos", filepath.Join("data", "raw"), "CSV de la EPA de esta laptop")
 	flag.StringVar(&c.resultado, "resultado", filepath.Join("resultados", "cluster.csv"), "CSV de resultados del entrenamiento (en la laptop del maestro)")
+	flag.StringVar(&c.datosPagina, "datos-pagina", "", "dónde el maestro deja los JSON del mapa regenerados (separados por comas; vacío = frontend/public/datos y los del frontend compilado)")
 	abrir := flag.Bool("abrir", true, "abrir la página en el navegador")
 	flag.Parse()
 
@@ -249,7 +252,7 @@ func (l *lanzador) arrancarMaestro(ctx context.Context, id string, participar bo
 		// Al terminar cada entrenamiento: guardar el modelo y regenerar el
 		// mapa (exportar usa MongoDB; si no está, el mapa queda como estaba).
 		"-modelo", filepath.Join("data", "modelo.json"), "-exportar", ejecutable(l.cfg.dirBin, "exportar"),
-		"-datos-pagina", filepath.Join("frontend", "public", "datos") + "," + filepath.Join(l.cfg.dirFrontend, "datos")}
+		"-datos-pagina", l.datosPagina()}
 	if participar {
 		args = append(args, "-nodo-local", id)
 	}
@@ -300,7 +303,8 @@ func (l *lanzador) arrancarTrabajador(id, destino string) error {
 	if !existe(exe) {
 		return fmt.Errorf("falta %s: compila con scripts/saca.sh (Linux) o scripts/saca.ps1 (Windows)", exe)
 	}
-	t, err := lanzar("nodo", exe, "-maestro", destino, "-id", id, "-muestra", l.cfg.rutaMuestra, "-datos", l.cfg.dirDatos, "-reconectar")
+	t, err := lanzar("nodo", exe, "-maestro", destino, "-id", id, "-muestra", l.cfg.rutaMuestra, "-datos", l.cfg.dirDatos, "-reconectar",
+		"-pares", ":"+itoa(l.cfg.puertoPares))
 	if err != nil {
 		return err
 	}
@@ -444,6 +448,13 @@ func (l *lanzador) proxy(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------- utilidades ----------
+
+func (l *lanzador) datosPagina() string {
+	if l.cfg.datosPagina != "" {
+		return l.cfg.datosPagina
+	}
+	return filepath.Join("frontend", "public", "datos") + "," + filepath.Join(l.cfg.dirFrontend, "datos")
+}
 
 // ipPrincipal elige la IP por la que los demás llegan al maestro: la del
 // switch (subred 192.168.50.0/24 de docs/cluster/switch); si no hay

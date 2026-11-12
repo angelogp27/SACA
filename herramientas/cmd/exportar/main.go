@@ -280,7 +280,13 @@ func diaConMasExcedencias(ctx context.Context, col *mongo.Collection) (string, e
 }
 
 func construirSeries(ctx context.Context, col *mongo.Collection, estaciones map[string]*Estacion, dia string, modelo *dataset.ModeloGuardado) (map[string]*Serie, error) {
-	cursor, err := col.Find(ctx, bson.D{{Key: "timestamp_utc", Value: bson.D{{Key: "$gte", Value: dia}, {Key: "$lt", Value: dia + "U"}}}})
+	// Se pide también el día anterior: un modelo con rezagos necesita las
+	// 24 horas previas de cada estación (dataset.VariablesRezago).
+	desde := dia
+	if d, err := time.Parse("2006-01-02", dia); err == nil {
+		desde = d.AddDate(0, 0, -1).Format("2006-01-02")
+	}
+	cursor, err := col.Find(ctx, bson.D{{Key: "timestamp_utc", Value: bson.D{{Key: "$gte", Value: desde}, {Key: "$lt", Value: dia + "U"}}}})
 	if err != nil {
 		return nil, err
 	}
@@ -288,10 +294,22 @@ func construirSeries(ctx context.Context, col *mongo.Collection, estaciones map[
 	if err := cursor.All(ctx, &registros); err != nil {
 		return nil, err
 	}
+	no2 := map[string]map[int64]float64{} // estación → hora (desde 1970) → NO2
+	for _, r := range registros {
+		if t, err := time.Parse(time.RFC3339, r.TimestampUTC); err == nil && r.NO2Ppb != nil {
+			if no2[r.EstacionID] == nil {
+				no2[r.EstacionID] = map[int64]float64{}
+			}
+			no2[r.EstacionID][t.Unix()/3600] = *r.NO2Ppb
+		}
+	}
 
 	series := map[string]*Serie{}
 	for i := range registros {
 		r := &registros[i]
+		if r.TimestampUTC < dia {
+			continue // solo historia
+		}
 		e, ok := estaciones[r.EstacionID]
 		if !ok {
 			continue
@@ -334,7 +352,9 @@ func construirSeries(ctx context.Context, col *mongo.Collection, estaciones map[
 		}
 		s.Observado[h] = valor
 		if s.Probabilidad != nil && r.NO2Ppb != nil {
-			p := redondear(modelo.Probabilidad(r), 4)
+			serie, hora := no2[r.EstacionID], t.Unix()/3600
+			historia := func(k int) (float64, bool) { v, ok := serie[hora-int64(k)]; return v, ok }
+			p := redondear(modelo.Probabilidad(r, historia), 4)
 			s.Probabilidad[h] = &p
 		}
 	}

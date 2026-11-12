@@ -108,6 +108,10 @@ func main() {
 		cfgMaestro.Capacidad = *capacidad
 		cfgMaestro.Notificar = difusor.Publicar
 		cfgMaestro.AceptarOtraMuestra = true
+		dirsPagina := strings.Split(*datosPagina, ",")
+		cfgMaestro.PrediccionTerminada = func(e distribuido.EstadoPrediccion, filas []distribuido.FilaPrediccion, m distribuido.ModeloEntrenado) {
+			datosDesdePrediccion(dirsPagina, e, filas, m)
+		}
 		cfgMaestro.NodoMaestro = *nodoLocal
 		ruta := *resultadoLimpieza
 		cfgMaestro.LimpiezaTerminada = func(e distribuido.EstadoLimpieza, guardar bool) {
@@ -214,12 +218,17 @@ func reportar(res *distribuido.Resultado, epocas int) {
 	log.Printf("evaluación en prueba (meses de evaluación): %s", res.Evaluacion)
 	if v := res.Verificacion; v != nil {
 		final, finalSec := res.Perdidas[len(res.Perdidas)-1], v.Perdidas[len(v.Perdidas)-1]
+		que, durDist := "final", res.Duracion
+		if res.Red != nil {
+			// La red verifica solo la primera época.
+			final, que, durDist = res.Perdidas[0], "de la primera época", res.Duracion/time.Duration(max(len(res.Perdidas), 1))
+		}
 		veredicto := "OK, mismo modelo"
-		if v.Diferencia > 1e-9 {
+		if v.Diferencia > 1e-9*max(1, final) {
 			veredicto = "DISTINTO: revisar"
 		}
-		log.Printf("verificación: pérdida final distribuida %.9f, secuencial %.9f, diferencia %.1e → %s", final, finalSec, v.Diferencia, veredicto)
-		log.Printf("secuencial en esta PC: %s → speedup S(%d) = %.2f", v.Duracion.Round(time.Millisecond), len(res.Nodos), v.Duracion.Seconds()/res.Duracion.Seconds())
+		log.Printf("verificación: pérdida %s distribuida %.9f, secuencial %.9f, diferencia %.1e → %s", que, final, finalSec, v.Diferencia, veredicto)
+		log.Printf("secuencial en esta PC: %s → speedup S(%d) = %.2f", v.Duracion.Round(time.Millisecond), len(res.Nodos), v.Duracion.Seconds()/durDist.Seconds())
 	}
 }
 
@@ -289,7 +298,12 @@ func filasCSV(res *distribuido.Resultado, modo, maquina string, epocas int) [][]
 	if v := res.Verificacion; v != nil {
 		// El secuencial corre en la PC del maestro, no en los nodos de la
 		// corrida: su fila lleva el hardware del maestro.
-		filas = append(filas, fila("secuencial", 1, epocas, v.Duracion, v.Duracion, 0, v.Perdidas, v.Evaluacion.F1, v.Evaluacion.AUC, "maestro["+hardware.Detectar().Resumen()+"]"))
+		modoSec, epocasSec := "secuencial", epocas
+		if res.Red != nil {
+			// La red verifica solo la primera época (su T(1) por época).
+			modoSec, epocasSec = "secuencial_red", 1
+		}
+		filas = append(filas, fila(modoSec, 1, epocasSec, v.Duracion, v.Duracion, 0, v.Perdidas, v.Evaluacion.F1, v.Evaluacion.AUC, "maestro["+hardware.Detectar().Resumen()+"]"))
 	}
 	return filas
 }
@@ -346,7 +360,7 @@ func direccionesLocales() []string {
 	return ips
 }
 
-var encabezadoLimpieza = []string{"limpieza", "nodo", "tecnologia", "hilos", "t_total_s", "huella", "maquina"}
+var encabezadoLimpieza = []string{"limpieza", "nodo", "tecnologia", "hilos", "t_limpieza_s", "t_variables_s", "t_total_s", "huella", "maquina"}
 
 // guardarLimpieza agrega una fila por cada tecnología terminada de cada
 // nodo (las paradas o con error no se guardan).
@@ -361,8 +375,9 @@ func guardarLimpieza(ruta string, e distribuido.EstadoLimpieza) (int, error) {
 			if t.Estado != distribuido.LimpiezaTerminada {
 				continue
 			}
+			num := func(v float64) string { return strconv.FormatFloat(v, 'f', 3, 64) }
 			filas = append(filas, []string{strconv.Itoa(e.ID), n.ID, t.Tecnologia, strconv.Itoa(t.Hilos),
-				strconv.FormatFloat(t.TTotalS, 'f', 3, 64), distribuido.Corta(t.Huella), maquina})
+				num(t.TLimpiezaS), num(t.TVariablesS), num(t.TTotalS), distribuido.Corta(t.Huella), maquina})
 		}
 	}
 	if len(filas) == 0 {
@@ -370,6 +385,19 @@ func guardarLimpieza(ruta string, e distribuido.EstadoLimpieza) (int, error) {
 	}
 	if err := os.MkdirAll(filepath.Dir(ruta), 0o755); err != nil {
 		return 0, err
+	}
+	// Un CSV con otras columnas (de una versión anterior) se guarda aparte
+	// en vez de mezclar filas de distinto formato.
+	if f, err := os.Open(ruta); err == nil {
+		primera, errLeer := csv.NewReader(f).Read()
+		f.Close()
+		if errLeer == nil && strings.Join(primera, ",") != strings.Join(encabezadoLimpieza, ",") {
+			anterior := strings.TrimSuffix(ruta, ".csv") + "_anterior.csv"
+			if err := os.Rename(ruta, anterior); err != nil {
+				return 0, err
+			}
+			log.Printf("%s tenía otras columnas: se movió a %s", ruta, anterior)
+		}
 	}
 	_, errStat := os.Stat(ruta)
 	f, err := os.OpenFile(ruta, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)

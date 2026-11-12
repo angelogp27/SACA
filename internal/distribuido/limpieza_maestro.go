@@ -47,17 +47,24 @@ type NodoLimpieza struct {
 	Tecnologias []TecnologiaLimpieza `json:"tecnologias"`
 }
 
-// TecnologiaLimpieza es una tecnología en un nodo. Serie son pares
-// [avance 0-1, % de CPU del nodo].
+// TecnologiaLimpieza es una tecnología en un nodo, con sus dos fases:
+// limpieza (Serie, Avance, TLimpiezaS) y preparación de variables
+// (SerieVariables, AvanceVariables, TVariablesS). Las series son pares
+// [avance de la fase 0-1, % de CPU del nodo].
 type TecnologiaLimpieza struct {
-	Tecnologia string       `json:"tecnologia"`
-	Estado     string       `json:"estado"`
-	Hilos      int          `json:"hilos"`
-	Avance     float64      `json:"avance"`
-	Serie      [][2]float64 `json:"serie"`
-	TTotalS    float64      `json:"t_total_s"`
-	Huella     string       `json:"huella,omitempty"`
-	Mensaje    string       `json:"mensaje,omitempty"`
+	Tecnologia      string       `json:"tecnologia"`
+	Estado          string       `json:"estado"`
+	Fase            string       `json:"fase"`
+	Hilos           int          `json:"hilos"`
+	Avance          float64      `json:"avance"`
+	Serie           [][2]float64 `json:"serie"`
+	AvanceVariables float64      `json:"avance_variables"`
+	SerieVariables  [][2]float64 `json:"serie_variables"`
+	TLimpiezaS      float64      `json:"t_limpieza_s"`
+	TVariablesS     float64      `json:"t_variables_s"`
+	TTotalS         float64      `json:"t_total_s"`
+	Huella          string       `json:"huella,omitempty"`
+	Mensaje         string       `json:"mensaje,omitempty"`
 }
 
 func final(estado string) bool {
@@ -74,7 +81,9 @@ func (e *EstadoLimpieza) copia() *EstadoLimpieza {
 	for i, n := range e.Nodos {
 		n.Tecnologias = slices.Clone(n.Tecnologias)
 		for j := range n.Tecnologias {
-			n.Tecnologias[j].Serie = append(make([][2]float64, 0, len(n.Tecnologias[j].Serie)), n.Tecnologias[j].Serie...)
+			t := &n.Tecnologias[j]
+			t.Serie = append(make([][2]float64, 0, len(t.Serie)), t.Serie...)
+			t.SerieVariables = append(make([][2]float64, 0, len(t.SerieVariables)), t.SerieVariables...)
 		}
 		c.Nodos[i] = n
 	}
@@ -140,7 +149,7 @@ func (m *Maestro) IniciarLimpieza(ids, tecnologias []string, hilos int) error {
 	}
 
 	m.mu.Lock()
-	if m.activa != nil {
+	if m.activa != nil || m.prediccionEnCurso() {
 		m.mu.Unlock()
 		return ErrOcupado
 	}
@@ -165,7 +174,7 @@ func (m *Maestro) IniciarLimpieza(ids, tecnologias []string, hilos int) error {
 		}
 		nl := NodoLimpieza{ID: id, Hardware: n.vista.Hardware}
 		for _, t := range e.Tecnologias {
-			nl.Tecnologias = append(nl.Tecnologias, TecnologiaLimpieza{Tecnologia: t, Estado: LimpiezaPendiente, Serie: [][2]float64{}})
+			nl.Tecnologias = append(nl.Tecnologias, TecnologiaLimpieza{Tecnologia: t, Estado: LimpiezaPendiente, Serie: [][2]float64{}, SerieVariables: [][2]float64{}})
 		}
 		e.Nodos = append(e.Nodos, nl)
 		envios = append(envios, envio{id, n.conexion})
@@ -255,17 +264,34 @@ func (m *Maestro) mensajeLimpieza(id string, msg protocolo.Mensaje) {
 	}
 	switch msg.Tipo {
 	case protocolo.TipoProgresoLimpieza:
-		t.Estado, t.Hilos, t.Avance = LimpiezaEnCurso, msg.Hilos, msg.Avance
-		if len(t.Serie) < maxPuntosSerie {
-			t.Serie = append(t.Serie, [2]float64{msg.Avance, msg.CPU})
+		t.Estado, t.Hilos = LimpiezaEnCurso, msg.Hilos
+		if msg.TLimpiezaS > 0 {
+			t.TLimpiezaS = msg.TLimpiezaS
+		}
+		if msg.Fase == "variables" {
+			t.Fase, t.Avance, t.AvanceVariables = msg.Fase, 1, msg.Avance
+			if len(t.SerieVariables) < maxPuntosSerie {
+				t.SerieVariables = append(t.SerieVariables, [2]float64{msg.Avance, msg.CPU})
+			}
+		} else {
+			t.Fase, t.Avance = "limpieza", msg.Avance
+			if len(t.Serie) < maxPuntosSerie {
+				t.Serie = append(t.Serie, [2]float64{msg.Avance, msg.CPU})
+			}
 		}
 	case protocolo.TipoLimpiezaTerminada:
 		t.Hilos = max(t.Hilos, msg.Hilos)
 		if msg.Motivo != "" {
 			t.Estado, t.Mensaje = LimpiezaError, msg.Motivo
 		} else {
-			t.Estado, t.Avance, t.TTotalS, t.Huella = LimpiezaTerminada, 1, msg.TTotalS, msg.Huella
+			t.Estado, t.Avance, t.AvanceVariables, t.TTotalS, t.Huella = LimpiezaTerminada, 1, 1, msg.TTotalS, msg.Huella
+			t.TLimpiezaS, t.TVariablesS = msg.TLimpiezaS, msg.TVariablesS
 			log.Printf("limpieza %d: %s terminó %s en %.2f s con %d hilos (huella %s)", e.ID, id, t.Tecnologia, msg.TTotalS, t.Hilos, Corta(msg.Huella))
+			// Su velocidad con Go (la del entrenamiento) sirve para proponer
+			// el reparto antes del primer entrenamiento.
+			if msg.TTotalS > 0 && (t.Tecnologia == "go" || m.rendLimpieza[id] == 0) {
+				m.rendLimpieza[id] = 1 / msg.TTotalS
+			}
 		}
 	}
 	termino := m.cerrarSiTermino()

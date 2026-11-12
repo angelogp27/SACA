@@ -16,7 +16,9 @@ import (
 	"proyecto9/internal/entrenador"
 	"proyecto9/internal/hardware"
 	"proyecto9/internal/limpieza"
+	"proyecto9/internal/pares"
 	"proyecto9/internal/protocolo"
+	"proyecto9/internal/red"
 )
 
 // ConfigTrabajador son los datos de un nodo trabajador. Motor es con qué
@@ -37,6 +39,9 @@ type ConfigTrabajador struct {
 	// Limpieza, si no es nil, permite que el maestro le pida limpiar sus
 	// CSV y generar su muestra.bin (iniciar_limpieza).
 	Limpieza *limpieza.Config
+	// Pares, si no es nil, es el puerto donde este nodo escucha a los otros
+	// nodos para sumar los gradientes entre ellos (árbol o anillo, Fase 4).
+	Pares    *pares.Pares
 	Motor    Motor
 	Respaldo *MotorGo
 	// Hardware es la huella de esta máquina que se manda al registrarse;
@@ -75,7 +80,11 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 	// Una limpieza en curso se cancela si la sesión termina.
 	var lim limpiezaNodo
 	defer lim.cancelar(0)
-	err := c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoRegistro, WorkerID: cfg.ID, Huella: cfg.Huella, Motor: cfg.Motor.Nombre(), Dispositivo: cfg.Motor.Dispositivo(), Hardware: cfg.Hardware})
+	puertoPares := 0
+	if cfg.Pares != nil {
+		puertoPares = cfg.Pares.Puerto()
+	}
+	err := c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoRegistro, WorkerID: cfg.ID, Huella: cfg.Huella, Motor: cfg.Motor.Nombre(), Dispositivo: cfg.Motor.Dispositivo(), Hardware: cfg.Hardware, PuertoPares: puertoPares})
 	if err != nil {
 		return fmt.Errorf("%w: no se pudo enviar el registro: %v", ErrConexionPerdida, err)
 	}
@@ -83,6 +92,22 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 
 	var d int
 	var X [][]float64
+	var Y []float64
+	// Modelo de la corrida: regresión logística (por defecto) o red
+	// neuronal por mini-lotes (capas != nil).
+	var capas []int
+	pasosRed := 1
+	// Con comunicación entre nodos: el grupo de pares, los parámetros y el
+	// optimizador propios (todos los nodos los mantienen idénticos).
+	var grupo *pares.Grupo
+	var paramsLocal []float64
+	var adamLocal *red.Adam
+	var rango, epocasRed int
+	defer func() {
+		if grupo != nil {
+			grupo.Cerrar()
+		}
+	}()
 	cargado := false
 	var tCalculo time.Duration
 	epocas := 0
@@ -109,6 +134,19 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 
 		case m.Tipo == protocolo.TipoCancelarLimpieza:
 			lim.cancelar(m.Corrida)
+
+		case m.Tipo == protocolo.TipoPredecir:
+			if err := cfg.asegurarMuestra(); err != nil {
+				log.Printf("AVISO: %v", err)
+			}
+			log.Printf("predicción %d: predigo las horas de mis estaciones", m.Corrida)
+			if err := predecirNodo(c, cfg, m); err != nil {
+				if errors.Is(err, ErrConexionPerdida) {
+					return err
+				}
+				log.Printf("predicción %d: %v", m.Corrida, err)
+				c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoPredicciones, WorkerID: cfg.ID, Corrida: m.Corrida, Motivo: err.Error(), Ultimo: true})
+			}
 
 		case m.Tipo == protocolo.TipoConsultarHuella:
 			if cfg.RutaMuestra != "" {
@@ -147,9 +185,35 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 				return err
 			}
 			cargado, tCalculo, epocas = true, 0, 0
+			Y, capas = y, nil
+			if m.Modelo == "red" {
+				capas, pasosRed = m.Capas, max(m.PasosPorEpoca, 1)
+				if grupo != nil {
+					grupo.Cerrar()
+					grupo = nil
+				}
+				if m.Comunicacion == pares.Arbol || m.Comunicacion == pares.Anillo {
+					if cfg.Pares == nil {
+						return fmt.Errorf("el maestro pidió comunicación en %s y este nodo no tiene puerto de pares", m.Comunicacion)
+					}
+					g, err := cfg.Pares.Unirse(context.Background(), m.Corrida, m.Rango, m.Pares, m.Comunicacion)
+					if err != nil {
+						return fmt.Errorf("no se pudo conectar con los otros nodos (%s): %w", m.Comunicacion, err)
+					}
+					grupo, rango, epocasRed = g, m.Rango, m.Epocas
+					paramsLocal = red.Inicializar(capas, 1)
+					adamLocal = red.NuevoAdam(len(paramsLocal), m.Tasa)
+					log.Printf("comunicación en %s: rango %d de %d, conectado con sus pares", m.Comunicacion, m.Rango, len(m.Pares))
+				}
+				log.Printf("modelo: red neuronal %v (%d parámetros), %d pasos por época", capas, red.NumParametros(capas), m.PasosPorEpoca)
+			}
 			log.Printf("listo: calcula con el motor %s (%s); esperando los parámetros del maestro", cfg.Motor.Nombre(), cfg.Motor.Dispositivo())
 
 		case m.Tipo == protocolo.TipoEntrenamientoFinalizado:
+			if grupo != nil {
+				grupo.Cerrar()
+				grupo = nil
+			}
 			promedio := 0.0
 			if epocas > 0 {
 				promedio = ms(tCalculo) / float64(epocas)
@@ -164,6 +228,64 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 			}
 			cargado = false
 			log.Print("de vuelta en la sala: esperando la siguiente corrida (Ctrl+C para salir)")
+
+		case m.Tipo == protocolo.TipoParametros && m.Modelo == "red":
+			if !cargado || capas == nil {
+				log.Printf("parámetros de la red sin partición asignada, se ignoran")
+				continue
+			}
+			p := paramsLocal
+			if grupo == nil {
+				var err error
+				p, err = red.Decodificar(m.ParamsBin)
+				if err != nil || len(p) != red.NumParametros(capas) {
+					return fmt.Errorf("época %d paso %d: parámetros de la red inválidos (%v)", m.Epoca, m.Paso, err)
+				}
+			}
+			// Mini-lote: el tramo m.Paso de la partición de este nodo.
+			if m.Paso < 0 || m.Paso >= pasosRed {
+				return fmt.Errorf("época %d: paso %d fuera de rango (la época tiene %d)", m.Epoca, m.Paso, pasosRed)
+			}
+			ini, fin := red.Lote(len(X), m.Paso, pasosRed)
+			inicio := time.Now()
+			hilos := runtime.NumCPU()
+			if cfg.Respaldo != nil {
+				hilos = cfg.Respaldo.Hilos
+			}
+			grad, perdida := red.Gradiente(capas, p, X[ini:fin], Y[ini:fin], cfg.Datos.PesosClase, hilos)
+			calc := time.Since(inicio)
+			tCalculo += calc
+			if m.Paso == 0 {
+				epocas++
+			}
+			resp := protocolo.Mensaje{
+				Tipo: protocolo.TipoGradienteParcial, WorkerID: cfg.ID, Corrida: m.Corrida, Epoca: m.Epoca, Paso: m.Paso,
+				Modelo: "red", Perdida: perdida, NMuestras: fin - ini, TCalculoMs: ms(calc), Motor: "go",
+			}
+			if grupo == nil {
+				resp.GradBin = red.Codificar(grad)
+			} else {
+				// Suma entre nodos: el gradiente y, al final, el número de
+				// ejemplos del paso (para promediar). Todos reciben la misma
+				// suma y aplican Adam igual: los parámetros siguen idénticos.
+				v := append(grad, float64(fin-ini))
+				antes, inicioRed := grupo.Bytes, time.Now()
+				if err := grupo.AllReduce(v); err != nil {
+					return fmt.Errorf("época %d paso %d: suma entre nodos: %w", m.Epoca, m.Paso, err)
+				}
+				resp.TRedMs, resp.BytesPares = ms(time.Since(inicioRed)), grupo.Bytes-antes
+				if nPaso := int(v[len(v)-1]); nPaso > 0 {
+					adamLocal.Paso(paramsLocal, v[:len(v)-1], nPaso)
+				}
+				// El rango 0 entrega el modelo final al maestro.
+				if rango == 0 && m.Epoca == epocasRed-1 && m.Paso == pasosRed-1 {
+					resp.ParamsBin = red.Codificar(paramsLocal)
+				}
+			}
+			err := c.Enviar(resp)
+			if err != nil {
+				return fmt.Errorf("%w: época %d: no se pudo enviar el gradiente: %v", ErrConexionPerdida, m.Epoca, err)
+			}
 
 		case m.Tipo == protocolo.TipoParametros:
 			if !cargado {
@@ -331,9 +453,9 @@ func (l *limpiezaNodo) iniciar(c *protocolo.Conexion, cfg *ConfigTrabajador, m p
 			}
 			log.Printf("limpieza %d: empiezo con %s (%d hilos)", m.Corrida, tec, hilos)
 			progreso := func(a limpieza.Avance) {
-				c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoProgresoLimpieza, WorkerID: cfg.ID, Corrida: m.Corrida, Tecnologia: tec, Hilos: hilos, Avance: a.Avance, CPU: a.CPU})
+				c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoProgresoLimpieza, WorkerID: cfg.ID, Corrida: m.Corrida, Tecnologia: tec, Hilos: hilos, Fase: a.Fase, Avance: a.Avance, CPU: a.CPU, TLimpiezaS: a.TLimpieza.Seconds()})
 			}
-			progreso(limpieza.Avance{})
+			progreso(limpieza.Avance{Fase: limpieza.FaseLimpieza})
 			res, err := cfg.Limpieza.Ejecutar(ctx, tec, hilos, progreso)
 			switch {
 			case ctx.Err() != nil:
@@ -345,7 +467,7 @@ func (l *limpiezaNodo) iniciar(c *protocolo.Conexion, cfg *ConfigTrabajador, m p
 			default:
 				log.Printf("limpieza %d: %s terminó en %s, huella %s", m.Corrida, tec, res.Duracion.Round(time.Millisecond), Corta(res.Huella))
 				c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoLimpiezaTerminada, WorkerID: cfg.ID, Corrida: m.Corrida, Tecnologia: tec,
-					Hilos: res.Hilos, TTotalS: res.Duracion.Seconds(), Huella: res.Huella})
+					Hilos: res.Hilos, TTotalS: res.Duracion.Seconds(), TLimpiezaS: res.Limpieza.Seconds(), TVariablesS: res.Variables.Seconds(), Huella: res.Huella})
 			}
 		}
 	}()

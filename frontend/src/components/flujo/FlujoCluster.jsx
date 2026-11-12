@@ -38,7 +38,7 @@ function marcaCPU(cpu = '') {
 // Tarjeta de un nodo: el color de fondo y del borde salen de la marca del
 // procesador (Ryzen naranja, Intel celeste); el maestro y los elegidos para
 // entrenar se resaltan más. Debajo: nombre, tipo (Maestro o Nodo) e IP.
-function Nodo({ nodo, tipo, rol, ip, nota, onClick, pequeno, elegido }) {
+function Nodo({ nodo, tipo, rol, ip, nota, extra, onClick, pequeno, elegido }) {
   const hw = nodo?.hardware ?? {}
   const cpu = marcaCPU(hw.cpu)
   const Etiqueta = onClick ? 'button' : 'div'
@@ -62,6 +62,7 @@ function Nodo({ nodo, tipo, rol, ip, nota, onClick, pequeno, elegido }) {
             <>
               <small className={`nodo-rol ${tipo === 'maestro' || rol === 'Maestro' ? 'maestro' : ''}`}>{rol}</small>
               {ip && <small>{ip}</small>}
+              {extra && <small className="nodo-extra">{extra}</small>}
               {nota && <small className="nodo-nota">{nota}</small>}
             </>
           )}
@@ -200,7 +201,7 @@ function IlustracionNodo() {
 
 // ---------- 2 y 4. Sala ----------
 
-function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar, onSaltar, onEntrenar, onRealizarLimpieza, ocupado, error, avisos }) {
+function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar, onSaltar, onEntrenar, onRealizarLimpieza, ocupado, error, avisos, ajustes, setAjustes }) {
   const sala = inst?.sala ?? []
   const maestroNodo = sala.find((n) => n.id === inst?.nodo_maestro)
   const otros = sala.filter((n) => n !== maestroNodo)
@@ -226,17 +227,21 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
             return nueva
           })
       : undefined
+  const sug = inst?.pesos_sugeridos ?? {}
+  const porCapacidad = enPre && ajustes?.reparto === 'capacidad' && Object.keys(sug).length > 0
   const nota = (n) => {
     if (enPre && n.huella !== inst.huella) return n.huella ? `otra muestra (${corta(n.huella)})` : 'sin muestra'
     return undefined
   }
+  // Peso del nodo en el reparto proporcional (debajo de su IP).
+  const peso = (n) => (porCapacidad && seleccion.has(n.id) && sug[n.id] ? `capacidad ×${sug[n.id].toLocaleString('es-PE')}` : undefined)
 
   return (
     <section className="flujo-sala" aria-label={enPre ? 'Antes de entrenar' : 'Clúster iniciado'}>
       <div className="sala-centro">
         <span className="rotulo">CLÚSTER INICIADO</span>
         {maestroNodo ? (
-          <Nodo nodo={maestroNodo} tipo={tipo(maestroNodo, 'maestro')} rol="Maestro" ip={ipMaestro} nota={nota(maestroNodo)}
+          <Nodo nodo={maestroNodo} tipo={tipo(maestroNodo, 'maestro')} rol="Maestro" ip={ipMaestro} nota={nota(maestroNodo)} extra={peso(maestroNodo)}
             elegido={elegido(maestroNodo)} onClick={alternar(maestroNodo)} />
         ) : (
           <Nodo nodo={{ id: esMaestro ? local.id : 'maestro', hardware: esMaestro ? local.hardware : undefined }} tipo="maestro"
@@ -256,13 +261,15 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
               {ocupado === 'entrenar' ? 'Comprobando huellas…' : 'INICIAR ENTRENAMIENTO'}
             </button>
             <button type="button" className="boton" disabled={!!ocupado} onClick={onRealizarLimpieza}>REALIZAR LIMPIEZA</button>
+            <AjustesModelo ajustes={ajustes} setAjustes={setAjustes} />
+            <AjustesReparto ajustes={ajustes} setAjustes={setAjustes} inst={inst} />
           </div>
         )}
       </div>
 
       <div className="sala-nodos">
         {otros.map((n) => (
-          <Nodo key={n.id} nodo={n} tipo={tipo(n, 'trabajador')} rol="Nodo" ip={ipDe(n, ipMaestro)} nota={nota(n)}
+          <Nodo key={n.id} nodo={n} tipo={tipo(n, 'trabajador')} rol="Nodo" ip={ipDe(n, ipMaestro)} nota={nota(n)} extra={peso(n)}
             elegido={elegido(n)} onClick={alternar(n)} />
         ))}
         {Array.from({ length: libres }, (_, i) => <Nodo key={`libre${i}`} tipo="libre" />)}
@@ -273,6 +280,207 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
         {error && <p className="error" role="alert">{error}</p>}
       </div>
     </section>
+  )
+}
+
+// Modelo a entrenar: regresión logística (13 o 21 parámetros, una
+// actualización por época) o red neuronal 20→64→32→1 por mini-lotes.
+function AjustesModelo({ ajustes, setAjustes }) {
+  const cambiar = (campo) => (e) => {
+    const v = e.target.type === 'number' ? Math.max(1, Number(e.target.value) || 1) : e.target.value
+    setAjustes((a) => {
+      const nuevo = { ...a, [campo]: v }
+      // Cada modelo con sus épocas habituales.
+      if (campo === 'modelo') nuevo.epocas = v === 'red' ? 20 : 200
+      return nuevo
+    })
+  }
+  return (
+    <fieldset className="ajustes-modelo">
+      <legend>Modelo</legend>
+      <label className="casilla">
+        <input type="radio" name="modelo" value="red" checked={ajustes.modelo === 'red'} onChange={cambiar('modelo')} />
+        Red neuronal 20→64→32→1
+      </label>
+      <label className="casilla">
+        <input type="radio" name="modelo" value="logistica" checked={ajustes.modelo === 'logistica'} onChange={cambiar('modelo')} />
+        Regresión logística
+      </label>
+      <div className="ajustes-numeros">
+        <label>Épocas <input type="number" min="1" max="100000" value={ajustes.epocas} onChange={cambiar('epocas')} /></label>
+        {ajustes.modelo === 'red' && (
+          <label>Mini-lotes por época <input type="number" min="1" max="10000" value={ajustes.pasos} onChange={cambiar('pasos')} /></label>
+        )}
+      </div>
+      {ajustes.modelo === 'red' && (
+        <label className="ajustes-select">
+          Comunicación
+          <select value={ajustes.comunicacion} onChange={cambiar('comunicacion')}>
+            <option value="arbol">En árbol entre los nodos</option>
+            <option value="anillo">En anillo entre los nodos</option>
+            <option value="central">Todo por el maestro</option>
+          </select>
+        </label>
+      )}
+    </fieldset>
+  )
+}
+
+// Reparto de los datos entre los nodos (Fase 3): partes iguales o según la
+// capacidad que midió el maestro (último entrenamiento, o la limpieza).
+function AjustesReparto({ ajustes, setAjustes, inst }) {
+  const hay = Object.keys(inst?.pesos_sugeridos ?? {}).length > 0
+  const origen = { entrenamiento: 'medida en el último entrenamiento', limpieza: 'medida en la limpieza' }[inst?.origen_pesos]
+  const cambiar = (e) => setAjustes((a) => ({ ...a, reparto: e.target.value }))
+  return (
+    <fieldset className="ajustes-modelo">
+      <legend>Reparto de los datos</legend>
+      <label className="casilla">
+        <input type="radio" name="reparto" value="capacidad" checked={ajustes.reparto === 'capacidad'} disabled={!hay} onChange={cambiar} />
+        Según la capacidad de cada nodo
+      </label>
+      <label className="casilla">
+        <input type="radio" name="reparto" value="igual" checked={ajustes.reparto === 'igual' || !hay} onChange={cambiar} />
+        Partes iguales
+      </label>
+      <p className="detalle">{hay ? `Capacidad ${origen}.` : 'Sin mediciones todavía: limpia o entrena una vez para medir la capacidad.'}</p>
+    </fieldset>
+  )
+}
+
+// Pantalla del entrenamiento: cómo viajan los gradientes en cada mini-lote
+// (Fase 4). Por el maestro, todos le envían a él (un solo puerto); en árbol,
+// los pares se suman de a dos por nivel; en anillo, cada uno al siguiente y
+// todos a la vez.
+function Topologia({ corrida, rotulo, descripcion }) {
+  const nodos = corrida.nodos ?? []
+  const n = nodos.length
+  const tipo = corrida.comunicacion || 'central'
+  const W = 520, H = 210, cx = W / 2, cy = H / 2 + 6, R = 78
+  const pos = nodos.map((_, i) => {
+    const a = (2 * Math.PI * i) / Math.max(n, 1) - Math.PI / 2
+    return [cx + R * 1.9 * Math.cos(a), cy + R * Math.sin(a)]
+  })
+  const flechas = []
+  if (tipo === 'central') {
+    nodos.forEach((_, i) => flechas.push([pos[i], [cx, cy], 0]))
+  } else if (tipo === 'anillo') {
+    nodos.forEach((_, i) => flechas.push([pos[i], pos[(i + 1) % n], 0]))
+  } else {
+    for (let k = 1, nivel = 0; k < n; k *= 2, nivel++) {
+      for (let r = 0; r + k < n; r += 2 * k) flechas.push([pos[r + k], pos[r], nivel])
+    }
+  }
+  const niveles = tipo === 'arbol' ? Math.ceil(Math.log2(Math.max(n, 2))) : 1
+  const texto = {
+    central: `Todos los gradientes pasan por el maestro: ${n} envíos y ${n} respuestas por su único puerto en cada mini-lote.`,
+    arbol: `Reducción en árbol: ${niveles} nivel(es); en cada nivel varios pares se suman a la vez por sus propios puertos, y la suma vuelve por el mismo árbol.`,
+    anillo: `Anillo: cada nodo envía un trozo al siguiente y recibe del anterior, todos a la vez, en ${2 * Math.max(n - 1, 0)} pasos.`,
+  }[tipo]
+  const leyenda = descripcion ?? texto
+  const colores = ['var(--serie-1)', 'var(--serie-4)', 'var(--serie-3)']
+  return (
+    <section className="flujo-topologia" aria-label="Comunicación entre nodos">
+      <div>
+        <span className="rotulo">{rotulo ?? `COMUNICACIÓN · ${({ central: 'POR EL MAESTRO', arbol: 'EN ÁRBOL', anillo: 'EN ANILLO' })[tipo]}`}</span>
+        <p className="detalle">{leyenda}</p>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={leyenda}>
+        <defs>
+          <marker id="punta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0L10 5L0 10z" fill="currentColor" />
+          </marker>
+        </defs>
+        {flechas.map(([a, b, nivel], i) => {
+          const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1
+          const r = 22
+          return (
+            <line key={i} x1={a[0] + (dx / l) * r} y1={a[1] + (dy / l) * r} x2={b[0] - (dx / l) * r} y2={b[1] - (dy / l) * r}
+              stroke={colores[nivel % colores.length]} style={{ color: colores[nivel % colores.length] }} strokeWidth="2.5" markerEnd="url(#punta)" />
+          )
+        })}
+        {tipo === 'central' && (
+          <g>
+            <circle cx={cx} cy={cy} r="22" className="topo-maestro" />
+            <text x={cx} y={cy + 4} textAnchor="middle" className="topo-texto">M</text>
+          </g>
+        )}
+        {nodos.map((nd, i) => (
+          <g key={nd.id}>
+            <circle cx={pos[i][0]} cy={pos[i][1]} r="20" className="topo-nodo" />
+            <text x={pos[i][0]} y={pos[i][1] + 4} textAnchor="middle" className="topo-texto">{i}</text>
+            <text x={pos[i][0]} y={pos[i][1] + 36} textAnchor="middle" className="topo-nombre">{nd.id}</text>
+          </g>
+        ))}
+      </svg>
+    </section>
+  )
+}
+
+// Pantalla de la predicción distribuida (Fase 5): cada nodo predice todas
+// las horas de sus estaciones con el modelo entrenado y le envía los
+// resultados al maestro (gather), que regenera el mapa y la línea de tiempo.
+function Prediccion({ inst, esMaestro, onVerMapa, onVolver }) {
+  const p = inst.prediccion
+  const sala = new Map((inst.sala ?? []).map((n) => [n.id, n]))
+  const fmtN = (v) => (v ?? 0).toLocaleString('es-PE')
+  const fmtMB = (v) => `${(v ?? 0).toLocaleString('es-PE', { maximumFractionDigits: 1 })} MB`
+  const fmtMs = (v) => (v > 0 ? `${(v / 1000).toLocaleString('es-PE', { maximumFractionDigits: 2 })} s` : '—')
+  return (
+    <>
+      <Topologia
+        corrida={{ nodos: p.nodos, comunicacion: 'central' }}
+        rotulo="PREDICCIÓN DISTRIBUIDA · GATHER"
+        descripcion={`Cada nodo predice con el modelo ${p.modelo} todas las horas de sus estaciones y le envía los resultados al maestro: ${fmtN(p.filas)} filas, ${fmtMB(p.mb)} por la red.`}
+      />
+      <section className="flujo-limpieza" aria-label="Predicción distribuida">
+        <div className="tabla-limpieza-envoltura">
+          <table className="tabla-limpieza">
+            <thead>
+              <tr>
+                <th scope="col">Nodo</th>
+                <th scope="col">Filas predichas</th>
+                <th scope="col">Enviado al maestro</th>
+                <th scope="col">Cálculo</th>
+                <th scope="col">Hasta el último trozo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {p.nodos.map((n) => {
+                const vista = sala.get(n.id) ?? { id: n.id, hardware: n.hardware }
+                const avance = n.total > 0 ? n.filas / n.total : n.estado === 'terminada' ? 1 : 0
+                return (
+                  <tr key={n.id}>
+                    <th scope="row"><Nodo nodo={vista} tipo={n.id === inst.nodo_maestro ? 'maestro' : 'trabajador'} pequeno /></th>
+                    <td>
+                      <div className="progreso"><div className={`progreso-fill ${n.estado === 'error' ? 'abortado' : ''}`} style={{ width: `${100 * avance}%` }} /></div>
+                      <small className="detalle">{fmtN(n.filas)}{n.total ? ` de ${fmtN(n.total)}` : ''}</small>
+                      {n.mensaje && <small className="nodo-nota"> {n.mensaje}</small>}
+                    </td>
+                    <td className="celda-tiempo">{fmtMB(n.mb)}</td>
+                    <td className="celda-tiempo">{fmtMs(n.t_calculo_ms)}</td>
+                    <td className="celda-tiempo">{fmtMs(n.t_total_ms)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <footer className="limpieza-pie">
+          <p className="detalle">
+            {p.estado === 'prediciendo' && 'Prediciendo…'}
+            {p.estado === 'terminada' && `Listo en ${p.t_total_s.toLocaleString('es-PE', { maximumFractionDigits: 2 })} s: el mapa (Alerta del modelo) y la línea de tiempo ya usan este modelo.`}
+            {p.estado === 'error' && p.mensaje}
+          </p>
+          {esMaestro && p.estado !== 'prediciendo' && (
+            <div className="sala-botones">
+              {p.estado === 'terminada' && <button type="button" className="boton-grande" onClick={onVerMapa}>Ver en el mapa</button>}
+              <button type="button" className="boton" onClick={onVolver}>Volver a elegir nodos</button>
+            </div>
+          )}
+        </footer>
+      </section>
+    </>
   )
 }
 
@@ -297,28 +505,55 @@ function GraficaCPU({ serie, estado }) {
   )
 }
 
-function CeldaTec({ t }) {
-  if (!t) return <td />
+const FINAL = new Set(['terminada', 'error', 'cancelada'])
+
+// Estado de una tecnología en una de sus dos fases. El proceso es uno solo
+// (limpia y luego prepara las variables), así que la fase de variables
+// empieza cuando la de limpieza termina.
+function enFase(t, fase) {
+  const enVariables = t.fase === 'variables'
+  if (fase === 'limpieza') {
+    if (FINAL.has(t.estado) && t.estado !== 'terminada' && !enVariables) return { estado: t.estado, avance: t.avance, serie: t.serie }
+    if (enVariables || t.estado === 'terminada') return { estado: 'terminada', avance: 1, serie: t.serie, tiempo: t.t_limpieza_s }
+    return { estado: t.estado === 'limpiando' ? 'limpiando' : 'pendiente', avance: t.avance, serie: t.serie }
+  }
+  if (t.estado === 'terminada') return { estado: 'terminada', avance: 1, serie: t.serie_variables, tiempo: t.t_variables_s }
+  if (FINAL.has(t.estado)) return { estado: t.estado, avance: t.avance_variables, serie: t.serie_variables }
+  if (enVariables) return { estado: 'limpiando', avance: t.avance_variables, serie: t.serie_variables }
+  return { estado: 'pendiente', avance: 0, serie: [] }
+}
+
+// ¿Terminó la fase de limpieza (bien o mal) en todos los nodos?
+function limpiezaHecha(l) {
+  return l.nodos.every((n) => n.tecnologias.every((t) => FINAL.has(enFase(t, 'limpieza').estado)))
+}
+
+function CeldaTec({ t, fase }) {
+  if (!t) return <td colSpan={2} />
+  const f = enFase(t, fase)
   const texto = {
     pendiente: 'en espera',
-    limpiando: `${Math.round(t.avance * 100)} %`,
-    terminada: fmtS(t.t_total_s),
+    limpiando: `${Math.round((f.avance ?? 0) * 100)} %`,
+    terminada: fmtS(f.tiempo),
     error: 'error',
     cancelada: 'parada',
-  }[t.estado]
+  }[f.estado]
   return (
     <>
-      <td className="celda-grafica"><GraficaCPU serie={t.serie} estado={t.estado} /></td>
-      <td className={`celda-tiempo estado-${t.estado}`} title={t.mensaje || (t.huella ? `huella ${corta(t.huella)}` : undefined)}>
+      <td className="celda-grafica"><GraficaCPU serie={f.serie} estado={f.estado} /></td>
+      <td className={`celda-tiempo estado-${f.estado}`} title={t.mensaje || (t.huella ? `huella ${corta(t.huella)}` : undefined)}>
         {texto}
-        {t.estado === 'error' && <small>{t.mensaje}</small>}
+        {f.estado === 'error' && <small>{t.mensaje}</small>}
       </td>
     </>
   )
 }
 
-function Limpieza({ inst, esMaestro, onContinuar }) {
+// Pantallas 3 (fase "limpieza") y 4 (fase "variables": preparación de
+// variables y escritura de muestra.bin). Misma tabla, distinta fase.
+function Limpieza({ inst, esMaestro, fase, onContinuar }) {
   const l = inst.limpieza
+  const esVariables = fase === 'variables'
   const [preguntar, setPreguntar] = useState(false)
   const [error, setError] = useState('')
   const enCurso = l.estado === 'limpiando'
@@ -337,10 +572,10 @@ function Limpieza({ inst, esMaestro, onContinuar }) {
   }
 
   return (
-    <section className="flujo-limpieza" aria-label="Limpieza">
+    <section className="flujo-limpieza" aria-label={esVariables ? 'Preparación de variables' : 'Limpieza'}>
       <header className="limpieza-cabecera">
         <span className="rotulo">CLÚSTER INICIADO</span>
-        <span className="rotulo titulo">LIMPIEZA{l.estado === 'cancelada' ? ' · PARADA' : ''}</span>
+        <span className="rotulo titulo">{esVariables ? 'PREPARACIÓN DE VARIABLES' : 'LIMPIEZA'}{l.estado === 'cancelada' ? ' · PARADA' : ''}</span>
         <div className="nuevos" aria-label="Nodos que se unieron después">
           {nuevos.map((n) => (
             <Nodo key={n.id} nodo={n} tipo="nuevo" pequeno onClick={esMaestro && enCurso ? () => accion(() => apiCluster.limpiar([n.id])) : undefined} />
@@ -368,7 +603,7 @@ function Limpieza({ inst, esMaestro, onContinuar }) {
                 <tr key={n.id}>
                   <th scope="row"><Nodo nodo={vista} tipo={n.id === inst.nodo_maestro ? 'maestro' : 'trabajador'} pequeno /></th>
                   <td className="celda-hilos">{hilos || '—'}</td>
-                  {l.tecnologias.map((t) => <CeldaTec key={t} t={n.tecnologias.find((x) => x.tecnologia === t)} />)}
+                  {l.tecnologias.map((t) => <CeldaTec key={t} fase={fase} t={n.tecnologias.find((x) => x.tecnologia === t)} />)}
                 </tr>
               )
             })}
@@ -378,10 +613,10 @@ function Limpieza({ inst, esMaestro, onContinuar }) {
 
       <footer className="limpieza-pie">
         {/* Solo se avisa si algo salió mal: muestras con huellas distintas. */}
-        {huellas.size > 1 ? <p className="error">Los nodos generaron {huellas.size} muestras distintas (huellas diferentes).</p> : <span />}
+        {esVariables && huellas.size > 1 ? <p className="error">Los nodos generaron {huellas.size} muestras distintas (huellas diferentes).</p> : <span />}
         {esMaestro && (
           <div className="sala-botones">
-            <button type="button" className="boton-grande" disabled={enCurso} onClick={onContinuar}>Continuar</button>
+            <button type="button" className="boton-grande" disabled={esVariables ? enCurso : enCurso && !limpiezaHecha(l)} onClick={onContinuar}>Continuar</button>
             {enCurso && <button type="button" className="boton" onClick={() => setPreguntar(true)}>Parar limpieza</button>}
           </div>
         )}
@@ -427,7 +662,7 @@ function SinLanzador() {
 
 // ---------- flujo ----------
 
-export default function FlujoCluster({ datos, lanzador }) {
+export default function FlujoCluster({ datos, lanzador, onVerMapa }) {
   const { datos: local, actualizar } = lanzador
   const rol = local?.rol ?? ''
   const { conectado, inst, perdido } = useCluster(rol !== '')
@@ -436,8 +671,13 @@ export default function FlujoCluster({ datos, lanzador }) {
   // Nodos que el maestro quitó de la selección (en gris); los demás de la
   // sala, incluidos los que llegan, entran elegidos.
   const [quitados, setQuitados] = useState(new Set())
+  // Modelo a entrenar (pantalla "antes de entrenar").
+  const [ajustes, setAjustes] = useState({ modelo: 'red', epocas: 20, pasos: 25, reparto: 'capacidad', comunicacion: 'arbol' })
   // Limpieza ya vista (botón Continuar): mientras no, se sigue mostrando.
   const [continuada, setContinuada] = useState(0)
+  // Dentro de la limpieza: pantalla de limpieza o de preparación de
+  // variables (el maestro pasa con Continuar; las demás siguen solas).
+  const [subLimpieza, setSubLimpieza] = useState({ id: 0, fase: 'limpieza' })
   const [ocupado, setOcupado] = useState('')
   // Error y avisos de una acción, atados a la pantalla en que ocurrieron:
   // al cambiar de pantalla dejan de mostrarse.
@@ -474,7 +714,8 @@ export default function FlujoCluster({ datos, lanzador }) {
   // hasta que el maestro aprieta Continuar.
   // (Las laptops que solo miran no tienen Continuar: ven la limpieza solo mientras corre.)
   const viendoLimpieza = limpieza && (limpieza.estado === 'limpiando' || (esMaestro && limpieza.id !== continuada))
-  const pasoActual = entrenando ? 'entrenamiento' : viendoLimpieza ? 'limpieza' : paso
+  const prediciendo = inst?.prediccion?.estado === 'prediciendo'
+  const pasoActual = entrenando ? 'entrenamiento' : prediciendo ? 'prediccion' : viendoLimpieza ? 'limpieza' : paso
   const error = mensaje.paso === pasoActual ? mensaje.error : ''
   const avisos = mensaje.paso === pasoActual ? mensaje.avisos : []
 
@@ -513,8 +754,12 @@ export default function FlujoCluster({ datos, lanzador }) {
       setQuitados((q) => new Set([...q, ...malos.map((m) => m.id)]))
       throw new Error(`Se quitaron de la selección porque su muestra.bin no es la del maestro: ${describir(malos)}.`)
     }
-    const config = await fetch('/api/config').then((r) => r.json()).catch(() => ({ epocas: 200, verificar: true }))
-    await apiCluster.entrenar(ids, config.epocas ?? 200, config.verificar ?? true)
+    // Fase 3: reparto según la capacidad medida de cada nodo, si el maestro
+    // la conoce para todos los elegidos; si no, partes iguales.
+    const sug = inst.pesos_sugeridos ?? {}
+    const proporcional = ajustes.reparto === 'capacidad' && ids.every((id) => sug[id] > 0)
+    const pesos = proporcional ? Object.fromEntries(ids.map((id) => [id, sug[id]])) : undefined
+    await apiCluster.entrenar(ids, ajustes.epocas, true, { modelo: ajustes.modelo, pasos: ajustes.pasos, pesos, comunicacion: ajustes.modelo === 'red' ? ajustes.comunicacion : undefined })
     setPaso('entrenamiento')
   })
 
@@ -523,14 +768,31 @@ export default function FlujoCluster({ datos, lanzador }) {
   if (pasoActual === 'entrenamiento' && corrida) {
     vista = (
       <>
+        {(corrida.modelo ?? '').startsWith('red') && <Topologia corrida={corrida} />}
         <Protector><PanelCluster datos={datos} /></Protector>
         {esMaestro && !entrenando && (
-          <div className="sala-botones"><button type="button" className="boton" onClick={() => setPaso('pre')}>Volver a elegir nodos</button></div>
+          <div className="sala-botones sala-botones-fila">
+            {corrida.estado === 'terminado' && inst.modelo_listo && (
+              <button type="button" className="boton-grande" disabled={!!ocupado}
+                onClick={() => accion('predecir', async () => { await apiCluster.predecir(corrida.nodos.map((n) => n.id)); setPaso('prediccion') })}>
+                PREDICCIÓN DISTRIBUIDA
+              </button>
+            )}
+            <button type="button" className="boton" onClick={() => setPaso('pre')}>Volver a elegir nodos</button>
+          </div>
         )}
+        {error && <p className="error" role="alert">{error}</p>}
       </>
     )
+  } else if (pasoActual === 'prediccion' && inst.prediccion) {
+    vista = <Prediccion inst={inst} esMaestro={esMaestro} onVerMapa={onVerMapa} onVolver={() => setPaso('pre')} />
   } else if (pasoActual === 'limpieza') {
-    vista = <Limpieza inst={inst} esMaestro={esMaestro} onContinuar={() => { setContinuada(limpieza.id); setPaso('pre') }} />
+    const faseLimpieza = esMaestro
+      ? (subLimpieza.id === limpieza.id ? subLimpieza.fase : 'limpieza')
+      : (limpiezaHecha(limpieza) ? 'variables' : 'limpieza')
+    vista = faseLimpieza === 'limpieza'
+      ? <Limpieza key="limpieza" inst={inst} esMaestro={esMaestro} fase="limpieza" onContinuar={() => setSubLimpieza({ id: limpieza.id, fase: 'variables' })} />
+      : <Limpieza key="variables" inst={inst} esMaestro={esMaestro} fase="variables" onContinuar={() => { setContinuada(limpieza.id); setPaso('pre') }} />
   } else {
     vista = (
       <Sala
@@ -538,6 +800,7 @@ export default function FlujoCluster({ datos, lanzador }) {
         seleccion={seleccion} setSeleccion={setSeleccion}
         onLimpiar={onLimpiar} onSaltar={onSaltar} onEntrenar={onEntrenar}
         onRealizarLimpieza={() => setPaso('sala')}
+        ajustes={ajustes} setAjustes={setAjustes}
         ocupado={ocupado} error={error} avisos={avisos}
       />
     )
