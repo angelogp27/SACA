@@ -144,6 +144,7 @@ func main() {
 		duplicados += ix.Duplicados
 		mapas[k] = ix.Registros
 	}
+	clear(indices) // lo que sigue usa solo mapas (así se pueden soltar al armar la muestra)
 
 	corrida := medicion.Corrida{
 		Modo:          nombreModo,
@@ -163,7 +164,23 @@ func main() {
 			fmt.Println("SACA_FASE variables")
 		}
 		inicioBin := time.Now()
-		m, err := muestrabin.Construir(mapas, muestrabin.MesCorte)
+		var m *muestrabin.Muestra
+		var err error
+		if *sinMongo {
+			// Los registros no hacen falta después: se sueltan mientras se
+			// arma la muestra. Etiquetar es el 80 % de esta fase (800 → 920).
+			m, err = muestrabin.ConstruirLiberando(mapas, muestrabin.MesCorte, func(f float64) {
+				// Varias goroutines informan a la vez: nunca hacia atrás.
+				for n := 800 + int64(120*f); ; {
+					v := avance.Load()
+					if n <= v || avance.CompareAndSwap(v, n) {
+						break
+					}
+				}
+			})
+		} else {
+			m, err = muestrabin.Construir(mapas, muestrabin.MesCorte)
+		}
 		if err != nil {
 			log.Fatalf("no se pudo armar la muestra: %v", err)
 		}

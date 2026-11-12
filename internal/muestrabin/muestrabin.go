@@ -19,11 +19,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"math"
 	"os"
 	"path/filepath"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"proyecto9/internal/dataset"
@@ -71,45 +73,102 @@ type Muestra struct {
 // Construir etiqueta los registros de cada índice (uno por agregadora; una
 // estación vive siempre en un solo índice, así que la lectura de la hora
 // siguiente se busca en el mismo mapa) y arma la muestra. Cada índice se
-// recorre en su propia goroutine; después se ordena todo y se normaliza en
-// una sola pasada secuencial.
+// etiqueta y se ordena en su propia goroutine; después las partes se
+// intercalan por estación y se normaliza en una sola pasada secuencial.
 func Construir(indices []map[string]*registro.RegistroProcesado, mesCorte int) (*Muestra, error) {
+	return construir(indices, mesCorte, false, nil)
+}
+
+// ConstruirLiberando es Construir, pero suelta cada índice (indices[k] =
+// nil) apenas lo etiqueta, para que el recolector recupere esa memoria
+// mientras se arma el resto: en una laptop de 8 GB es la diferencia entre
+// terminar o no. Úsalo cuando los registros ya no hacen falta después.
+// alAvanzar (puede ser nil) recibe la fracción de registros ya etiquetados.
+func ConstruirLiberando(indices []map[string]*registro.RegistroProcesado, mesCorte int, alAvanzar func(float64)) (*Muestra, error) {
+	return construir(indices, mesCorte, true, alAvanzar)
+}
+
+func construir(indices []map[string]*registro.RegistroProcesado, mesCorte int, liberar bool, alAvanzar func(float64)) (*Muestra, error) {
+	total := 0
+	for _, ix := range indices {
+		total += len(ix)
+	}
+	var hechos atomic.Int64
+	contar := func(n int) {
+		if alAvanzar != nil && total > 0 {
+			alAvanzar(float64(hechos.Add(int64(n))) / float64(total))
+		}
+	}
 	partes := make([][]fila, len(indices))
 	errs := make([]error, len(indices))
 	var wg sync.WaitGroup
-	for k, ix := range indices {
+	for k := range indices {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			partes[k], errs[k] = etiquetar(ix)
+			partes[k], errs[k] = etiquetar(indices[k], liberar, contar)
+			if liberar {
+				indices[k] = nil
+			}
+			slices.SortFunc(partes[k], compararFilas)
 		}()
 	}
 	wg.Wait()
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
 	}
-
-	total := 0
-	for _, p := range partes {
-		total += len(p)
-	}
-	filas := make([]fila, 0, total)
-	for _, p := range partes {
-		filas = append(filas, p...)
-	}
-	slices.SortFunc(filas, func(a, b fila) int {
-		if c := cmp.Compare(a.estacion, b.estacion); c != 0 {
-			return c
-		}
-		return cmp.Compare(a.hora, b.hora)
-	})
-	return armar(filas, mesCorte)
+	return armar(intercalar(partes), mesCorte)
 }
 
-func etiquetar(ix map[string]*registro.RegistroProcesado) ([]fila, error) {
-	// NO2 por estación y hora (horas desde 1970), para los rezagos: una
-	// búsqueda por entero en vez de armar claves de texto 24 veces por fila.
-	no2 := map[string]map[int64]float64{}
+func compararFilas(a, b fila) int {
+	if c := cmp.Compare(a.estacion, b.estacion); c != 0 {
+		return c
+	}
+	return cmp.Compare(a.hora, b.hora)
+}
+
+// intercalar recorre las partes (cada una ya ordenada) en el orden global
+// (estación, hora) sin copiarlas a un arreglo nuevo: como una estación está
+// entera en una sola parte, basta con tomar, cada vez, el tramo completo de
+// la estación menor entre las cabezas. El resultado es el mismo orden que
+// ordenar todo junto.
+func intercalar(partes [][]fila) iter.Seq[*fila] {
+	return func(yield func(*fila) bool) {
+		pos := make([]int, len(partes))
+		for {
+			k := -1
+			for j, p := range partes {
+				if pos[j] < len(p) && (k < 0 || p[pos[j]].estacion < partes[k][pos[k]].estacion) {
+					k = j
+				}
+			}
+			if k < 0 {
+				return
+			}
+			p, est := partes[k], partes[k][pos[k]].estacion
+			for pos[k] < len(p) && p[pos[k]].estacion == est {
+				if !yield(&p[pos[k]]) {
+					return
+				}
+				pos[k]++
+			}
+		}
+	}
+}
+
+// etiquetar arma las filas de un índice. Con liberar, borra cada registro
+// del mapa en cuanto lo usa (la etiqueta y los rezagos salen de los arreglos
+// de NO2, no del mapa), así el recolector lo recupera de inmediato.
+func etiquetar(ix map[string]*registro.RegistroProcesado, liberar bool, contar func(int)) ([]fila, error) {
+	// NO2 por estación y hora, para los rezagos: un arreglo por estación con
+	// una casilla por hora entre la primera y la última (NaN = sin lectura).
+	// Un año son ~8 760 casillas por estación: unos 30 MB en total, frente a
+	// los cientos de MB de un mapa con una entrada por lectura.
+	type serieNO2 struct {
+		desde int64
+		v     []float64
+	}
+	rangos := map[string][2]int64{}
 	for _, r := range ix {
 		if r.NO2Ppb == nil {
 			continue
@@ -118,46 +177,85 @@ func etiquetar(ix map[string]*registro.RegistroProcesado) ([]fila, error) {
 		if err != nil {
 			return nil, fmt.Errorf("hora inválida %q en %s", r.TimestampUTC, r.EstacionID)
 		}
-		serie := no2[r.EstacionID]
-		if serie == nil {
-			serie = map[int64]float64{}
-			no2[r.EstacionID] = serie
+		h := t.Unix() / 3600
+		rg, ok := rangos[r.EstacionID]
+		if !ok {
+			rg = [2]int64{h, h}
 		}
-		serie[t.Unix()/3600] = *r.NO2Ppb
+		rangos[r.EstacionID] = [2]int64{min(rg[0], h), max(rg[1], h)}
+	}
+	no2 := make(map[string]*serieNO2, len(rangos))
+	for est, rg := range rangos {
+		v := make([]float64, rg[1]-rg[0]+1)
+		for i := range v {
+			v[i] = math.NaN()
+		}
+		no2[est] = &serieNO2{desde: rg[0], v: v}
+	}
+	for _, r := range ix {
+		if r.NO2Ppb == nil {
+			continue
+		}
+		t, _ := time.Parse(time.RFC3339, r.TimestampUTC)
+		s := no2[r.EstacionID]
+		s.v[t.Unix()/3600-s.desde] = *r.NO2Ppb
+	}
+	// Una hora con lectura de NO2 en la serie de su estación.
+	lectura := func(serie *serieNO2, h int64) (float64, bool) {
+		i := h - serie.desde
+		if i < 0 || i >= int64(len(serie.v)) || math.IsNaN(serie.v[i]) {
+			return 0, false
+		}
+		return serie.v[i], true
 	}
 	var filas []fila
-	for _, r := range ix {
+	vistos := 0
+	for clave, r := range ix {
+		if liberar {
+			delete(ix, clave)
+		}
+		if vistos++; vistos == 50_000 {
+			contar(vistos)
+			vistos = 0
+		}
 		if r.NO2Ppb == nil {
 			continue
 		}
-		t, err := time.Parse(time.RFC3339, r.TimestampUTC)
-		if err != nil {
-			return nil, fmt.Errorf("hora inválida %q en %s", r.TimestampUTC, r.EstacionID)
-		}
-		futuro, ok := ix[r.EstacionID+"|"+t.Add(HorizonteHoras*time.Hour).Format(time.RFC3339)]
-		if !ok || futuro.NO2Ppb == nil {
+		t, _ := time.Parse(time.RFC3339, r.TimestampUTC)
+		serie := no2[r.EstacionID]
+		f := fila{estacion: r.EstacionID, hora: t.Unix() / 3600, mes: int(t.Month())}
+		futuro, ok := lectura(serie, f.hora+HorizonteHoras)
+		if !ok {
 			continue
 		}
-		f := fila{estacion: r.EstacionID, hora: t.Unix() / 3600, mes: int(t.Month())}
-		serie := no2[r.EstacionID]
-		historia := func(k int) (float64, bool) {
-			v, ok := serie[f.hora-int64(k)]
-			return v, ok
-		}
+		historia := func(k int) (float64, bool) { return lectura(serie, f.hora-int64(k)) }
 		copy(f.x[:], dataset.VectorCompleto(r, historia))
-		if *futuro.NO2Ppb > dataset.UmbralNO2 {
+		if futuro > dataset.UmbralNO2 {
 			f.y = 1
 		}
 		filas = append(filas, f)
 	}
+	contar(vistos)
 	return filas, nil
 }
 
-func armar(filas []fila, mesCorte int) (*Muestra, error) {
+func armar(filas iter.Seq[*fila], mesCorte int) (*Muestra, error) {
 	const d = D
 	m := &Muestra{D: d}
+	// Primero se cuentan, para reservar los arreglos con su tamaño exacto
+	// (con append crecerían al doble y por un momento existirían dos copias).
+	nEnt, nPru := 0, 0
+	for f := range filas {
+		if f.mes < mesCorte {
+			nEnt++
+		} else {
+			nPru++
+		}
+	}
+	m.XEnt, m.YEnt, m.EstEnt, m.HoraEnt = make([]float64, 0, d*nEnt), make([]float64, 0, nEnt), make([]uint32, 0, nEnt), make([]int64, 0, nEnt)
+	m.XPru, m.YPru, m.EstPru, m.HoraPru = make([]float64, 0, d*nPru), make([]float64, 0, nPru), make([]uint32, 0, nPru), make([]int64, 0, nPru)
 	idEstacion := map[string]uint32{}
-	for _, f := range filas {
+	for f := range filas {
 		if _, ok := idEstacion[f.estacion]; !ok {
 			if len(f.estacion) >= LargoID {
 				return nil, fmt.Errorf("id de estación demasiado largo: %q", f.estacion)
