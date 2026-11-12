@@ -56,8 +56,26 @@
 #define saca_fseek(f, off) _fseeki64((f), (off), SEEK_SET)
 #else
 #include <sys/resource.h>
+#include <unistd.h>
 #define saca_fseek(f, off) fseeko((f), (off_t)(off), SEEK_SET)
 #endif
+
+/* Mueve tmp a ruta, reemplazándola. En Windows un archivo que otro proceso
+   tiene abierto (la página calculando su huella, un antivirus) no se puede
+   reemplazar: se reintenta unos 15 s antes de rendirse. */
+static int reemplazar(const char *tmp, const char *ruta) {
+    for (int intento = 0; intento < 60; intento++) {
+#ifdef _WIN32
+        if (MoveFileExA(tmp, ruta, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return 1;
+        Sleep(250);
+#else
+        if (rename(tmp, ruta) == 0) return 1;
+        usleep(250000);
+#endif
+    }
+    remove(tmp);
+    return 0;
+}
 
 /* Pico de memoria residente del proceso, en MB. */
 static double memoria_pico_mb(void) {
@@ -803,8 +821,7 @@ static void escribir_muestra(const char *ruta, Agregadora *ags, int k) {
     ok = ok && fwrite(he, 8, n_ent, f) == n_ent; /* horas (Fase 5) */
     ok = ok && fwrite(hp, 8, n_pru, f) == n_pru;
     if (fclose(f) != 0 || !ok) saca_fallar("no se pudo escribir", tmp);
-    remove(ruta); /* en Windows rename no reemplaza un archivo existente */
-    if (rename(tmp, ruta) != 0) saca_fallar("no se pudo renombrar la muestra a", ruta);
+    if (!reemplazar(tmp, ruta)) saca_fallar("no se pudo reemplazar (¿otro programa lo tiene abierto?)", ruta);
     free(Xe), free(ye), free(Xp), free(yp), free(ee), free(ep), free(he), free(hp), free(ids);
     fijar_avance(1000);
     fprintf(stderr, "muestra %s: %zu de entrenamiento, %zu de prueba, %zu estaciones (%.3f s)\n", ruta, n_ent, n_pru, n_est, saca_ahora() - t0);

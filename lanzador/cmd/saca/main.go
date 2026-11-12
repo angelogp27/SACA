@@ -163,9 +163,7 @@ func (l *lanzador) estado(w http.ResponseWriter, r *http.Request) {
 	if e.Clusters == nil {
 		e.Clusters = []ClusterVisto{}
 	}
-	if h, err := distribuido.Huella(l.cfg.rutaMuestra); err == nil {
-		e.Huella = h
-	}
+	e.Huella = l.huellaMuestra()
 	e.Listo = map[string]bool{
 		"maestro":           existe(ejecutable(l.cfg.dirBin, "maestro")),
 		"trabajador":        existe(ejecutable(l.cfg.dirBin, "trabajador")),
@@ -553,4 +551,34 @@ func abrirNavegador(u string) {
 	if err := cmd.Start(); err != nil {
 		log.Printf("abre %s en el navegador", u)
 	}
+}
+
+// cacheHuella: la huella de muestra.bin y el tamaño y la fecha del archivo
+// con que se calculó. La página pregunta el estado cada 2 s; leer 360 MB
+// cada vez dejaba el archivo casi siempre abierto, y en Windows eso impide
+// que la limpieza lo reemplace ("Access is denied").
+var cacheHuella struct {
+	sync.Mutex
+	tam    int64
+	fecha  time.Time
+	huella string
+}
+
+func (l *lanzador) huellaMuestra() string {
+	info, err := os.Stat(l.cfg.rutaMuestra)
+	if err != nil {
+		return ""
+	}
+	c := &cacheHuella
+	c.Lock()
+	defer c.Unlock()
+	if c.huella != "" && info.Size() == c.tam && info.ModTime().Equal(c.fecha) {
+		return c.huella
+	}
+	h, err := distribuido.Huella(l.cfg.rutaMuestra)
+	if err != nil {
+		return ""
+	}
+	c.tam, c.fecha, c.huella = info.Size(), info.ModTime(), h
+	return h
 }

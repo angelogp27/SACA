@@ -1,0 +1,13 @@
+limpieza,nodo,tecnologia,hilos,t_total_s,huella,maquina
+1,angelohp,pthreads,16,7.416,de62c327dffc,AMD Ryzen 7 7735HS with Radeon Graphics · 8N/16H · 13 GB
+1,angelohp,go,16,22.774,de62c327dffc,AMD Ryzen 7 7735HS with Radeon Graphics · 8N/16H · 13 GB
+1,angelohp,pthreads,16,7.271,de62c327dffc,AMD Ryzen 7 7735HS with Radeon Graphics · 8N/16H · 13 GB
+1,angelohp,go,16,22.446,de62c327dffc,AMD Ryzen 7 7735HS with Radeon Graphics · 8N/16H · 13 GB
+1,fedora,pthreads,16,8.169,de62c327dffc,AMD Ryzen 7 7735HS with Radeon Graphics · 8N/16H · 13 GB
+1,fedora,go,16,23.873,de62c327dffc,AMD Ryzen 7 7735HS with Radeon Graphics · 8N/16H · 13 GB
+1,Angelo,pthreads,16,7.079,de62c327dffc,AMD Ryzen 7 7735HS with Radeon Graphics · 8N/16H · 13 GB
+1,Angelo,go,16,23.090,de62c327dffc,AMD Ryzen 7 7735HS with Radeon Graphics · 8N/16H · 13 GB
+2,Angelo,pthreads,16,8.132,de62c327dffc,AMD Ryzen 7 7735HS with Radeon Graphics · 8N/16H · 13 GB
+1,Angelo,pthreads,16,7.658,de62c327dffc,AMD Ryzen 7 7735HS with Radeon Graphics · 8N/16H · 13 GB
+1,Angelo,go,16,21.882,de62c327dffc,AMD Ryzen 7 7735HS with Radeon Graphics · 8N/16H · 13 GB
+1,HP,go,4,110.029,de62c327dffc,"Intel64 Family 6 Model 140 Stepping 2, GenuineIntel · 4H · 8 GB"

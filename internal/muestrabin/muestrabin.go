@@ -253,8 +253,22 @@ func (m *Muestra) Escribir(ruta string) error {
 		os.Remove(tmp)
 		return err
 	}
-	os.Remove(ruta) // en Windows Rename no reemplaza un archivo existente
-	return os.Rename(tmp, ruta)
+	return Reemplazar(tmp, ruta)
+}
+
+// Reemplazar mueve tmp a ruta, reemplazándola. En Windows un archivo que
+// otro proceso tiene abierto (la página calculando su huella, un antivirus)
+// no se puede reemplazar: se reintenta unos segundos antes de rendirse.
+func Reemplazar(tmp, ruta string) error {
+	var err error
+	for intento := 0; intento < 60; intento++ {
+		if err = os.Rename(tmp, ruta); err == nil {
+			return nil
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	os.Remove(tmp)
+	return fmt.Errorf("%w (¿otro programa tiene abierto %s?)", err, ruta)
 }
 
 func (m *Muestra) escribir(w io.Writer) error {
