@@ -444,6 +444,50 @@ button.nodo-caja {
   border-bottom: 2px solid var(--text-primary);
 }
 
+/* Dos filas de títulos: la tecnología arriba y, debajo, las dos mitades
+   de la gráfica (cada una sobre su mitad) y el total. */
+.tabla-limpieza thead tr:first-child th.cabeza-tec {
+  border-bottom: 1px solid var(--gridline);
+  padding-bottom: 4px;
+}
+
+.tabla-limpieza thead tr:last-child th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding-top: 4px;
+}
+
+.cabeza-fases {
+  display: table-cell;
+}
+
+.cabeza-fases > span {
+  display: inline-block;
+  width: 50%;
+}
+
+.cabeza-fases > span + span {
+  padding-left: 8px;
+}
+
+.celda-tiempo small.cpu-media {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.grafica-pie.mitades > span {
+  width: 50%;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+.grafica-pie.mitades > span + span {
+  padding-left: 8px;
+}
+
 .tabla-limpieza thead th small {
   display: block;
   font-weight: 400;
@@ -559,10 +603,7 @@ button.nodo-caja {
   color: var(--text-secondary);
 }
 
-.grafica-pie > span:first-child,
-.grafica-pie > span:last-child {
-  opacity: 0.7;
-}
+
 
 .limpieza-pie {
   display: flex;

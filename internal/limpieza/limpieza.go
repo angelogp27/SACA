@@ -127,13 +127,15 @@ func (c Config) Ejecutar(ctx context.Context, tecnologia string, hilos int, alAv
 	}
 	cmd := exec.Command(exe, args...)
 	if tecnologia == Go && os.Getenv("GOMEMLIMIT") == "" {
-		// Sin límite, el recolector de Go deja crecer el proceso hasta ~8 GB
-		// (el doble de lo vivo). Con la mitad de la RAM (entre 3 y 6 GiB) se
-		// queda en ~4,5 GB a cambio de ~15 % más de tiempo, y cabe en una
-		// laptop de 8 GB.
+		// Sin límite, el recolector de Go deja crecer el proceso hasta ~7 GB
+		// (casi el triple de lo vivo, que no pasa de ~2,6 GB). Con la mitad de
+		// la RAM, entre 3 y 4 GiB, se queda en ~4,2 GB: cabe en una laptop de
+		// 8 GB, y en una de 16 deja sitio al maestro, al trabajador y a lo que
+		// el usuario tenga abierto (con 6 GiB, una Fedora de 13 GB con Docker
+		// y el navegador se quedó sin memoria y el sistema mató al cargador).
 		gib := 4.0
 		if ram := hardware.Detectar().RAMGB; ram > 0 {
-			gib = min(6, max(3, ram/2))
+			gib = min(4, max(3, ram/2))
 		}
 		cmd.Env = append(os.Environ(), fmt.Sprintf("GOMEMLIMIT=%dMiB", int(gib*1024)))
 	}

@@ -7,7 +7,7 @@
 //      mismo muestra.bin (misma huella) que el maestro.
 // Con el entrenamiento en curso se muestra el panel del clúster en vivo.
 // Solo la laptop del maestro tiene los botones; las demás miran.
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { apiCluster, useCluster } from '../../data/cluster'
 import { apiLocal } from '../../data/local'
 import PanelCluster from '../PanelCluster'
@@ -493,34 +493,33 @@ function Prediccion({ inst, esMaestro, onVerMapa, onVolver }) {
 
 // ---------- 3. Limpieza ----------
 
-// Gráfica: % de CPU (eje y) a lo largo del avance (eje x): la limpieza
-// ocupa la mitad izquierda y la preparación de variables la derecha, con
-// una línea punteada entre las dos. Todas miden lo mismo de ancho, tarde lo
-// que tarde cada nodo.
-function GraficaCPU({ serie, estado }) {
+// Gráfica: % de CPU (eje y) a lo largo del avance (eje x): la limpieza de
+// datos ocupa la mitad izquierda y la ingeniería de features la derecha,
+// con una línea punteada entre las dos. Todas miden lo mismo de ancho,
+// tarde lo que tarde cada nodo. Debajo de cada mitad, lo de su fase
+// (tiempo o avance), alineado con los títulos de la tabla.
+function GraficaCPU({ serie, estado, izquierda, derecha }) {
   const puntos = (serie ?? []).filter((p) => p[0] > 0 || p[1] > 0)
   const camino = puntos.map(([x, y]) => `${(x * 100).toFixed(2)},${(40 - (Math.min(y, 100) / 100) * 38).toFixed(2)}`).join(' ')
-  const promedio = puntos.length ? puntos.reduce((a, p) => a + p[1], 0) / puntos.length : 0
   return (
     <div className="grafica-cpu">
-      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label={`CPU promedio ${promedio.toFixed(0)} %`}>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label={`Uso del CPU: limpieza ${izquierda}, features ${derecha}`}>
         <line x1="0" y1="2" x2="100" y2="2" className="guia" />
         <line x1="0" y1="21" x2="100" y2="21" className="guia" />
         <line x1="0" y1="40" x2="100" y2="40" className="base" />
         <line x1="50" y1="0" x2="50" y2="40" className="division" vectorEffect="non-scaling-stroke" />
         {camino && <polyline points={camino} className={`linea ${estado}`} vectorEffect="non-scaling-stroke" />}
       </svg>
-      <span className="grafica-pie">
-        <span>limpieza</span>
-        <span>{estado === 'pendiente' ? 'en espera' : `CPU media ${promedio.toFixed(0)} %`}</span>
-        <span>variables</span>
+      <span className="grafica-pie mitades">
+        <span>{izquierda}</span>
+        <span>{derecha}</span>
       </span>
     </div>
   )
 }
 
 // Las dos fases de una tecnología en una sola serie: el avance de la
-// limpieza va de 0 a 0,5 y el de la preparación de variables de 0,5 a 1.
+// limpieza va de 0 a 0,5 y el de la ingeniería de features de 0,5 a 1.
 function serieCompleta(t) {
   return [
     ...(t.serie ?? []).map(([x, y]) => [x / 2, y]),
@@ -528,35 +527,34 @@ function serieCompleta(t) {
   ]
 }
 
+const pct = (v) => `${Math.round((v ?? 0) * 100)} %`
+
 function CeldaTec({ t }) {
   if (!t) return <td colSpan={2} />
-  const enVariables = t.fase === 'variables'
-  let contenido
-  if (t.estado === 'terminada') {
-    contenido = (
-      <span className="tiempos-fases">
-        <span><small>limpieza</small>{fmtS(t.t_limpieza_s)}</span>
-        <span><small>variables</small>{fmtS(t.t_variables_s)}</span>
-      </span>
-    )
-  } else if (t.estado === 'limpiando') {
-    const av = enVariables ? t.avance_variables : t.avance
-    contenido = <span className="tiempos-fases"><span><small>{enVariables ? 'variables' : 'limpieza'}</small>{Math.round((av ?? 0) * 100)} %</span></span>
-  } else {
-    contenido = { pendiente: 'en espera', error: 'error', cancelada: 'parada' }[t.estado] ?? t.estado
-  }
+  const enFeatures = t.fase === 'variables'
+  const terminada = t.estado === 'terminada'
+  // Lo de cada mitad: tiempo si la fase terminó, avance si está en curso.
+  const limpiezaLista = terminada || enFeatures
+  const izquierda = limpiezaLista ? fmtS(t.t_limpieza_s) : t.estado === 'limpiando' ? pct(t.avance) : '—'
+  const derecha = terminada ? fmtS(t.t_variables_s) : enFeatures && t.estado === 'limpiando' ? pct(t.avance_variables) : '—'
+  const serie = serieCompleta(t)
+  const cpu = serie.length ? serie.reduce((a, p) => a + p[1], 0) / serie.length : 0
+  let total
+  if (terminada) total = fmtS(t.t_total_s || (t.t_limpieza_s ?? 0) + (t.t_variables_s ?? 0))
+  else if (t.estado === 'limpiando') total = pct(enFeatures ? 0.5 + (t.avance_variables ?? 0) / 2 : (t.avance ?? 0) / 2)
+  else total = { pendiente: 'en espera', error: 'error', cancelada: 'parada' }[t.estado] ?? t.estado
   return (
     <>
-      <td className="celda-grafica"><GraficaCPU serie={serieCompleta(t)} estado={t.estado} /></td>
+      <td className="celda-grafica"><GraficaCPU serie={serie} estado={t.estado} izquierda={izquierda} derecha={derecha} /></td>
       <td className={`celda-tiempo estado-${t.estado}`} title={t.mensaje || (t.huella ? `huella ${corta(t.huella)}` : undefined)}>
-        {contenido}
-        {t.estado === 'error' && <small>{t.mensaje}</small>}
+        {total}
+        {t.estado === 'error' ? <small>{t.mensaje}</small> : serie.length > 0 && <small className="cpu-media">CPU media {cpu.toFixed(0)} %</small>}
       </td>
     </>
   )
 }
 
-// Pantalla 3: limpieza y preparación de variables (escritura de
+// Pantalla 3: limpieza de datos e ingeniería de features (escritura de
 // muestra.bin) en una sola tabla; cada tecnología, una gráfica con las dos
 // fases seguidas.
 function Limpieza({ inst, esMaestro, onContinuar }) {
@@ -579,10 +577,10 @@ function Limpieza({ inst, esMaestro, onContinuar }) {
   }
 
   return (
-    <section className="flujo-limpieza" aria-label="Limpieza y preparación de variables">
+    <section className="flujo-limpieza" aria-label="Limpieza de datos e ingeniería de features">
       <header className="limpieza-cabecera">
         <span className="rotulo">CLÚSTER INICIADO</span>
-        <span className="rotulo titulo">LIMPIEZA Y VARIABLES{l.estado === 'cancelada' ? ' · PARADA' : ''}</span>
+        <span className="rotulo titulo">LIMPIEZA Y FEATURES{l.estado === 'cancelada' ? ' · PARADA' : ''}</span>
         <div className="nuevos" aria-label="Nodos que se unieron después">
           {nuevos.map((n) => (
             <Nodo key={n.id} nodo={n} tipo="nuevo" pequeno onClick={esMaestro && enCurso ? () => accion(() => apiCluster.limpiar([n.id])) : undefined} />
@@ -595,10 +593,18 @@ function Limpieza({ inst, esMaestro, onContinuar }) {
         <table className="tabla-limpieza">
           <thead>
             <tr>
-              <th scope="col">Nodo</th>
-              <th scope="col"># hilos</th>
+              <th scope="col" rowSpan={2} className="cabeza-doble">Nodo</th>
+              <th scope="col" rowSpan={2} className="cabeza-doble"># hilos</th>
               {l.tecnologias.map((t) => (
-                <th key={t} scope="col" colSpan={2}>{NOMBRE_TEC[t] ?? t} <small>% Uso del CPU</small></th>
+                <th key={t} scope="colgroup" colSpan={2} className="cabeza-tec">{NOMBRE_TEC[t] ?? t} <small>% Uso del CPU</small></th>
+              ))}
+            </tr>
+            <tr>
+              {l.tecnologias.map((t) => (
+                <Fragment key={t}>
+                  <th scope="col" className="cabeza-fases"><span>Limpieza de datos</span><span>Ingeniería de features</span></th>
+                  <th scope="col">Total</th>
+                </Fragment>
               ))}
             </tr>
           </thead>
