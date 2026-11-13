@@ -66,6 +66,10 @@ type EstadoCorrida struct {
 	Parametros    int    `json:"parametros"`
 	PasosPorEpoca int    `json:"pasos_por_epoca,omitempty"`
 	Comunicacion  string `json:"comunicacion,omitempty"` // central, arbol o anillo (red neuronal)
+	Reparto       string `json:"reparto,omitempty"`      // iguales, capacidad o dinamico
+	// Fraccion: por época, la parte de las filas de cada nodo (en el orden
+	// de Nodos); con el reparto dinámico se ve cómo se ajusta.
+	Fraccion [][]float64 `json:"fraccion,omitempty"`
 	// MBEpoca: megabytes que pasaron por la red en cada época (red neuronal).
 	MBEpoca []float64 `json:"mb_epoca"`
 	Epoca   int       `json:"epoca"` // épocas completadas
@@ -130,6 +134,10 @@ func (e *EstadoCorrida) copia() *EstadoCorrida {
 	c.TCalculoMs = copiarSerie(e.TCalculoMs)
 	c.TRedMs = copiarSerie(e.TRedMs)
 	c.MBEpoca = copiarSerie(e.MBEpoca)
+	c.Fraccion = make([][]float64, len(e.Fraccion))
+	for i, f := range e.Fraccion {
+		c.Fraccion[i] = copiarSerie(f)
+	}
 	c.Nodos = make([]NodoCorrida, len(e.Nodos))
 	for i, n := range e.Nodos {
 		n.CalculoMs = copiarSerie(n.CalculoMs)

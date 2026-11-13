@@ -78,8 +78,14 @@ func FiltrarRestos(m *dataset.Muestra, mod int, restos []int) (X [][]float64, y 
 	for _, r := range restos {
 		cubetas[r] = true
 	}
+	// Las filas de una estación van seguidas: el hash se calcula una vez
+	// por estación, no por fila (el reparto dinámico filtra en cada época).
+	ultima, dentro := "", false
 	for i, estacion := range m.EstacionID {
-		if cubetas[particion.Asignar(estacion, mod)] {
+		if estacion != ultima {
+			ultima, dentro = estacion, cubetas[particion.Asignar(estacion, mod)]
+		}
+		if dentro {
 			X = append(X, m.X[i])
 			y = append(y, m.Y[i])
 		}

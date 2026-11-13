@@ -182,6 +182,8 @@ type pedidoCorrida struct {
 	Pasos  int    `json:"pasos"`
 	// Comunicacion de la red (Fase 4): central, arbol o anillo.
 	Comunicacion string `json:"comunicacion"`
+	// Dinamico: reparto dinámico (solo la red): se reajusta en cada época.
+	Dinamico bool `json:"dinamico"`
 	// Pesos: reparto proporcional (Fase 3); vacío = partes iguales.
 	Pesos map[string]float64 `json:"pesos"`
 }
@@ -211,7 +213,7 @@ func (a *api) nuevaCorrida(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	corrida, err := a.m.Iniciar(distribuido.OpcionesCorrida{Nodos: p.Nodos, Epocas: p.Epocas, Tasa: a.cfg.tasa, Verificar: p.Verificar, Continuar: true,
-		Modelo: p.Modelo, Capas: p.Capas, PasosPorEpoca: p.Pasos, Pesos: pesosValidos(p.Pesos, p.Nodos), Comunicacion: p.Comunicacion})
+		Modelo: p.Modelo, Capas: p.Capas, PasosPorEpoca: p.Pasos, Pesos: pesosValidos(p.Pesos, p.Nodos), Comunicacion: p.Comunicacion, Dinamico: p.Dinamico})
 	switch {
 	case errors.Is(err, distribuido.ErrOcupado), errors.Is(err, distribuido.ErrLimpiando),
 		errors.Is(err, distribuido.ErrMuestraDistinta), errors.Is(err, distribuido.ErrSinMuestra):
@@ -235,8 +237,12 @@ func (a *api) nuevaCorrida(w http.ResponseWriter, r *http.Request) {
 		}
 		reportar(res, p.Epocas)
 		regenerarMapa(a.cfg, res, p.Epocas)
+		reparto := ""
+		if c := a.m.Instantanea().Corrida; c != nil {
+			reparto = c.Reparto
+		}
 		if res.Red != nil {
-			guardarTransferencia(a.cfg.transferencias, filaEntrenamiento(res, p.Comunicacion, p.Epocas))
+			guardarTransferencia(a.cfg.transferencias, filaEntrenamiento(res, p.Comunicacion, reparto, p.Epocas))
 		}
 		if a.cfg.resultado == "" {
 			return
@@ -247,6 +253,11 @@ func (a *api) nuevaCorrida(w http.ResponseWriter, r *http.Request) {
 			if c := a.m.Instantanea().Corrida; c != nil && c.Comunicacion != "" && c.Comunicacion != "central" {
 				base += "_" + c.Comunicacion
 			}
+		}
+		// El reparto queda en el nombre del modo (cluster.csv no cambia de
+		// columnas): _capacidad o _dinamico; sin sufijo, partes iguales.
+		if reparto == "capacidad" || reparto == "dinamico" {
+			base += "_" + reparto
 		}
 		modo, maquina := combinacion(base, res.Nodos, a.m.Instantanea().EjemplosEntrenamiento)
 		if a.cfg.maquina != "" {

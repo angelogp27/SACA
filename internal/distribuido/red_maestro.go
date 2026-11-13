@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"proyecto9/internal/metricas"
+	"proyecto9/internal/particion"
 	"proyecto9/internal/protocolo"
 	"proyecto9/internal/red"
 )
@@ -19,6 +20,54 @@ const (
 	EpocasRedPorDefecto = 20
 	TasaRedPorDefecto   = 0.003
 )
+
+// rebalancear reparte de nuevo las filas según la velocidad medida de
+// cada nodo en la época e (filas / ms de cálculo) y, si la parte de algún
+// nodo cambia en más de un 1 % de las filas, les manda su nuevo reparto.
+// El mensaje viaja por la misma conexión antes que los parámetros de la
+// próxima época, así que cada nodo lo aplica a tiempo.
+func (c *Corrida) rebalancear(e int, filas []int, calcMs []float64) error {
+	n := len(c.nodos)
+	velocidad := make([]float64, n)
+	for i := range velocidad {
+		if filas[i] == 0 || calcMs[i] <= 0 {
+			return nil // sin medición útil: se deja como está
+		}
+		velocidad[i] = float64(filas[i]) / calcMs[i]
+	}
+	restos, err := c.repartir(velocidad)
+	if err != nil {
+		return err
+	}
+	total := 0
+	for _, f := range filas {
+		total += f
+	}
+	cambio := false
+	nuevas := make([]int, n)
+	for i, rs := range restos {
+		for _, r := range rs {
+			nuevas[i] += c.filasCubeta[r]
+		}
+		if math.Abs(float64(nuevas[i]-filas[i])) > 0.01*float64(total) {
+			cambio = true
+		}
+	}
+	if !cambio {
+		return nil
+	}
+	var partes []string
+	for i, nodo := range c.nodos {
+		err := nodo.conexion.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoReparto, Corrida: c.activa.id, Epoca: e + 1,
+			FiltroMongo: &protocolo.FiltroMongo{Mod: particion.BucketsReparto, Restos: restos[i]}})
+		if err != nil {
+			return errCaida(e, nodo.vista.ID, "no se le pudo enviar el reparto: "+err.Error())
+		}
+		partes = append(partes, fmt.Sprintf("%s %.1f→%.1f %%", nodo.vista.ID, 100*float64(filas[i])/float64(total), 100*float64(nuevas[i])/float64(total)))
+	}
+	log.Printf("reparto dinámico tras la época %d: %s", e, strings.Join(partes, ", "))
+	return nil
+}
 
 // ResultadoRed es el modelo entrenado cuando la corrida es de la red.
 type ResultadoRed struct {
@@ -55,6 +104,7 @@ func (c *Corrida) entrenarRed(ctx context.Context) (*Resultado, error) {
 		inicioEpoca := time.Now()
 		var calcEpoca time.Duration
 		calcNodoEpoca := make([]float64, n)
+		filasNodoEpoca := make([]int, n)
 		perdidaEpoca, nEpoca, bytes := 0.0, 0, 0
 		for s := 0; s < pasos; s++ {
 			var params []byte
@@ -127,6 +177,7 @@ func (c *Corrida) entrenarRed(ctx context.Context) (*Resultado, error) {
 				perdidaEpoca += perdidas[i]
 				nPaso += cuantos[i]
 				nNodo[i] += cuantos[i]
+				filasNodoEpoca[i] += cuantos[i]
 			}
 			if nPaso > 0 && !enPares {
 				adam.Paso(p, suma, nPaso)
@@ -156,13 +207,24 @@ func (c *Corrida) entrenarRed(ctx context.Context) (*Resultado, error) {
 		est.TCalculoMs = append(est.TCalculoMs, ms(calcEpoca))
 		est.TRedMs = append(est.TRedMs, ms(redEsp))
 		est.MBEpoca = append(est.MBEpoca, mb)
+		fraccion := make([]float64, n)
 		for i := range est.Nodos {
 			est.Nodos[i].CalculoMs = append(est.Nodos[i].CalculoMs, calcNodoEpoca[i])
-			est.Nodos[i].Ejemplos = nNodo[i] / (e + 1)
+			est.Nodos[i].Ejemplos = filasNodoEpoca[i]
 			est.Nodos[i].Motor = "go"
+			fraccion[i] = float64(filasNodoEpoca[i]) / float64(max(nEpoca, 1))
 		}
+		est.Fraccion = append(est.Fraccion, fraccion)
 		m.mu.Unlock()
 		m.publicar()
+
+		// Reparto dinámico: la parte de cada nodo para la próxima época,
+		// en proporción a las filas por ms que calculó en esta.
+		if op.Dinamico && n > 1 && e < op.Epocas-1 {
+			if err := c.rebalancear(e, filasNodoEpoca, calcNodoEpoca); err != nil {
+				return nil, err
+			}
+		}
 	}
 	res.Duracion = time.Since(inicio)
 

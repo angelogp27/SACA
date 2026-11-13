@@ -55,3 +55,39 @@ func TestPerteneceAEquivaleAPertenece(t *testing.T) {
 		}
 	}
 }
+
+func TestRepartirPorFilas(t *testing.T) {
+	// 10 cubetas de 100 filas, algunas vacías.
+	filas := []int{100, 0, 100, 100, 0, 100, 100, 100, 100, 100}
+	restos, err := RepartirPorFilas([]float64{3, 1}, filas)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuenta := func(rs []int) (s int) {
+		for _, r := range rs {
+			s += filas[r]
+		}
+		return
+	}
+	if a, b := cuenta(restos[0]), cuenta(restos[1]); a != 600 || b != 200 {
+		t.Fatalf("filas: %d y %d (se esperaban 600 y 200): %v", a, b, restos)
+	}
+	vistas := map[int]bool{}
+	for _, rs := range restos {
+		for _, r := range rs {
+			if vistas[r] {
+				t.Fatalf("cubeta %d repetida", r)
+			}
+			vistas[r] = true
+		}
+	}
+	if len(vistas) != len(filas) {
+		t.Fatalf("faltan cubetas: %v", restos)
+	}
+	// Un peso ínfimo igual recibe filas.
+	filas = append(filas, filas...)
+	restos, _ = RepartirPorFilas([]float64{1000, 1}, filas)
+	if cuenta(restos[1]) == 0 || cuenta(restos[0])+cuenta(restos[1]) != 1600 {
+		t.Fatalf("el nodo de peso mínimo quedó sin filas: %v", restos)
+	}
+}

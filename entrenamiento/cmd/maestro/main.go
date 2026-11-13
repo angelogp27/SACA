@@ -370,7 +370,7 @@ func direccionesLocales() []string {
 // por predicción distribuida, con lo que pasó por la red. mbps_red es la
 // tasa efectiva: los MB divididos por el tiempo de red y espera (en el
 // entrenamiento) o por el tiempo total (en la predicción).
-var encabezadoTransferencias = []string{"fecha", "tipo", "modelo", "comunicacion", "n_nodos", "nodos", "epocas", "mb_total", "mb_por_epoca", "t_total_s", "t_red_s", "mbps_red", "filas"}
+var encabezadoTransferencias = []string{"fecha", "tipo", "modelo", "comunicacion", "n_nodos", "nodos", "epocas", "mb_total", "mb_por_epoca", "t_total_s", "t_red_s", "mbps_red", "filas", "reparto"}
 
 func num(v float64, dec int) string { return strconv.FormatFloat(v, 'f', dec, 64) }
 
@@ -381,7 +381,7 @@ func mbps(mb, segundos float64) string {
 	return num(mb*8*1.048576/segundos, 2) // MB (2^20 bytes) → megabits (10^6)
 }
 
-func filaEntrenamiento(res *distribuido.Resultado, comunicacion string, epocas int) []string {
+func filaEntrenamiento(res *distribuido.Resultado, comunicacion, reparto string, epocas int) []string {
 	ids := make([]string, len(res.Nodos))
 	for i, n := range res.Nodos {
 		ids[i] = n.ID
@@ -392,7 +392,7 @@ func filaEntrenamiento(res *distribuido.Resultado, comunicacion string, epocas i
 	red := res.TComunicacion.Seconds()
 	return []string{time.Now().Format(time.RFC3339), "entrenamiento", "red(" + capasTexto(res.Red.Capas) + ")", comunicacion,
 		strconv.Itoa(len(ids)), strings.Join(ids, "+"), strconv.Itoa(epocas), num(res.MBRed, 3), num(res.MBRed/float64(max(epocas, 1)), 3),
-		num(res.Duracion.Seconds(), 3), num(red, 3), mbps(res.MBRed, red), ""}
+		num(res.Duracion.Seconds(), 3), num(red, 3), mbps(res.MBRed, red), "", reparto}
 }
 
 func filaPrediccion(e distribuido.EstadoPrediccion) []string {
@@ -401,7 +401,7 @@ func filaPrediccion(e distribuido.EstadoPrediccion) []string {
 		ids[i] = n.ID
 	}
 	return []string{time.Now().Format(time.RFC3339), "prediccion", e.Modelo, "gather", strconv.Itoa(len(ids)), strings.Join(ids, "+"), "",
-		num(e.MB, 3), "", num(e.TTotalS, 3), num(e.TTotalS, 3), mbps(e.MB, e.TTotalS), strconv.Itoa(e.Filas)}
+		num(e.MB, 3), "", num(e.TTotalS, 3), num(e.TTotalS, 3), mbps(e.MB, e.TTotalS), strconv.Itoa(e.Filas), ""}
 }
 
 func capasTexto(capas []int) string {
@@ -431,10 +431,24 @@ func agregarFilas(ruta string, encabezado []string, filas [][]string) error {
 		return err
 	}
 	if f, err := os.Open(ruta); err == nil {
-		primera, errLeer := csv.NewReader(f).Read()
+		r := csv.NewReader(f)
+		r.FieldsPerRecord = -1
+		viejas, errLeer := r.ReadAll()
 		f.Close()
-		if errLeer == nil && strings.Join(primera, ",") != strings.Join(encabezado, ",") {
-			if err := os.Rename(ruta, strings.TrimSuffix(ruta, ".csv")+"_anterior.csv"); err != nil {
+		if errLeer == nil && len(viejas) > 0 && strings.Join(viejas[0], ",") != strings.Join(encabezado, ",") {
+			if len(viejas[0]) < len(encabezado) && strings.Join(viejas[0], ",") == strings.Join(encabezado[:len(viejas[0])], ",") {
+				// Columnas nuevas al final: las filas de antes se conservan,
+				// con esas columnas vacías.
+				for i := range viejas {
+					for len(viejas[i]) < len(encabezado) {
+						viejas[i] = append(viejas[i], "")
+					}
+				}
+				viejas[0] = encabezado
+				if err := escribirCSV(ruta, viejas); err != nil {
+					return err
+				}
+			} else if err := os.Rename(ruta, strings.TrimSuffix(ruta, ".csv")+"_anterior.csv"); err != nil {
 				return err
 			}
 		}
@@ -451,6 +465,25 @@ func agregarFilas(ruta string, encabezado []string, filas [][]string) error {
 	}
 	w.WriteAll(filas)
 	return w.Error()
+}
+
+// escribirCSV reemplaza ruta con filas (primero en un temporal).
+func escribirCSV(ruta string, filas [][]string) error {
+	tmp := ruta + ".tmp"
+	f, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	w := csv.NewWriter(f)
+	w.WriteAll(filas)
+	if err := w.Error(); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, ruta)
 }
 
 var encabezadoLimpieza = []string{"limpieza", "nodo", "tecnologia", "hilos", "t_limpieza_s", "t_variables_s", "t_total_s", "huella", "maquina"}

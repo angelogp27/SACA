@@ -163,3 +163,48 @@ func TestPrediccionDistribuida(t *testing.T) {
 	maestro.Despedir(MotivoSesionTerminada)
 	comprobarErrores(t, &wg, errs)
 }
+
+// Reparto dinámico: entre épocas el maestro reasigna las filas según la
+// velocidad medida de cada nodo. La primera época sigue coincidiendo con la
+// secuencial, todas las filas se recorren en cada época y la red aprende.
+func TestRedRepartoDinamico(t *testing.T) {
+	datos := datosSinteticos(t)
+	maestro, dir := levantarMaestro(t, ConfigMaestro{Capacidad: 2, Datos: datos, Huella: "h"})
+	var wg sync.WaitGroup
+	errs := make(chan error, 4)
+	for id, hilos := range map[string]int{"lento": 1, "rapido": 4} {
+		p, err := pares.Escuchar("127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer p.Cerrar()
+		lanzarTrabajador(t, &wg, errs, dir, &ConfigTrabajador{ID: id, Datos: datos, Huella: "h", Motor: NuevoMotorGo(hilos), Respaldo: NuevoMotorGo(hilos), Pares: p})
+	}
+	if err := maestro.EsperarNodos(context.Background(), 2); err != nil {
+		t.Fatal(err)
+	}
+	for _, com := range []string{pares.Central, pares.Arbol} {
+		res, err := maestro.Correr(context.Background(), OpcionesCorrida{Epocas: 4, Modelo: "red", Capas: []int{6, 3}, PasosPorEpoca: 4,
+			Verificar: true, Continuar: true, Dinamico: true, Comunicacion: com})
+		if err != nil {
+			t.Fatalf("%s: %v", com, err)
+		}
+		if res.Verificacion == nil || res.Verificacion.Diferencia > 1e-9 {
+			t.Fatalf("%s: la primera época no coincide con la secuencial: %+v", com, res.Verificacion)
+		}
+		e := maestro.Instantanea().Corrida
+		if e.Reparto != "dinamico" || len(e.Fraccion) != 4 {
+			t.Fatalf("%s: reparto %q, fracciones %v", com, e.Reparto, e.Fraccion)
+		}
+		for k, f := range e.Fraccion {
+			if s := f[0] + f[1]; math.Abs(s-1) > 1e-9 || f[0] <= 0 || f[1] <= 0 {
+				t.Fatalf("%s: época %d reparte %v", com, k, f)
+			}
+		}
+		if !(res.Perdidas[3] < res.Perdidas[0]) {
+			t.Fatalf("%s: la pérdida no bajó: %v", com, res.Perdidas)
+		}
+	}
+	maestro.Despedir(MotivoSesionTerminada)
+	comprobarErrores(t, &wg, errs)
+}

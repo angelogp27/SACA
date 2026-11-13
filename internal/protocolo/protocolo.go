@@ -22,6 +22,10 @@ const (
 	TipoGradienteParcial        = "gradiente_parcial"
 	TipoEntrenamientoFinalizado = "entrenamiento_finalizado"
 	TipoBaja                    = "baja"
+	// TipoReparto (maestro → trabajador, reparto dinámico de la red
+	// neuronal): entre dos épocas, las cubetas que le tocan desde la
+	// siguiente. Todos tienen la muestra completa: no viajan datos.
+	TipoReparto = "reparto"
 
 	// Limpieza (docs/contratos/contrato_protocolo_tcp.md, "Limpieza"): cada nodo
 	// limpia sus propios CSV y genera su data/muestra.bin; por la red solo

@@ -209,6 +209,17 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 			}
 			log.Printf("listo: calcula con el motor %s (%s); esperando los parámetros del maestro", cfg.Motor.Nombre(), cfg.Motor.Dispositivo())
 
+		case m.Tipo == protocolo.TipoReparto:
+			// Reparto dinámico: desde la próxima época, estas cubetas. La
+			// muestra ya está completa en este nodo; solo cambia qué filas
+			// recorre.
+			if !cargado || capas == nil || m.FiltroMongo == nil || cfg.Datos == nil {
+				continue
+			}
+			antes := len(X)
+			X, Y = FiltrarRestos(cfg.Datos.Entrenamiento, m.FiltroMongo.Mod, m.FiltroMongo.Restos)
+			log.Printf("reparto dinámico (época %d): %d → %d ejemplos", m.Epoca, antes, len(X))
+
 		case m.Tipo == protocolo.TipoEntrenamientoFinalizado:
 			if grupo != nil {
 				grupo.Cerrar()

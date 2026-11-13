@@ -297,6 +297,27 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
   )
 }
 
+// Durante el entrenamiento de la red: la figura de la comunicación y, en
+// cada tarjeta, qué parte de las filas calculó ese nodo en la última época
+// (con el reparto dinámico se ve cómo se ajusta).
+function TopologiaEntrenamiento({ corrida, inst }) {
+  const sala = new Map((inst.sala ?? []).map((nd) => [nd.id, nd]))
+  const maestro = (inst.sala ?? []).find((nd) => nd.id === inst.nodo_maestro)
+  const ultima = (corrida.fraccion ?? []).at(-1)
+  const indice = new Map((corrida.nodos ?? []).map((nd, i) => [nd.id, i]))
+  const reparto = { dinamico: 'reparto dinámico', capacidad: 'reparto según la capacidad', iguales: 'partes iguales' }[corrida.reparto]
+  return (
+    <Topologia
+      corrida={corrida} sala={sala} maestro={maestro} detallado fila={165}
+      subtitulo={`${NOMBRE_COMUNICACION[corrida.comunicacion || 'central']}${reparto ? ` · ${reparto}` : ''}`}
+      tarjeta={(nd) => {
+        const f = ultima?.[indice.get(nd.id)]
+        return <Nodo nodo={nd} tipo={nd.id === maestro?.id ? 'maestro' : 'nodo'} extra={f != null ? `${(f * 100).toFixed(1)} % de las filas` : undefined} />
+      }}
+    />
+  )
+}
+
 // Antes de entrenar: los nodos elegidos (el maestro incluido, si participa)
 // dibujados con la comunicación que se va a usar; cambia en cuanto se cambia
 // el modelo o la comunicación. La regresión logística siempre va por el
@@ -425,24 +446,36 @@ function AjustesModelo({ ajustes, setAjustes }) {
   )
 }
 
-// Reparto de los datos entre los nodos (Fase 3): partes iguales o según la
-// capacidad que midió el maestro (último entrenamiento, o la limpieza).
+// Reparto de los datos entre los nodos (Fase 3): según la capacidad que
+// midió el maestro (último entrenamiento, o la limpieza), partes iguales o
+// dinámico (solo la red neuronal: se reajusta al final de cada época según
+// lo que tardó cada nodo; empieza con la capacidad medida, si la hay).
 function AjustesReparto({ ajustes, setAjustes, inst }) {
   const hay = Object.keys(inst?.pesos_sugeridos ?? {}).length > 0
+  const esRed = ajustes.modelo === 'red'
   const origen = { entrenamiento: 'medida en el último entrenamiento', limpieza: 'medida en la limpieza' }[inst?.origen_pesos]
   const cambiar = (e) => setAjustes((a) => ({ ...a, reparto: e.target.value }))
+  const elegido = ajustes.reparto === 'dinamico' && !esRed ? (hay ? 'capacidad' : 'igual') : ajustes.reparto === 'capacidad' && !hay ? 'igual' : ajustes.reparto
   return (
     <fieldset className="ajustes-modelo">
       <legend>Reparto de los datos</legend>
       <label className="casilla">
-        <input type="radio" name="reparto" value="capacidad" checked={ajustes.reparto === 'capacidad'} disabled={!hay} onChange={cambiar} />
+        <input type="radio" name="reparto" value="dinamico" checked={elegido === 'dinamico'} disabled={!esRed} onChange={cambiar} />
+        Dinámico (se ajusta en cada época)
+      </label>
+      <label className="casilla">
+        <input type="radio" name="reparto" value="capacidad" checked={elegido === 'capacidad'} disabled={!hay} onChange={cambiar} />
         Según la capacidad de cada nodo
       </label>
       <label className="casilla">
-        <input type="radio" name="reparto" value="igual" checked={ajustes.reparto === 'igual' || !hay} onChange={cambiar} />
+        <input type="radio" name="reparto" value="igual" checked={elegido === 'igual'} onChange={cambiar} />
         Partes iguales
       </label>
-      <p className="detalle">{hay ? `Capacidad ${origen}.` : 'Sin mediciones todavía: limpia o entrena una vez para medir la capacidad.'}</p>
+      <p className="detalle">
+        {elegido === 'dinamico'
+          ? 'Al final de cada época, cada nodo recibe filas según lo rápido que calculó.'
+          : hay ? `Capacidad ${origen}.` : 'Sin mediciones todavía: limpia o entrena una vez para medir la capacidad.'}
+      </p>
     </fieldset>
   )
 }
@@ -815,7 +848,7 @@ export default function FlujoCluster({ datos, lanzador, onVerMapa }) {
   // sala, incluidos los que llegan, entran elegidos.
   const [quitados, setQuitados] = useState(new Set())
   // Modelo a entrenar (pantalla "antes de entrenar").
-  const [ajustes, setAjustes] = useState({ modelo: 'red', epocas: 20, pasos: 25, reparto: 'capacidad', comunicacion: 'arbol' })
+  const [ajustes, setAjustes] = useState({ modelo: 'red', epocas: 20, pasos: 25, reparto: 'dinamico', comunicacion: 'arbol' })
   // Limpieza ya vista (botón Continuar): mientras no, se sigue mostrando.
   const [continuada, setContinuada] = useState(0)
   const [ocupado, setOcupado] = useState('')
@@ -897,9 +930,11 @@ export default function FlujoCluster({ datos, lanzador, onVerMapa }) {
     // Fase 3: reparto según la capacidad medida de cada nodo, si el maestro
     // la conoce para todos los elegidos; si no, partes iguales.
     const sug = inst.pesos_sugeridos ?? {}
-    const proporcional = ajustes.reparto === 'capacidad' && ids.every((id) => sug[id] > 0)
+    // Dinámico (solo la red): empieza con la capacidad medida, si la hay.
+    const dinamico = ajustes.reparto === 'dinamico' && ajustes.modelo === 'red'
+    const proporcional = (ajustes.reparto === 'capacidad' || dinamico) && ids.every((id) => sug[id] > 0)
     const pesos = proporcional ? Object.fromEntries(ids.map((id) => [id, sug[id]])) : undefined
-    await apiCluster.entrenar(ids, ajustes.epocas, true, { modelo: ajustes.modelo, pasos: ajustes.pasos, pesos, comunicacion: ajustes.modelo === 'red' ? ajustes.comunicacion : undefined })
+    await apiCluster.entrenar(ids, ajustes.epocas, true, { modelo: ajustes.modelo, pasos: ajustes.pasos, pesos, comunicacion: ajustes.modelo === 'red' ? ajustes.comunicacion : undefined, dinamico })
     setPaso('entrenamiento')
   })
 
@@ -908,7 +943,7 @@ export default function FlujoCluster({ datos, lanzador, onVerMapa }) {
   if (pasoActual === 'entrenamiento' && corrida) {
     vista = (
       <>
-        {(corrida.modelo ?? '').startsWith('red') && <Topologia corrida={corrida} sala={new Map((inst.sala ?? []).map((nd) => [nd.id, nd]))} maestro={(inst.sala ?? []).find((nd) => nd.id === inst.nodo_maestro)} />}
+        {(corrida.modelo ?? '').startsWith('red') && <TopologiaEntrenamiento corrida={corrida} inst={inst} />}
         <Protector><PanelCluster datos={datos} /></Protector>
         {esMaestro && !entrenando && (
           <div className="sala-botones sala-botones-fila">

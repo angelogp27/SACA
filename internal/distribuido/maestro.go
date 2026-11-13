@@ -101,6 +101,11 @@ type OpcionesCorrida struct {
 	// en vez de en partes iguales (Experimento 9). Debe tener un peso
 	// positivo para cada nodo de la corrida; nil = reparto igual.
 	Pesos map[string]float64
+	// Dinamico (solo la red neuronal): al final de cada época el maestro
+	// mide cuántas filas por ms calculó cada nodo y le reasigna su parte
+	// para la siguiente (balanceo de carga dinámico). Pesos, si viene, es
+	// solo el reparto de la primera época.
+	Dinamico bool
 }
 
 // InfoNodo describe a un nodo de una corrida para el reporte final.
@@ -548,6 +553,9 @@ type Corrida struct {
 	estado *EstadoCorrida
 	datos  *entrenador.Datos // la muestra con la que empezó
 	huella string
+	// filasCubeta: cuántas filas de entrenamiento caen en cada cubeta del
+	// reparto (se calcula una vez por corrida).
+	filasCubeta []int
 }
 
 // Iniciar valida y reserva una corrida. Falla con ErrOcupado si hay otra
@@ -631,7 +639,7 @@ func (m *Maestro) Iniciar(op OpcionesCorrida) (*Corrida, error) {
 
 	m.siguiente++
 	activa := &corridaActiva{id: m.siguiente, indice: map[string]int{}, eventos: make(chan evento, 64), fin: make(chan struct{}), huella: m.huella}
-	estado := &EstadoCorrida{ID: m.siguiente, Estado: EstadoEntrenando, Epocas: op.Epocas, Inicio: time.Now(), Modelo: describirModelo(op), PasosPorEpoca: op.PasosPorEpoca, Comunicacion: op.Comunicacion}
+	estado := &EstadoCorrida{ID: m.siguiente, Estado: EstadoEntrenando, Epocas: op.Epocas, Inicio: time.Now(), Modelo: describirModelo(op), PasosPorEpoca: op.PasosPorEpoca, Comunicacion: op.Comunicacion, Reparto: nombreReparto(op)}
 	if op.Modelo == "red" {
 		estado.Parametros = red.NumParametros(red.Arquitectura(len(m.datos.Entrenamiento.X[0]), op.Capas))
 	} else {
@@ -874,15 +882,61 @@ func (c *Corrida) filtros() ([]*protocolo.FiltroMongo, error) {
 		}
 		pesos[i] = p
 	}
-	restos, err := particion.RepartirProporcional(pesos, particion.BucketsReparto)
+	restos, err := c.repartir(pesos)
 	if err != nil {
 		return nil, err
 	}
 	for i := range filtros {
 		filtros[i] = &protocolo.FiltroMongo{Mod: particion.BucketsReparto, Restos: restos[i]}
-		log.Printf("reparto proporcional: %s (peso %g) recibe %d de %d cubetas", c.nodos[i].vista.ID, pesos[i], len(restos[i]), particion.BucketsReparto)
+		log.Printf("reparto proporcional: %s (peso %g) recibe %d cubetas, %s", c.nodos[i].vista.ID, pesos[i], len(restos[i]), c.describirParte(restos[i]))
 	}
 	return filtros, nil
+}
+
+// repartir asigna las cubetas a los nodos en proporción a pesos, contando
+// FILAS de la muestra (las cubetas son 1024 y las estaciones unas 436:
+// muchas están vacías y repartir cubetas no reparte filas en proporción).
+// Sin la muestra, reparte cubetas.
+func (c *Corrida) repartir(pesos []float64) ([][]int, error) {
+	if c.datos == nil || c.datos.Entrenamiento == nil {
+		return particion.RepartirProporcional(pesos, particion.BucketsReparto)
+	}
+	if c.filasCubeta == nil {
+		c.filasCubeta = make([]int, particion.BucketsReparto)
+		ultima, cubeta := "", 0
+		for _, est := range c.datos.Entrenamiento.EstacionID {
+			if est != ultima {
+				ultima, cubeta = est, particion.Asignar(est, particion.BucketsReparto)
+			}
+			c.filasCubeta[cubeta]++
+		}
+	}
+	return particion.RepartirPorFilas(pesos, c.filasCubeta)
+}
+
+// describirParte: "N filas (x %)" de unas cubetas.
+func (c *Corrida) describirParte(restos []int) string {
+	if c.filasCubeta == nil {
+		return ""
+	}
+	total, parte := 0, 0
+	for _, f := range c.filasCubeta {
+		total += f
+	}
+	for _, r := range restos {
+		parte += c.filasCubeta[r]
+	}
+	return fmt.Sprintf("%d filas (%.1f %%)", parte, 100*float64(parte)/float64(max(total, 1)))
+}
+
+func nombreReparto(op OpcionesCorrida) string {
+	switch {
+	case op.Dinamico && op.Modelo == "red":
+		return "dinamico"
+	case len(op.Pesos) > 0:
+		return "capacidad"
+	}
+	return "iguales"
 }
 
 func (c *Corrida) ids() []string {
