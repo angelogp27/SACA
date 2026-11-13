@@ -136,6 +136,10 @@ type Resultado struct {
 	Normalizador  dataset.Normalizador // de la muestra de la corrida, para guardar el modelo
 	// Red: el modelo cuando la corrida es de la red neuronal (Modelo es nil).
 	Red *ResultadoRed
+	// MBRed: megabytes que pasaron por la red en toda la corrida (red
+	// neuronal: parámetros, gradientes y lo que se mandan los nodos entre
+	// ellos en el árbol o el anillo).
+	MBRed float64
 	// T1EpocaMs: una época en secuencial medida en esta corrida (la red); 0
 	// = usar la de la regresión logística.
 	T1EpocaMs float64

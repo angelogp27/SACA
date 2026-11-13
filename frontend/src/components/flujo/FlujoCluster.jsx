@@ -7,7 +7,7 @@
 //      mismo muestra.bin (misma huella) que el maestro.
 // Con el entrenamiento en curso se muestra el panel del clúster en vivo.
 // Solo la laptop del maestro tiene los botones; las demás miran.
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { apiCluster, useCluster } from '../../data/cluster'
 import { apiLocal } from '../../data/local'
 import PanelCluster from '../PanelCluster'
@@ -240,7 +240,11 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
     <section className="flujo-sala" aria-label={enPre ? 'Antes de entrenar' : 'Clúster iniciado'}>
       <div className="sala-centro">
         <span className="rotulo">CLÚSTER INICIADO</span>
-        {maestroNodo ? (
+        {maestroNodo && enPre ? (
+          // Antes de entrenar, el maestro se elige como nodo en la figura de
+          // la derecha; aquí solo se muestra quién coordina.
+          <Nodo nodo={maestroNodo} tipo="maestro coordinador" rol="Maestro" ip={ipMaestro} />
+        ) : maestroNodo ? (
           <Nodo nodo={maestroNodo} tipo={tipo(maestroNodo, 'maestro')} rol="Maestro" ip={ipMaestro} nota={nota(maestroNodo)} extra={peso(maestroNodo)}
             elegido={elegido(maestroNodo)} onClick={alternar(maestroNodo)} />
         ) : (
@@ -267,6 +271,15 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
         )}
       </div>
 
+      {enPre ? (
+        <TopologiaPrevia
+          sala={sala} maestroNodo={maestroNodo} seleccion={seleccion} ajustes={ajustes}
+          tarjeta={(n) => (
+            <Nodo nodo={n} tipo={tipo(n, n === maestroNodo ? 'maestro' : 'trabajador')} nota={nota(n)} extra={peso(n)}
+              elegido={elegido(n)} onClick={alternar(n)} />
+          )}
+        />
+      ) : (
       <div className="sala-nodos">
         {otros.map((n) => (
           <Nodo key={n.id} nodo={n} tipo={tipo(n, 'trabajador')} rol="Nodo" ip={ipDe(n, ipMaestro)} nota={nota(n)} extra={peso(n)}
@@ -274,6 +287,7 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
         ))}
         {Array.from({ length: libres }, (_, i) => <Nodo key={`libre${i}`} tipo="libre" />)}
       </div>
+      )}
 
       <div className="sala-pie">
         {avisos?.map((a) => <p key={a} className="aviso">{a}</p>)}
@@ -283,9 +297,87 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
   )
 }
 
+// Antes de entrenar: los nodos elegidos (el maestro incluido, si participa)
+// dibujados con la comunicación que se va a usar; cambia en cuanto se cambia
+// el modelo o la comunicación. La regresión logística siempre va por el
+// maestro. Los que no participan quedan abajo, en gris; tocar una tarjeta
+// la quita o la suma.
+function TopologiaPrevia({ sala, maestroNodo, seleccion, ajustes, tarjeta }) {
+  const elegidos = sala.filter((n) => seleccion.has(n.id))
+  const fuera = sala.filter((n) => !seleccion.has(n.id))
+  const comunicacion = ajustes.modelo === 'red' ? ajustes.comunicacion : 'central'
+  return (
+    <div className="sala-topologia">
+      {elegidos.length > 0 ? (
+        <Topologia
+          corrida={{ nodos: elegidos, comunicacion }}
+          maestro={maestroNodo}
+          tarjeta={tarjeta}
+          detallado
+          fila={175}
+        />
+      ) : (
+        <p className="detalle">Elige al menos un nodo.</p>
+      )}
+      {fuera.length > 0 && (
+        <div className="sala-fuera" aria-label="No participan">
+          <span className="rotulo">NO PARTICIPAN</span>
+          <div className="sala-fuera-nodos">
+            {fuera.map((n) => <div key={n.id}>{tarjeta(n)}</div>)}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Modelo a entrenar: regresión logística (13 o 21 parámetros, una
 // actualización por época) o red neuronal 20→64→32→1 por mini-lotes.
+// Videos cortos que explican cada modelo (YouTube, no listados).
+const VIDEOS_MODELO = {
+  red: { id: 'CEuw0KxSIVA', titulo: 'Red Neuronal' },
+  logistica: { id: '35_YTw1YemA', titulo: 'Regresión logística' },
+}
+
+// Ventana emergente con el video: se cierra con ×, con Esc o tocando fuera.
+function VentanaVideo({ video, onCerrar }) {
+  useEffect(() => {
+    const tecla = (e) => e.key === 'Escape' && onCerrar()
+    window.addEventListener('keydown', tecla)
+    return () => window.removeEventListener('keydown', tecla)
+  }, [onCerrar])
+  return (
+    <div className="modal-fondo" role="presentation" onClick={onCerrar}>
+      <div className="modal modal-video" role="dialog" aria-modal="true" aria-label={video.titulo} onClick={(e) => e.stopPropagation()}>
+        <header>
+          <h3>{video.titulo}</h3>
+          <button type="button" className="cerrar" onClick={onCerrar} aria-label="Cerrar">×</button>
+        </header>
+        <div className="video-marco">
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0`}
+            title={video.titulo}
+            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+            allowFullScreen
+          />
+        </div>
+        <a className="detalle" href={`https://youtu.be/${video.id}`} target="_blank" rel="noreferrer">Abrir en YouTube</a>
+      </div>
+    </div>
+  )
+}
+
+function BotonVideo({ modelo, onVer }) {
+  const v = VIDEOS_MODELO[modelo]
+  return (
+    <button type="button" className="boton-video" onClick={() => onVer(v)} title={`Ver video: ${v.titulo}`} aria-label={`Ver video: ${v.titulo}`}>
+      ▶
+    </button>
+  )
+}
+
 function AjustesModelo({ ajustes, setAjustes }) {
+  const [video, setVideo] = useState(null)
   const cambiar = (campo) => (e) => {
     const v = e.target.type === 'number' ? Math.max(1, Number(e.target.value) || 1) : e.target.value
     setAjustes((a) => {
@@ -298,14 +390,21 @@ function AjustesModelo({ ajustes, setAjustes }) {
   return (
     <fieldset className="ajustes-modelo">
       <legend>Modelo</legend>
-      <label className="casilla">
-        <input type="radio" name="modelo" value="red" checked={ajustes.modelo === 'red'} onChange={cambiar('modelo')} />
-        Red neuronal 20→64→32→1
-      </label>
-      <label className="casilla">
-        <input type="radio" name="modelo" value="logistica" checked={ajustes.modelo === 'logistica'} onChange={cambiar('modelo')} />
-        Regresión logística
-      </label>
+      <div className="opcion-modelo">
+        <label className="casilla">
+          <input type="radio" name="modelo" value="red" checked={ajustes.modelo === 'red'} onChange={cambiar('modelo')} />
+          Red Neuronal
+        </label>
+        <BotonVideo modelo="red" onVer={setVideo} />
+      </div>
+      <div className="opcion-modelo">
+        <label className="casilla">
+          <input type="radio" name="modelo" value="logistica" checked={ajustes.modelo === 'logistica'} onChange={cambiar('modelo')} />
+          Regresión logística
+        </label>
+        <BotonVideo modelo="logistica" onVer={setVideo} />
+      </div>
+      {video && <VentanaVideo video={video} onCerrar={() => setVideo(null)} />}
       <div className="ajustes-numeros">
         <label>Épocas <input type="number" min="1" max="100000" value={ajustes.epocas} onChange={cambiar('epocas')} /></label>
         {ajustes.modelo === 'red' && (
@@ -357,11 +456,13 @@ function AjustesReparto({ ajustes, setAjustes, inst }) {
 // arriba y cada nivel debajo (la flecha va del hijo a su padre en la
 // reducción; la suma vuelve por el mismo camino). Anillo: en círculo.
 // Central: el maestro al centro.
-function Topologia({ corrida, sala, maestro, rotulo }) {
+const NOMBRE_COMUNICACION = { central: 'Todo por el maestro', arbol: 'En árbol', anillo: 'En anillo' }
+
+function Topologia({ corrida, sala, maestro, rotulo = 'COMUNICACIÓN', subtitulo, tarjeta, detallado, fila = 150, children }) {
   const nodos = (corrida.nodos ?? []).map((n) => sala?.get(n.id) ?? n)
   const n = nodos.length
   const tipo = corrida.comunicacion || 'central'
-  const W = 680, FILA = 150
+  const W = 680, FILA = fila
   let H, pos
   const flechas = []
   if (tipo === 'arbol') {
@@ -374,23 +475,36 @@ function Topologia({ corrida, sala, maestro, rotulo }) {
     pos = []
     filas.forEach((fila, d) => fila.forEach((r, k) => { pos[r] = [((k + 0.5) / fila.length) * W, d * FILA + FILA / 2] }))
     for (let r = 1; r < n; r++) flechas.push([r, r - (r & -r), prof(r) - 1])
+  } else if (n <= 2) {
+    // Uno o dos nodos: en fila, a los lados del maestro (central) o uno
+    // frente al otro (anillo de 2: una flecha de ida arriba y otra de vuelta
+    // abajo, separadas para que se vean las dos).
+    H = 200
+    const xs = tipo === 'central' ? (n === 1 ? [W / 2 - 110] : [W / 2 - 220, W / 2 + 220]) : n === 1 ? [W / 2] : [W / 2 - 180, W / 2 + 180]
+    pos = nodos.map((_, i) => [xs[i], H / 2])
+    if (tipo === 'central') nodos.forEach((_, i) => flechas.push([i, 'M', 0, 0]))
+    else if (n === 2) flechas.push([0, 1, 0, -14], [1, 0, 0, -14])
   } else {
     const central = tipo === 'central'
-    H = n > 2 ? (central ? 480 : 380) : 180
-    const radio = [Math.min(260, 100 + 40 * n), H / 2 - 70]
+    H = central ? 560 : n > 4 ? 480 : 400
+    const radio = [Math.min(260, 100 + 40 * n), H / 2 - 80]
     pos = nodos.map((_, i) => {
-      const a = (2 * Math.PI * i) / Math.max(n, 1) - Math.PI / 2
-      return n === 1 && tipo === 'central' ? [W / 2 - 160, H / 2] : [W / 2 + radio[0] * Math.cos(a), H / 2 + radio[1] * Math.sin(a)]
+      const a = (2 * Math.PI * i) / n - Math.PI / 2
+      return [W / 2 + radio[0] * Math.cos(a), H / 2 + radio[1] * Math.sin(a)]
     })
-    if (tipo === 'anillo') nodos.forEach((_, i) => n > 1 && flechas.push([i, (i + 1) % n, 0]))
+    if (tipo === 'anillo') nodos.forEach((_, i) => flechas.push([i, (i + 1) % n, 0]))
     else nodos.forEach((_, i) => flechas.push([i, 'M', 0]))
   }
-  const centro = [W / 2, H / 2]
+  // El maestro (central) va al centro; con un solo nodo, la pareja queda centrada.
+  const centro = [tipo === 'central' && n === 1 ? W / 2 + 110 : W / 2, H / 2]
   const punto = (x) => (x === 'M' ? centro : pos[x])
   const colores = ['var(--serie-1)', 'var(--serie-4)', 'var(--serie-3)']
   return (
-    <section className="flujo-topologia" aria-label="Comunicación entre nodos">
-      <span className="rotulo">{rotulo ?? 'COMUNICACIÓN'}</span>
+    <section className={`flujo-topologia ${detallado ? 'detallado' : ''}`} aria-label="Comunicación entre nodos">
+      <header className="topo-titulo">
+        <span className="rotulo">{rotulo}</span>
+        <span className="topo-subtitulo">{subtitulo ?? NOMBRE_COMUNICACION[tipo]}</span>
+      </header>
       <div className="topo-lienzo" style={{ aspectRatio: `${W} / ${H}`, maxWidth: W }}>
         <svg viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
           <defs>
@@ -400,25 +514,40 @@ function Topologia({ corrida, sala, maestro, rotulo }) {
               </marker>
             ))}
           </defs>
-          {flechas.map(([a, b, nivel], i) => {
-            const [x1, y1] = punto(a), [x2, y2] = punto(b)
+          {flechas.map(([a, b, nivel, desvio = 0], i) => {
+            // desvio: corre la flecha a un lado (perpendicular a su trazo).
+            const [ax, ay] = punto(a), [bx, by] = punto(b)
+            const largo = Math.hypot(bx - ax, by - ay) || 1
+            const px = (-(by - ay) / largo) * desvio, py = ((bx - ax) / largo) * desvio
+            const [x1, y1, x2, y2] = [ax + px, ay + py, bx + px, by + py]
             const k = nivel % colores.length
-            // La punta va a la mitad del trazo: los extremos quedan bajo las tarjetas.
-            return <polyline key={i} points={`${x1},${y1} ${(x1 + x2) / 2},${(y1 + y2) / 2} ${x2},${y2}`} fill="none"
+            // d = distancia de la punta al centro del destino. Debe quedar
+            // fuera de las dos tarjetas (~45 px desde su centro) y de los
+            // rótulos, que cuelgan ~90 px por debajo de cada tarjeta: si la
+            // flecha sube, el rótulo del destino está en el camino; si baja,
+            // el del origen.
+            const l = Math.hypot(x2 - x1, y2 - y1) || 1
+            const sube = y2 < y1 - 20, baja = y2 > y1 + 20
+            const minimo = sube ? 95 : 50
+            const maximo = baja ? l - 95 : l - 50
+            const d = minimo <= maximo ? Math.min(Math.max(70, minimo), maximo) : l / 2
+            const mx = x2 - ((x2 - x1) / l) * d, my = y2 - ((y2 - y1) / l) * d
+            return <polyline key={i} points={`${x1},${y1} ${mx},${my} ${x2},${y2}`} fill="none"
               style={{ stroke: colores[k] }} strokeWidth="3" markerMid={`url(#punta-${k})`} />
           })}
         </svg>
         {tipo === 'central' && (
-          <div className="topo-pos" style={{ left: '50%', top: `${(centro[1] / H) * 100}%` }}>
+          <div className="topo-pos" style={{ left: `${(centro[0] / W) * 100}%`, top: `${(centro[1] / H) * 100}%` }}>
             <Nodo nodo={{ id: 'Maestro', hardware: maestro?.hardware }} tipo="maestro" />
           </div>
         )}
         {nodos.map((nd, i) => (
           <div key={nd.id} className="topo-pos" style={{ left: `${(pos[i][0] / W) * 100}%`, top: `${(pos[i][1] / H) * 100}%` }}>
-            <Nodo nodo={nd} tipo={nd.id === maestro?.id ? 'maestro' : 'nodo'} />
+            {tarjeta ? tarjeta(nd) : <Nodo nodo={nd} tipo={nd.id === maestro?.id ? 'maestro' : 'nodo'} />}
           </div>
         ))}
       </div>
+      {children}
     </section>
   )
 }
@@ -439,6 +568,7 @@ function Prediccion({ inst, esMaestro, onVerMapa, onVolver }) {
         sala={sala}
         maestro={sala.get(inst.nodo_maestro)}
         rotulo="PREDICCIÓN DISTRIBUIDA"
+        subtitulo="Cada nodo envía sus predicciones al maestro"
       />
       <section className="flujo-limpieza" aria-label="Predicción distribuida">
         <div className="tabla-limpieza-envoltura">

@@ -46,6 +46,9 @@ type configuracion struct {
 	// y con qué regenerar los datos del mapa (exportar, que usa MongoDB).
 	rutaModelo, exportar string
 	datosPagina          []string
+	// transferencias: CSV con los MB por la red de cada corrida de la red
+	// neuronal y de cada predicción distribuida.
+	transferencias string
 }
 
 func main() {
@@ -67,6 +70,7 @@ func main() {
 	exportar := flag.String("exportar", "", "modo servidor: ejecutable de herramientas/cmd/exportar para regenerar el mapa tras cada corrida terminada (necesita MongoDB)")
 	datosPagina := flag.String("datos-pagina", "frontend/public/datos,frontend/dist/datos", "modo servidor: directorios donde dejar los JSON del mapa regenerado (separados por comas; se ignoran los que no existen)")
 	nodoLocal := flag.String("nodo-local", "", "modo servidor: id del nodo trabajador que corre en esta misma laptop (lo pone el lanzador)")
+	transferencias := flag.String("transferencias", "resultados/transferencias.csv", "modo servidor: CSV con los MB que pasan por la red en cada entrenamiento de la red neuronal y en cada predicción distribuida (vacío = no guardar)")
 	resultadoLimpieza := flag.String("resultado-limpieza", "resultados/limpieza.csv", "modo servidor: CSV al que se agregan los tiempos de cada limpieza (vacío = no guardar)")
 	pesosFlag := flag.String("pesos", "", "pesos del reparto proporcional, p. ej. angelo=1,josue=4; al terminar cada corrida el maestro sugiere unos a partir de lo medido")
 	flag.Parse()
@@ -109,7 +113,9 @@ func main() {
 		cfgMaestro.Notificar = difusor.Publicar
 		cfgMaestro.AceptarOtraMuestra = true
 		dirsPagina := strings.Split(*datosPagina, ",")
+		rutaTransferencias := *transferencias
 		cfgMaestro.PrediccionTerminada = func(e distribuido.EstadoPrediccion, filas []distribuido.FilaPrediccion, m distribuido.ModeloEntrenado) {
+			guardarTransferencia(rutaTransferencias, filaPrediccion(e))
 			datosDesdePrediccion(dirsPagina, e, filas, m)
 		}
 		cfgMaestro.NodoMaestro = *nodoLocal
@@ -146,7 +152,7 @@ func main() {
 	}()
 
 	cfg := configuracion{epocas: *epocas, tasa: *tasa, verificar: *verificar, resultado: *resultado, modo: *modo, maquina: *maquina, pesos: pesos,
-		rutaModelo: *rutaModelo, exportar: *exportar, datosPagina: strings.Split(*datosPagina, ",")}
+		rutaModelo: *rutaModelo, exportar: *exportar, datosPagina: strings.Split(*datosPagina, ","), transferencias: *transferencias}
 	if *web != "" {
 		if err := servir(ctx, *web, m, difusor, cfg); err != nil {
 			log.Fatal(err)
@@ -358,6 +364,93 @@ func direccionesLocales() []string {
 		}
 	}
 	return ips
+}
+
+// encabezadoTransferencias: una fila por entrenamiento de la red neuronal y
+// por predicción distribuida, con lo que pasó por la red. mbps_red es la
+// tasa efectiva: los MB divididos por el tiempo de red y espera (en el
+// entrenamiento) o por el tiempo total (en la predicción).
+var encabezadoTransferencias = []string{"fecha", "tipo", "modelo", "comunicacion", "n_nodos", "nodos", "epocas", "mb_total", "mb_por_epoca", "t_total_s", "t_red_s", "mbps_red", "filas"}
+
+func num(v float64, dec int) string { return strconv.FormatFloat(v, 'f', dec, 64) }
+
+func mbps(mb, segundos float64) string {
+	if segundos <= 0 {
+		return ""
+	}
+	return num(mb*8*1.048576/segundos, 2) // MB (2^20 bytes) → megabits (10^6)
+}
+
+func filaEntrenamiento(res *distribuido.Resultado, comunicacion string, epocas int) []string {
+	ids := make([]string, len(res.Nodos))
+	for i, n := range res.Nodos {
+		ids[i] = n.ID
+	}
+	if comunicacion == "" {
+		comunicacion = "central"
+	}
+	red := res.TComunicacion.Seconds()
+	return []string{time.Now().Format(time.RFC3339), "entrenamiento", "red(" + capasTexto(res.Red.Capas) + ")", comunicacion,
+		strconv.Itoa(len(ids)), strings.Join(ids, "+"), strconv.Itoa(epocas), num(res.MBRed, 3), num(res.MBRed/float64(max(epocas, 1)), 3),
+		num(res.Duracion.Seconds(), 3), num(red, 3), mbps(res.MBRed, red), ""}
+}
+
+func filaPrediccion(e distribuido.EstadoPrediccion) []string {
+	ids := make([]string, len(e.Nodos))
+	for i, n := range e.Nodos {
+		ids[i] = n.ID
+	}
+	return []string{time.Now().Format(time.RFC3339), "prediccion", e.Modelo, "gather", strconv.Itoa(len(ids)), strings.Join(ids, "+"), "",
+		num(e.MB, 3), "", num(e.TTotalS, 3), num(e.TTotalS, 3), mbps(e.MB, e.TTotalS), strconv.Itoa(e.Filas)}
+}
+
+func capasTexto(capas []int) string {
+	partes := make([]string, len(capas))
+	for i, c := range capas {
+		partes[i] = strconv.Itoa(c)
+	}
+	return strings.Join(partes, "-")
+}
+
+// guardarTransferencia agrega una fila a ruta (vacía = no guardar).
+func guardarTransferencia(ruta string, fila []string) {
+	if ruta == "" {
+		return
+	}
+	if err := agregarFilas(ruta, encabezadoTransferencias, [][]string{fila}); err != nil {
+		log.Printf("no se pudo escribir %s: %v", ruta, err)
+		return
+	}
+	log.Printf("%s: %s %s, %s MB por la red", ruta, fila[1], fila[3], fila[7])
+}
+
+// agregarFilas agrega filas a un CSV; uno con otras columnas (de una
+// versión anterior) se mueve a <nombre>_anterior.csv.
+func agregarFilas(ruta string, encabezado []string, filas [][]string) error {
+	if err := os.MkdirAll(filepath.Dir(ruta), 0o755); err != nil {
+		return err
+	}
+	if f, err := os.Open(ruta); err == nil {
+		primera, errLeer := csv.NewReader(f).Read()
+		f.Close()
+		if errLeer == nil && strings.Join(primera, ",") != strings.Join(encabezado, ",") {
+			if err := os.Rename(ruta, strings.TrimSuffix(ruta, ".csv")+"_anterior.csv"); err != nil {
+				return err
+			}
+		}
+	}
+	_, errStat := os.Stat(ruta)
+	f, err := os.OpenFile(ruta, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	w := csv.NewWriter(f)
+	if os.IsNotExist(errStat) {
+		w.Write(encabezado)
+	}
+	w.WriteAll(filas)
+	return w.Error()
 }
 
 var encabezadoLimpieza = []string{"limpieza", "nodo", "tecnologia", "hilos", "t_limpieza_s", "t_variables_s", "t_total_s", "huella", "maquina"}

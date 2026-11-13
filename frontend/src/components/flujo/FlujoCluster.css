@@ -758,8 +758,22 @@ button.nodo-caja {
   margin-bottom: 16px;
 }
 
-.flujo-topologia > .rotulo {
-  align-self: flex-start;
+/* Título centrado: "COMUNICACIÓN" y, debajo, el tipo en otra letra. */
+.topo-titulo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.topo-subtitulo {
+  font-family: var(--sans);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--serie-1);
 }
 
 /* Las flechas (svg) van detrás; las tarjetas encima, centradas en su punto. */
@@ -804,6 +818,7 @@ button.nodo-caja {
 }
 
 .topo-pos .nodo-nombre {
+  white-space: nowrap;
   background: var(--surface);
   border-radius: 4px;
   padding: 0 4px;
@@ -814,4 +829,130 @@ button.nodo-caja {
   justify-content: center;
   flex-wrap: wrap;
   margin-top: 12px;
+}
+
+/* Botón ▶ junto a cada modelo y su ventana con el video. */
+.opcion-modelo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.boton-video {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--page);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.boton-video:hover,
+.boton-video:focus-visible {
+  border-color: var(--serie-1);
+  color: var(--serie-1);
+}
+
+.modal.modal-video {
+  max-width: min(960px, 100%);
+  width: 960px;
+  padding: 16px;
+  gap: 10px;
+}
+
+.modal-video header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-video h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.modal-video .cerrar {
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.video-marco {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+}
+
+.video-marco iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* Antes de entrenar: la figura de la comunicación con los nodos elegidos
+   (seleccionables) a la derecha. */
+.sala-topologia {
+  grid-area: nodos;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.sala-topologia .flujo-topologia {
+  margin-bottom: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+/* Aquí las tarjetas muestran también la capacidad y los avisos. */
+.flujo-topologia.detallado .topo-pos .nodo-nombre small.nodo-extra,
+.flujo-topologia.detallado .topo-pos .nodo-nombre small.nodo-nota {
+  display: block;
+}
+
+.sala-fuera {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--gridline);
+  padding-top: 12px;
+}
+
+.sala-fuera-nodos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.sala-fuera-nodos .nodo-caja {
+  width: 92px;
+  height: 76px;
+}
+
+.sala-fuera-nodos .logo-cpu {
+  max-width: 60px;
+  max-height: 42px;
+}
+
+/* El maestro de la izquierda, antes de entrenar: solo informa quién
+   coordina (no se elige aquí). */
+.nodo-caja.coordinador {
+  cursor: default;
+  box-shadow: none;
+  opacity: 0.85;
+  border-style: dashed;
 }

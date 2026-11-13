@@ -235,6 +235,9 @@ func (a *api) nuevaCorrida(w http.ResponseWriter, r *http.Request) {
 		}
 		reportar(res, p.Epocas)
 		regenerarMapa(a.cfg, res, p.Epocas)
+		if res.Red != nil {
+			guardarTransferencia(a.cfg.transferencias, filaEntrenamiento(res, p.Comunicacion, p.Epocas))
+		}
 		if a.cfg.resultado == "" {
 			return
 		}

@@ -8,6 +8,8 @@ presentacion_semana5.md
 # una medición en el repo, renómbrala (p. ej. resultados/cluster_switch.csv).
 /resultados/cluster.csv
 /resultados/limpieza.csv
+/resultados/transferencias.csv
+/resultados/*_anterior.csv
 /resultados/experimento2_lan.csv
 # .bin a medias de una limpieza interrumpida
 /data/*.tmp

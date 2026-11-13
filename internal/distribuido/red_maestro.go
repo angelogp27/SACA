@@ -144,6 +144,7 @@ func (c *Corrida) entrenarRed(ctx context.Context) (*Resultado, error) {
 		res.TCalculo += calcEpoca
 		res.TComunicacion += redEsp
 		mb := float64(bytes) / (1 << 20)
+		res.MBRed += mb
 		log.Printf("época %3d: pérdida=%.6f | %7.1f ms (cálculo %6.1f ms, red y espera %6.1f ms) | %.1f MB por la red",
 			e, perdida, ms(tEpoca), ms(calcEpoca), ms(redEsp), mb)
 
