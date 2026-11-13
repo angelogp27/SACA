@@ -352,67 +352,73 @@ function AjustesReparto({ ajustes, setAjustes, inst }) {
 // (Fase 4). Por el maestro, todos le envían a él (un solo puerto); en árbol,
 // los pares se suman de a dos por nivel; en anillo, cada uno al siguiente y
 // todos a la vez.
-function Topologia({ corrida, rotulo, descripcion }) {
-  const nodos = corrida.nodos ?? []
+// Figura de la comunicación entre nodos: las mismas tarjetas de la sala
+// (logo del procesador y nombre) unidas por flechas. Árbol: el rango 0
+// arriba y cada nivel debajo (la flecha va del hijo a su padre en la
+// reducción; la suma vuelve por el mismo camino). Anillo: en círculo.
+// Central: el maestro al centro.
+function Topologia({ corrida, sala, maestro, rotulo }) {
+  const nodos = (corrida.nodos ?? []).map((n) => sala?.get(n.id) ?? n)
   const n = nodos.length
   const tipo = corrida.comunicacion || 'central'
-  const W = 520, H = 210, cx = W / 2, cy = H / 2 + 6, R = 78
-  const pos = nodos.map((_, i) => {
-    const a = (2 * Math.PI * i) / Math.max(n, 1) - Math.PI / 2
-    return [cx + R * 1.9 * Math.cos(a), cy + R * Math.sin(a)]
-  })
+  const W = 680, FILA = 150
+  let H, pos
   const flechas = []
-  if (tipo === 'central') {
-    nodos.forEach((_, i) => flechas.push([pos[i], [cx, cy], 0]))
-  } else if (tipo === 'anillo') {
-    nodos.forEach((_, i) => flechas.push([pos[i], pos[(i + 1) % n], 0]))
+  if (tipo === 'arbol') {
+    // En el árbol binomial, la profundidad de r es su cantidad de bits en 1
+    // y su padre es r sin el bit más bajo.
+    const prof = (r) => r.toString(2).replace(/0/g, '').length
+    const filas = []
+    nodos.forEach((_, r) => (filas[prof(r)] ??= []).push(r))
+    H = filas.length * FILA
+    pos = []
+    filas.forEach((fila, d) => fila.forEach((r, k) => { pos[r] = [((k + 0.5) / fila.length) * W, d * FILA + FILA / 2] }))
+    for (let r = 1; r < n; r++) flechas.push([r, r - (r & -r), prof(r) - 1])
   } else {
-    for (let k = 1, nivel = 0; k < n; k *= 2, nivel++) {
-      for (let r = 0; r + k < n; r += 2 * k) flechas.push([pos[r + k], pos[r], nivel])
-    }
+    const central = tipo === 'central'
+    H = n > 2 ? (central ? 480 : 380) : 180
+    const radio = [Math.min(260, 100 + 40 * n), H / 2 - 70]
+    pos = nodos.map((_, i) => {
+      const a = (2 * Math.PI * i) / Math.max(n, 1) - Math.PI / 2
+      return n === 1 && tipo === 'central' ? [W / 2 - 160, H / 2] : [W / 2 + radio[0] * Math.cos(a), H / 2 + radio[1] * Math.sin(a)]
+    })
+    if (tipo === 'anillo') nodos.forEach((_, i) => n > 1 && flechas.push([i, (i + 1) % n, 0]))
+    else nodos.forEach((_, i) => flechas.push([i, 'M', 0]))
   }
-  const niveles = tipo === 'arbol' ? Math.ceil(Math.log2(Math.max(n, 2))) : 1
-  const texto = {
-    central: `Todos los gradientes pasan por el maestro: ${n} envíos y ${n} respuestas por su único puerto en cada mini-lote.`,
-    arbol: `Reducción en árbol: ${niveles} nivel(es); en cada nivel varios pares se suman a la vez por sus propios puertos, y la suma vuelve por el mismo árbol.`,
-    anillo: `Anillo: cada nodo envía un trozo al siguiente y recibe del anterior, todos a la vez, en ${2 * Math.max(n - 1, 0)} pasos.`,
-  }[tipo]
-  const leyenda = descripcion ?? texto
+  const centro = [W / 2, H / 2]
+  const punto = (x) => (x === 'M' ? centro : pos[x])
   const colores = ['var(--serie-1)', 'var(--serie-4)', 'var(--serie-3)']
   return (
     <section className="flujo-topologia" aria-label="Comunicación entre nodos">
-      <div>
-        <span className="rotulo">{rotulo ?? `COMUNICACIÓN · ${({ central: 'POR EL MAESTRO', arbol: 'EN ÁRBOL', anillo: 'EN ANILLO' })[tipo]}`}</span>
-        <p className="detalle">{leyenda}</p>
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={leyenda}>
-        <defs>
-          <marker id="punta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M0 0L10 5L0 10z" fill="currentColor" />
-          </marker>
-        </defs>
-        {flechas.map(([a, b, nivel], i) => {
-          const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1
-          const r = 22
-          return (
-            <line key={i} x1={a[0] + (dx / l) * r} y1={a[1] + (dy / l) * r} x2={b[0] - (dx / l) * r} y2={b[1] - (dy / l) * r}
-              stroke={colores[nivel % colores.length]} style={{ color: colores[nivel % colores.length] }} strokeWidth="2.5" markerEnd="url(#punta)" />
-          )
-        })}
+      <span className="rotulo">{rotulo ?? 'COMUNICACIÓN'}</span>
+      <div className="topo-lienzo" style={{ aspectRatio: `${W} / ${H}`, maxWidth: W }}>
+        <svg viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+          <defs>
+            {colores.map((c, k) => (
+              <marker key={k} id={`punta-${k}`} viewBox="0 0 10 10" refX="5" refY="5" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" orient="auto">
+                <path d="M0 0L10 5L0 10z" style={{ fill: c }} />
+              </marker>
+            ))}
+          </defs>
+          {flechas.map(([a, b, nivel], i) => {
+            const [x1, y1] = punto(a), [x2, y2] = punto(b)
+            const k = nivel % colores.length
+            // La punta va a la mitad del trazo: los extremos quedan bajo las tarjetas.
+            return <polyline key={i} points={`${x1},${y1} ${(x1 + x2) / 2},${(y1 + y2) / 2} ${x2},${y2}`} fill="none"
+              style={{ stroke: colores[k] }} strokeWidth="3" markerMid={`url(#punta-${k})`} />
+          })}
+        </svg>
         {tipo === 'central' && (
-          <g>
-            <circle cx={cx} cy={cy} r="22" className="topo-maestro" />
-            <text x={cx} y={cy + 4} textAnchor="middle" className="topo-texto">M</text>
-          </g>
+          <div className="topo-pos" style={{ left: '50%', top: `${(centro[1] / H) * 100}%` }}>
+            <Nodo nodo={{ id: 'Maestro', hardware: maestro?.hardware }} tipo="maestro" />
+          </div>
         )}
         {nodos.map((nd, i) => (
-          <g key={nd.id}>
-            <circle cx={pos[i][0]} cy={pos[i][1]} r="20" className="topo-nodo" />
-            <text x={pos[i][0]} y={pos[i][1] + 4} textAnchor="middle" className="topo-texto">{i}</text>
-            <text x={pos[i][0]} y={pos[i][1] + 36} textAnchor="middle" className="topo-nombre">{nd.id}</text>
-          </g>
+          <div key={nd.id} className="topo-pos" style={{ left: `${(pos[i][0] / W) * 100}%`, top: `${(pos[i][1] / H) * 100}%` }}>
+            <Nodo nodo={nd} tipo={nd.id === maestro?.id ? 'maestro' : 'nodo'} />
+          </div>
         ))}
-      </svg>
+      </div>
     </section>
   )
 }
@@ -430,8 +436,9 @@ function Prediccion({ inst, esMaestro, onVerMapa, onVolver }) {
     <>
       <Topologia
         corrida={{ nodos: p.nodos, comunicacion: 'central' }}
-        rotulo="PREDICCIÓN DISTRIBUIDA · GATHER"
-        descripcion={`Cada nodo predice con el modelo ${p.modelo} todas las horas de sus estaciones y le envía los resultados al maestro: ${fmtN(p.filas)} filas, ${fmtMB(p.mb)} por la red.`}
+        sala={sala}
+        maestro={sala.get(inst.nodo_maestro)}
+        rotulo="PREDICCIÓN DISTRIBUIDA"
       />
       <section className="flujo-limpieza" aria-label="Predicción distribuida">
         <div className="tabla-limpieza-envoltura">
@@ -486,8 +493,10 @@ function Prediccion({ inst, esMaestro, onVerMapa, onVolver }) {
 
 // ---------- 3. Limpieza ----------
 
-// Gráfica: % de CPU (eje y) a lo largo del avance 0-100 % (eje x): todas
-// las líneas miden lo mismo de ancho, tarde lo que tarde cada nodo.
+// Gráfica: % de CPU (eje y) a lo largo del avance (eje x): la limpieza
+// ocupa la mitad izquierda y la preparación de variables la derecha, con
+// una línea punteada entre las dos. Todas miden lo mismo de ancho, tarde lo
+// que tarde cada nodo.
 function GraficaCPU({ serie, estado }) {
   const puntos = (serie ?? []).filter((p) => p[0] > 0 || p[1] > 0)
   const camino = puntos.map(([x, y]) => `${(x * 100).toFixed(2)},${(40 - (Math.min(y, 100) / 100) * 38).toFixed(2)}`).join(' ')
@@ -498,62 +507,60 @@ function GraficaCPU({ serie, estado }) {
         <line x1="0" y1="2" x2="100" y2="2" className="guia" />
         <line x1="0" y1="21" x2="100" y2="21" className="guia" />
         <line x1="0" y1="40" x2="100" y2="40" className="base" />
+        <line x1="50" y1="0" x2="50" y2="40" className="division" vectorEffect="non-scaling-stroke" />
         {camino && <polyline points={camino} className={`linea ${estado}`} vectorEffect="non-scaling-stroke" />}
       </svg>
-      <span className="grafica-pie">{estado === 'pendiente' ? 'en espera' : `CPU media ${promedio.toFixed(0)} %`}</span>
+      <span className="grafica-pie">
+        <span>limpieza</span>
+        <span>{estado === 'pendiente' ? 'en espera' : `CPU media ${promedio.toFixed(0)} %`}</span>
+        <span>variables</span>
+      </span>
     </div>
   )
 }
 
-const FINAL = new Set(['terminada', 'error', 'cancelada'])
-
-// Estado de una tecnología en una de sus dos fases. El proceso es uno solo
-// (limpia y luego prepara las variables), así que la fase de variables
-// empieza cuando la de limpieza termina.
-function enFase(t, fase) {
-  const enVariables = t.fase === 'variables'
-  if (fase === 'limpieza') {
-    if (FINAL.has(t.estado) && t.estado !== 'terminada' && !enVariables) return { estado: t.estado, avance: t.avance, serie: t.serie }
-    if (enVariables || t.estado === 'terminada') return { estado: 'terminada', avance: 1, serie: t.serie, tiempo: t.t_limpieza_s }
-    return { estado: t.estado === 'limpiando' ? 'limpiando' : 'pendiente', avance: t.avance, serie: t.serie }
-  }
-  if (t.estado === 'terminada') return { estado: 'terminada', avance: 1, serie: t.serie_variables, tiempo: t.t_variables_s }
-  if (FINAL.has(t.estado)) return { estado: t.estado, avance: t.avance_variables, serie: t.serie_variables }
-  if (enVariables) return { estado: 'limpiando', avance: t.avance_variables, serie: t.serie_variables }
-  return { estado: 'pendiente', avance: 0, serie: [] }
+// Las dos fases de una tecnología en una sola serie: el avance de la
+// limpieza va de 0 a 0,5 y el de la preparación de variables de 0,5 a 1.
+function serieCompleta(t) {
+  return [
+    ...(t.serie ?? []).map(([x, y]) => [x / 2, y]),
+    ...(t.serie_variables ?? []).map(([x, y]) => [0.5 + x / 2, y]),
+  ]
 }
 
-// ¿Terminó la fase de limpieza (bien o mal) en todos los nodos?
-function limpiezaHecha(l) {
-  return l.nodos.every((n) => n.tecnologias.every((t) => FINAL.has(enFase(t, 'limpieza').estado)))
-}
-
-function CeldaTec({ t, fase }) {
+function CeldaTec({ t }) {
   if (!t) return <td colSpan={2} />
-  const f = enFase(t, fase)
-  const texto = {
-    pendiente: 'en espera',
-    limpiando: `${Math.round((f.avance ?? 0) * 100)} %`,
-    terminada: fmtS(f.tiempo),
-    error: 'error',
-    cancelada: 'parada',
-  }[f.estado]
+  const enVariables = t.fase === 'variables'
+  let contenido
+  if (t.estado === 'terminada') {
+    contenido = (
+      <span className="tiempos-fases">
+        <span><small>limpieza</small>{fmtS(t.t_limpieza_s)}</span>
+        <span><small>variables</small>{fmtS(t.t_variables_s)}</span>
+      </span>
+    )
+  } else if (t.estado === 'limpiando') {
+    const av = enVariables ? t.avance_variables : t.avance
+    contenido = <span className="tiempos-fases"><span><small>{enVariables ? 'variables' : 'limpieza'}</small>{Math.round((av ?? 0) * 100)} %</span></span>
+  } else {
+    contenido = { pendiente: 'en espera', error: 'error', cancelada: 'parada' }[t.estado] ?? t.estado
+  }
   return (
     <>
-      <td className="celda-grafica"><GraficaCPU serie={f.serie} estado={f.estado} /></td>
-      <td className={`celda-tiempo estado-${f.estado}`} title={t.mensaje || (t.huella ? `huella ${corta(t.huella)}` : undefined)}>
-        {texto}
-        {f.estado === 'error' && <small>{t.mensaje}</small>}
+      <td className="celda-grafica"><GraficaCPU serie={serieCompleta(t)} estado={t.estado} /></td>
+      <td className={`celda-tiempo estado-${t.estado}`} title={t.mensaje || (t.huella ? `huella ${corta(t.huella)}` : undefined)}>
+        {contenido}
+        {t.estado === 'error' && <small>{t.mensaje}</small>}
       </td>
     </>
   )
 }
 
-// Pantallas 3 (fase "limpieza") y 4 (fase "variables": preparación de
-// variables y escritura de muestra.bin). Misma tabla, distinta fase.
-function Limpieza({ inst, esMaestro, fase, onContinuar }) {
+// Pantalla 3: limpieza y preparación de variables (escritura de
+// muestra.bin) en una sola tabla; cada tecnología, una gráfica con las dos
+// fases seguidas.
+function Limpieza({ inst, esMaestro, onContinuar }) {
   const l = inst.limpieza
-  const esVariables = fase === 'variables'
   const [preguntar, setPreguntar] = useState(false)
   const [error, setError] = useState('')
   const enCurso = l.estado === 'limpiando'
@@ -572,10 +579,10 @@ function Limpieza({ inst, esMaestro, fase, onContinuar }) {
   }
 
   return (
-    <section className="flujo-limpieza" aria-label={esVariables ? 'Preparación de variables' : 'Limpieza'}>
+    <section className="flujo-limpieza" aria-label="Limpieza y preparación de variables">
       <header className="limpieza-cabecera">
         <span className="rotulo">CLÚSTER INICIADO</span>
-        <span className="rotulo titulo">{esVariables ? 'PREPARACIÓN DE VARIABLES' : 'LIMPIEZA'}{l.estado === 'cancelada' ? ' · PARADA' : ''}</span>
+        <span className="rotulo titulo">LIMPIEZA Y VARIABLES{l.estado === 'cancelada' ? ' · PARADA' : ''}</span>
         <div className="nuevos" aria-label="Nodos que se unieron después">
           {nuevos.map((n) => (
             <Nodo key={n.id} nodo={n} tipo="nuevo" pequeno onClick={esMaestro && enCurso ? () => accion(() => apiCluster.limpiar([n.id])) : undefined} />
@@ -603,7 +610,7 @@ function Limpieza({ inst, esMaestro, fase, onContinuar }) {
                 <tr key={n.id}>
                   <th scope="row"><Nodo nodo={vista} tipo={n.id === inst.nodo_maestro ? 'maestro' : 'trabajador'} pequeno /></th>
                   <td className="celda-hilos">{hilos || '—'}</td>
-                  {l.tecnologias.map((t) => <CeldaTec key={t} fase={fase} t={n.tecnologias.find((x) => x.tecnologia === t)} />)}
+                  {l.tecnologias.map((t) => <CeldaTec key={t} t={n.tecnologias.find((x) => x.tecnologia === t)} />)}
                 </tr>
               )
             })}
@@ -613,10 +620,10 @@ function Limpieza({ inst, esMaestro, fase, onContinuar }) {
 
       <footer className="limpieza-pie">
         {/* Solo se avisa si algo salió mal: muestras con huellas distintas. */}
-        {esVariables && huellas.size > 1 ? <p className="error">Los nodos generaron {huellas.size} muestras distintas (huellas diferentes).</p> : <span />}
+        {!enCurso && huellas.size > 1 ? <p className="error">Los nodos generaron {huellas.size} muestras distintas (huellas diferentes).</p> : <span />}
         {esMaestro && (
           <div className="sala-botones">
-            <button type="button" className="boton-grande" disabled={esVariables ? enCurso : enCurso && !limpiezaHecha(l)} onClick={onContinuar}>Continuar</button>
+            <button type="button" className="boton-grande" disabled={enCurso} onClick={onContinuar}>Continuar</button>
             {enCurso && <button type="button" className="boton" onClick={() => setPreguntar(true)}>Parar limpieza</button>}
           </div>
         )}
@@ -675,9 +682,6 @@ export default function FlujoCluster({ datos, lanzador, onVerMapa }) {
   const [ajustes, setAjustes] = useState({ modelo: 'red', epocas: 20, pasos: 25, reparto: 'capacidad', comunicacion: 'arbol' })
   // Limpieza ya vista (botón Continuar): mientras no, se sigue mostrando.
   const [continuada, setContinuada] = useState(0)
-  // Dentro de la limpieza: pantalla de limpieza o de preparación de
-  // variables (el maestro pasa con Continuar; las demás siguen solas).
-  const [subLimpieza, setSubLimpieza] = useState({ id: 0, fase: 'limpieza' })
   const [ocupado, setOcupado] = useState('')
   // Error y avisos de una acción, atados a la pantalla en que ocurrieron:
   // al cambiar de pantalla dejan de mostrarse.
@@ -768,7 +772,7 @@ export default function FlujoCluster({ datos, lanzador, onVerMapa }) {
   if (pasoActual === 'entrenamiento' && corrida) {
     vista = (
       <>
-        {(corrida.modelo ?? '').startsWith('red') && <Topologia corrida={corrida} />}
+        {(corrida.modelo ?? '').startsWith('red') && <Topologia corrida={corrida} sala={new Map((inst.sala ?? []).map((nd) => [nd.id, nd]))} maestro={(inst.sala ?? []).find((nd) => nd.id === inst.nodo_maestro)} />}
         <Protector><PanelCluster datos={datos} /></Protector>
         {esMaestro && !entrenando && (
           <div className="sala-botones sala-botones-fila">
@@ -787,12 +791,7 @@ export default function FlujoCluster({ datos, lanzador, onVerMapa }) {
   } else if (pasoActual === 'prediccion' && inst.prediccion) {
     vista = <Prediccion inst={inst} esMaestro={esMaestro} onVerMapa={onVerMapa} onVolver={() => setPaso('pre')} />
   } else if (pasoActual === 'limpieza') {
-    const faseLimpieza = esMaestro
-      ? (subLimpieza.id === limpieza.id ? subLimpieza.fase : 'limpieza')
-      : (limpiezaHecha(limpieza) ? 'variables' : 'limpieza')
-    vista = faseLimpieza === 'limpieza'
-      ? <Limpieza key="limpieza" inst={inst} esMaestro={esMaestro} fase="limpieza" onContinuar={() => setSubLimpieza({ id: limpieza.id, fase: 'variables' })} />
-      : <Limpieza key="variables" inst={inst} esMaestro={esMaestro} fase="variables" onContinuar={() => { setContinuada(limpieza.id); setPaso('pre') }} />
+    vista = <Limpieza inst={inst} esMaestro={esMaestro} onContinuar={() => { setContinuada(limpieza.id); setPaso('pre') }} />
   } else {
     vista = (
       <Sala

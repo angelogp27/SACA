@@ -170,13 +170,7 @@ func main() {
 			// Los registros no hacen falta después: se sueltan mientras se
 			// arma la muestra. Etiquetar es el 80 % de esta fase (800 → 920).
 			m, err = muestrabin.ConstruirLiberando(mapas, muestrabin.MesCorte, func(f float64) {
-				// Varias goroutines informan a la vez: nunca hacia atrás.
-				for n := 800 + int64(120*f); ; {
-					v := avance.Load()
-					if n <= v || avance.CompareAndSwap(v, n) {
-						break
-					}
-				}
+				avanzarA(800 + int64(120*f))
 			})
 		} else {
 			m, err = muestrabin.Construir(mapas, muestrabin.MesCorte)
@@ -251,7 +245,19 @@ func trabajador(entrada <-chan bloque, salidas []chan aqs.ValorLeido, total *aqs
 		mu.Unlock()
 		// La lectura es el 80 % del avance; el resto, armar y escribir la muestra.
 		hechos := bytesLeidos.Add(b.fin - b.inicio)
-		avance.Store(800 * hechos / max(bytesTotal, 1))
+		avanzarA(800 * hechos / max(bytesTotal, 1))
+	}
+}
+
+// avanzarA sube el avance a n, nunca hacia atrás: varias goroutines
+// informan a la vez y una que se atrasó entre sumar y guardar no debe
+// pisar un valor más nuevo (la gráfica retrocedía).
+func avanzarA(n int64) {
+	for {
+		v := avance.Load()
+		if n <= v || avance.CompareAndSwap(v, n) {
+			return
+		}
 	}
 }
 

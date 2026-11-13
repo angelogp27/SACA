@@ -268,15 +268,17 @@ func (m *Maestro) mensajeLimpieza(id string, msg protocolo.Mensaje) {
 		if msg.TLimpiezaS > 0 {
 			t.TLimpiezaS = msg.TLimpiezaS
 		}
+		// El avance de una fase nunca baja (si llegara un valor viejo, la
+		// línea de la gráfica volvería hacia atrás).
 		if msg.Fase == "variables" {
-			t.Fase, t.Avance, t.AvanceVariables = msg.Fase, 1, msg.Avance
+			t.Fase, t.Avance, t.AvanceVariables = msg.Fase, 1, max(t.AvanceVariables, msg.Avance)
 			if len(t.SerieVariables) < maxPuntosSerie {
-				t.SerieVariables = append(t.SerieVariables, [2]float64{msg.Avance, msg.CPU})
+				t.SerieVariables = append(t.SerieVariables, [2]float64{t.AvanceVariables, msg.CPU})
 			}
-		} else {
-			t.Fase, t.Avance = "limpieza", msg.Avance
+		} else if t.Fase != "variables" {
+			t.Fase, t.Avance = "limpieza", max(t.Avance, msg.Avance)
 			if len(t.Serie) < maxPuntosSerie {
-				t.Serie = append(t.Serie, [2]float64{msg.Avance, msg.CPU})
+				t.Serie = append(t.Serie, [2]float64{t.Avance, msg.CPU})
 			}
 		}
 	case protocolo.TipoLimpiezaTerminada:

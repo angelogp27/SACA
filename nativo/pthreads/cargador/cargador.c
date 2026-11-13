@@ -45,6 +45,11 @@
 #ifndef _WIN32
 #define _FILE_OFFSET_BITS 64
 #endif
+#if defined(_WIN32) && !defined(_WIN64)
+/* Un ejecutable de 32 bits solo puede usar ~2 GB: los registros no caben y
+   la limpieza termina en "sin memoria para los registros". */
+#error "Compila con gcc de 64 bits (MSYS2 UCRT64: pacman -S mingw-w64-ucrt-x86_64-gcc); gcc -dumpmachine debe decir x86_64"
+#endif
 #include <errno.h>
 #include <pthread.h>
 

@@ -22,7 +22,15 @@ if (-not $SinCompilar) {
     }
 
     Write-Host "== 2/3 cargador de Pthreads (C)"
-    if (Get-Command gcc -ErrorAction SilentlyContinue) {
+    $gccMaquina = if (Get-Command gcc -ErrorAction SilentlyContinue) { (gcc -dumpmachine) } else { "" }
+    if ($gccMaquina -and $gccMaquina -notmatch '^x86_64') {
+        # Un gcc de 32 bits genera un cargador que solo puede usar ~2 GB:
+        # la limpieza termina en "sin memoria para los registros".
+        Write-Host "   AVISO: tu gcc es de 32 bits ($gccMaquina). Instala el de 64 bits (MSYS2 UCRT64:"
+        Write-Host "   pacman -S mingw-w64-ucrt-x86_64-gcc) y pon C:\msys64\ucrt64\bin primero en el PATH."
+        if (Test-Path bin/cargador_pthreads.exe) { Remove-Item bin/cargador_pthreads.exe }
+        Write-Host "   Mientras tanto esta laptop limpia solo con Go."
+    } elseif ($gccMaquina) {
         # -ffp-contract=off es obligatorio: sin él la muestra.bin sale con otra huella.
         gcc -O3 -ffp-contract=off -o bin/cargador_pthreads.exe nativo/pthreads/cargador/cargador.c -static -lpthread -lm
         if ($LASTEXITCODE -ne 0) { throw "no se pudo compilar el cargador de Pthreads" }

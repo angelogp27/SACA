@@ -511,6 +511,31 @@ button.nodo-caja {
   stroke-width: 1;
 }
 
+.grafica-cpu .division {
+  stroke: var(--text-secondary);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.6;
+}
+
+.tiempos-fases {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tiempos-fases > span {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.tiempos-fases small {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
 .grafica-cpu .linea {
   fill: none;
   stroke: var(--serie-2);
@@ -528,8 +553,15 @@ button.nodo-caja {
 }
 
 .grafica-pie {
+  display: flex;
+  justify-content: space-between;
   font-size: 11px;
   color: var(--text-secondary);
+}
+
+.grafica-pie > span:first-child,
+.grafica-pie > span:last-child {
+  opacity: 0.7;
 }
 
 .limpieza-pie {
@@ -674,56 +706,66 @@ button.nodo-caja {
 }
 
 .flujo-topologia {
-  display: grid;
-  grid-template-columns: minmax(200px, 1fr) minmax(280px, 1.4fr);
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  gap: 12px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 16px 20px;
+  padding: 16px 20px 20px;
   margin-bottom: 16px;
 }
 
-.flujo-topologia .detalle {
-  margin-top: 8px;
+.flujo-topologia > .rotulo {
+  align-self: flex-start;
 }
 
-.flujo-topologia svg {
+/* Las flechas (svg) van detrás; las tarjetas encima, centradas en su punto. */
+.topo-lienzo {
+  position: relative;
   width: 100%;
-  height: auto;
-  max-height: 230px;
 }
 
-.topo-nodo {
-  fill: color-mix(in srgb, var(--serie-3) 22%, var(--surface));
-  stroke: var(--serie-3);
-  stroke-width: 2;
+.topo-lienzo svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
-.topo-maestro {
-  fill: color-mix(in srgb, var(--serie-1) 25%, var(--surface));
-  stroke: var(--serie-1);
-  stroke-width: 3;
+.topo-pos {
+  position: absolute;
+  transform: translate(-50%, -32%);
 }
 
-.topo-texto {
-  font-family: var(--mono);
-  font-size: 13px;
-  font-weight: 700;
-  fill: var(--text-primary);
+/* Tarjetas medianas: las de la sala, más chicas y solo con el nombre. */
+.topo-pos .nodo-caja {
+  width: 92px;
+  height: 76px;
+  border-radius: 14px;
 }
 
-.topo-nombre {
-  font-family: var(--mono);
-  font-size: 11px;
-  fill: var(--text-secondary);
+.topo-pos .logo-cpu {
+  max-width: 60px;
+  max-height: 42px;
 }
 
-@media (max-width: 700px) {
-  .flujo-topologia {
-    grid-template-columns: 1fr;
-  }
+.topo-pos .logo-nvidia {
+  top: 4px;
+  right: 4px;
+  width: 26px;
+  height: 19px;
+}
+
+.topo-pos .nodo-nombre small {
+  display: none;
+}
+
+.topo-pos .nodo-nombre {
+  background: var(--surface);
+  border-radius: 4px;
+  padding: 0 4px;
 }
 
 .sala-botones-fila {
