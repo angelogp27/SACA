@@ -1,5 +1,5 @@
 // Package pares es la comunicación directa entre nodos trabajadores (Fase 4
-// de docs/plan_avance.md): en vez de que todos los gradientes pasen por el
+// de docs/desarrollo/plan_avance.md): en vez de que todos los gradientes pasen por el
 // maestro (un solo puerto del switch), los nodos los suman entre ellos con
 // una reducción colectiva, como MPI_Allreduce:
 //

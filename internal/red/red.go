@@ -1,7 +1,7 @@
 // Package red es un perceptrón multicapa pequeño para la misma tarea que la
 // regresión logística (¿el NO2 superará el umbral en la hora siguiente?),
 // pensado para el entrenamiento distribuido por mini-lotes (Fase 2 de
-// docs/plan_avance.md): tiene miles de parámetros en vez de 13, así que en
+// docs/desarrollo/plan_avance.md): tiene miles de parámetros en vez de 13, así que en
 // cada paso viajan decenas de KB por nodo y la red pasa a importar.
 //
 // Los parámetros van en un solo vector, capa por capa: primero la matriz W

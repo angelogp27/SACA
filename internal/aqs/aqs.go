@@ -1,6 +1,6 @@
 // Package aqs procesa los archivos horarios crudos de la EPA (AQS) y los
 // convierte en registro.RegistroProcesado, aplicando las reglas de limpieza
-// de docs/contratos/contrato_registro_procesado.md. La validación de una fila
+// de docs/desarrollo/contratos/contrato_registro_procesado.md. La validación de una fila
 // (procesarFila) es la misma tanto para el cargador secuencial como para
 // el concurrente: lo único que cambia es qué porción del archivo lee cada
 // uno.

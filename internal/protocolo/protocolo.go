@@ -1,5 +1,5 @@
 // Package protocolo implementa los mensajes del protocolo TCP
-// maestro-trabajador de docs/contratos/contrato_protocolo_tcp.md: un objeto JSON por
+// maestro-trabajador de docs/desarrollo/contratos/contrato_protocolo_tcp.md: un objeto JSON por
 // línea, con un campo "tipo" que identifica su forma. Es el equivalente
 // del send/recv de MPI, pero sobre conexiones TCP entre procesos (o
 // contenedores) que no comparten memoria.
@@ -27,7 +27,7 @@ const (
 	// siguiente. Todos tienen la muestra completa: no viajan datos.
 	TipoReparto = "reparto"
 
-	// Limpieza (docs/contratos/contrato_protocolo_tcp.md, "Limpieza"): cada nodo
+	// Limpieza (docs/desarrollo/contratos/contrato_protocolo_tcp.md, "Limpieza"): cada nodo
 	// limpia sus propios CSV y genera su data/muestra.bin; por la red solo
 	// viajan avisos, avances y huellas.
 	TipoIniciarLimpieza   = "iniciar_limpieza"   // maestro → trabajador
@@ -112,7 +112,7 @@ type Mensaje struct {
 	Avance      float64  `json:"avance,omitempty"`
 	CPU         float64  `json:"cpu,omitempty"`
 	TTotalS     float64  `json:"t_total_s,omitempty"`
-	// Red neuronal por mini-lotes (Fase 2 de docs/plan_avance.md). En
+	// Red neuronal por mini-lotes (Fase 2 de docs/desarrollo/plan_avance.md). En
 	// particion_asignada: Modelo ("red"; vacío = regresión logística),
 	// Capas y PasosPorEpoca. En parametros y gradiente_parcial: Paso dentro
 	// de la época y los vectores en binario (float64 little-endian; en el

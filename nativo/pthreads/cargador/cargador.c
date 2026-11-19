@@ -33,7 +33,7 @@
  *     go run ./cargador/cmd/concurrente -sin-mongo -goroutines N -agregadoras K
  *
  * Con --bin ruta escribe además la muestra de entrenamiento (muestra.bin
- * v2, docs/contratos/contrato_formato_binario.md) byte a byte igual a la que escribe
+ * v2, docs/desarrollo/contratos/contrato_formato_binario.md) byte a byte igual a la que escribe
  * el cargador de Go con -bin: misma huella SHA-256.
  *
  * Compilar (Linux):   gcc -O3 -ffp-contract=off -pthread -o bin/cargador_pthreads nativo/pthreads/cargador/cargador.c -lm

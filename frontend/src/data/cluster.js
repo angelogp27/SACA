@@ -61,7 +61,20 @@ async function post(ruta, cuerpo) {
   return resp.json()
 }
 
+async function get(ruta) {
+  const resp = await fetch(ruta, { cache: 'no-store' })
+  if (!resp.ok) {
+    const datos = await resp.json().catch(() => ({}))
+    throw new Error(datos.error ?? `HTTP ${resp.status}`)
+  }
+  return resp.json()
+}
+
 export const apiCluster = {
+  // Historial de procesos terminados (lo guarda el maestro): la lista de un
+  // tipo (limpieza, entrenamiento o prediccion) y uno con todos sus datos.
+  historial: (tipo) => get(`/api/historial${tipo ? `?tipo=${encodeURIComponent(tipo)}` : ''}`),
+  historialDe: (id) => get(`/api/historial/${encodeURIComponent(id)}`),
   // opciones (Fase 2): { modelo: 'logistica' | 'red', pasos } (mini-lotes por época de la red).
   entrenar: (nodos, epocas, verificar, opciones = {}) => post('/api/corridas', { nodos, epocas, verificar, ...opciones }),
   // Limpieza: cada nodo limpia sus CSV y genera su muestra.bin; si ya hay

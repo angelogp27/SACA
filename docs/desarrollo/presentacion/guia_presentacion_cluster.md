@@ -1,6 +1,6 @@
 # Guía para la presentación del avance: el clúster distribuido de SACA
 
-Guía para que el grupo prepare y dé la presentación **virtual** del avance del clúster. Cómo ejecutar cada cosa está en la guía de cada rol: [maestro](../cluster/tailscale/anterior/guia_maestro.md), [nodo sin GPU NVIDIA](../cluster/tailscale/anterior/guia_nodo_sin_nvidia.md) y [nodo con GPU NVIDIA](../cluster/tailscale/anterior/guia_nodo_con_nvidia.md). Aquí está **qué decir, en qué orden, quién lo hace y qué hacer si algo falla**.
+Guía para que el grupo prepare y dé la presentación **virtual** del avance del clúster. Cómo ejecutar cada cosa está en la guía de cada rol: [maestro](../../vpn/maestro.md), [nodo sin GPU NVIDIA](../../vpn/nodo.md) y [nodo con GPU NVIDIA](../../herramientas/windows.md#6-nvidia-opcional). Aquí está **qué decir, en qué orden, quién lo hace y qué hacer si algo falla**.
 
 > **Para la exposición de 10 minutos con un solo expositor, usa [guion_exposicion.md](guion_exposicion.md)**: el guion minuto a minuto de las 10 diapositivas de la página (qué decir, qué hacer, la demo y las preguntas probables). Esta guía queda como referencia de la versión con todo el grupo.
 
@@ -15,11 +15,11 @@ Guía para que el grupo prepare y dé la presentación **virtual** del avance de
 | Rol | Quién | Qué hace | Su guía |
 |---|---|---|---|
 | Presentador principal | ___ | Conduce, muestra las diapositivas y narra la demo | esta |
-| Operador del maestro | Piero (tiene la muestra y el puerto abierto) | Comparte su pantalla durante la demo y lanza `maestro.exe` | [guia_maestro.md](../cluster/tailscale/anterior/guia_maestro.md), paso 8 |
-| Nodo con GPU NVIDIA 1 | augusto (RTX 3060 Ti) | Corre `nodo.ps1`; comparte pantalla cuando se le pide (validación CUDA) | [guia_nodo_con_nvidia.md](../cluster/tailscale/anterior/guia_nodo_con_nvidia.md), paso 10 |
+| Operador del maestro | Piero (tiene la muestra y el puerto abierto) | Comparte su pantalla durante la demo y lanza `maestro.exe` | [guia_maestro.md](../../vpn/maestro.md), paso 8 |
+| Nodo con GPU NVIDIA 1 | augusto (RTX 3060 Ti) | Corre `nodo.ps1`; comparte pantalla cuando se le pide (validación CUDA) | [guia_nodo_con_nvidia.md](../../herramientas/windows.md#6-nvidia-opcional), paso 10 |
 | Nodo con GPU NVIDIA 2 | josue (RTX 4060 Laptop) | Ídem | ídem |
-| Nodo sin GPU NVIDIA | angelo (Fedora, CPU) | Corren `nodo.ps1`; uno de ellos hace la "caída" del nodo | [guia_nodo_sin_nvidia.md](../cluster/tailscale/anterior/guia_nodo_sin_nvidia.md), paso 7 |
-| Respaldo | ___ | Tiene listo el plan B (sección 6) y la grabación del ensayo | [guia_maestro.md](../cluster/tailscale/anterior/guia_maestro.md), paso 8 |
+| Nodo sin GPU NVIDIA | angelo (Fedora, CPU) | Corren `nodo.ps1`; uno de ellos hace la "caída" del nodo | [guia_nodo_sin_nvidia.md](../../vpn/nodo.md), paso 7 |
+| Respaldo | ___ | Tiene listo el plan B (sección 6) y la grabación del ensayo | [guia_maestro.md](../../vpn/maestro.md), paso 8 |
 
 Todos con la cámara apagada y el micrófono silenciado, salvo quien habla. Las terminales con letra grande: `Ctrl` + rueda del mouse en Windows Terminal.
 
@@ -43,7 +43,7 @@ Toda la presentación está en la página del proyecto: botón **Presentación**
 
 ## 4. La demo, paso a paso (diapositiva 6)
 
-**Antes de empezar a hablar:** el maestro está en modo servidor (`maestro -web`, [guia_maestro.md](../cluster/tailscale/anterior/guia_maestro.md), paso 8) y **los tres nodos ya aparecen en la sala** de la página. Cada uno ejecutó su comando una sola vez.
+**Antes de empezar a hablar:** el maestro está en modo servidor (`maestro -web`, [guia_maestro.md](../../vpn/maestro.md), paso 8) y **los tres nodos ya aparecen en la sala** de la página. Cada uno ejecutó su comando una sola vez.
 
 1. **La sala.** Señalar cada nodo: nombre, **GPU** o **CPU**, la tarjeta y la IP `100.x` (PCs en casas distintas). Tema: memoria distribuida, solo mensajes.
 2. **1 GPU.** Marcar solo **augusto** → **Entrenar** (200 épocas, sin verificar). En ~2 s:
@@ -62,7 +62,7 @@ Referencia de lo que dice cada diapositiva de la página, por si hay que exporta
 
 1. **Problema.** Una frase de impacto social y la pregunta predictiva. Datos: 4 contaminantes, 16 972 287 filas, 1447 estaciones.
 2. **Por qué se puede distribuir.** La fórmula ∇L = Σᵢ ∇ℓᵢ partida en Σ_{nodo 1} + Σ_{nodo 2} + …; la figura del *parameter server*. Conceptos del sílabo: **descomposición de datos** (semana 10) y **paso de mensajes** (semanas 3-4).
-3. **Arquitectura del clúster.** La figura de [cluster/README.md](../cluster/README.md). Clasificación: **multicomputador MIMD de memoria distribuida, heterogéneo** (semana 2); dentro de cada nodo, memoria compartida o GPU SIMT. Protocolo: JSON por TCP (registro, partición, parámetros, gradiente, finalizado, baja).
+3. **Arquitectura del clúster.** La figura de [cluster/README.md](../proyecto/arquitectura_cluster.md). Clasificación: **multicomputador MIMD de memoria distribuida, heterogéneo** (semana 2); dentro de cada nodo, memoria compartida o GPU SIMT. Protocolo: JSON por TCP (registro, partición, parámetros, gradiente, finalizado, baja).
 4. **De dónde venimos.** Experimento 1 (cargador, S(16) = 3,77) y 1b (entrenamiento con goroutines, S(8) = 6,11 con reducción; mutex y CAS más lentos que el secuencial). El clúster reutiliza la misma reducción.
 5. **Resultados del Experimento 2: clúster real por internet con todos los datos de NO2.**
 

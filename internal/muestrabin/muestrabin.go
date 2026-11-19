@@ -1,6 +1,6 @@
 // Package muestrabin arma la muestra de entrenamiento directamente desde
 // los registros limpios del cargador (sin MongoDB ni muestra.gob) y la
-// escribe en data/muestra.bin, versión 2 de docs/contratos/contrato_formato_binario.md.
+// escribe en data/muestra.bin, versión 2 de docs/desarrollo/contratos/contrato_formato_binario.md.
 //
 // El archivo tiene que salir idéntico byte a byte en cualquier nodo y con
 // cualquier número de hilos, porque su SHA-256 (la huella) es lo que el

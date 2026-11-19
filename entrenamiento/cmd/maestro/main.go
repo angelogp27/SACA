@@ -3,7 +3,7 @@
 // muestra). En cada corrida le asigna a cada nodo una partición disjunta
 // de las estaciones y entrena la regresión logística en modo síncrono: en
 // cada época difunde los parámetros, espera el gradiente parcial de cada
-// nodo, los suma y actualiza (docs/contratos/contrato_protocolo_tcp.md).
+// nodo, los suma y actualiza (docs/desarrollo/contratos/contrato_protocolo_tcp.md).
 //
 // Dos modos:
 //   - De una corrida (por defecto): espera -nodos nodos, entrena una vez,
@@ -49,6 +49,8 @@ type configuracion struct {
 	// transferencias: CSV con los MB por la red de cada corrida de la red
 	// neuronal y de cada predicción distribuida.
 	transferencias string
+	// historial de procesos terminados (nil fuera del modo servidor).
+	historial *historial
 }
 
 func main() {
@@ -70,6 +72,7 @@ func main() {
 	exportar := flag.String("exportar", "", "modo servidor: ejecutable de herramientas/cmd/exportar para regenerar el mapa tras cada corrida terminada (necesita MongoDB)")
 	datosPagina := flag.String("datos-pagina", "frontend/public/datos,frontend/dist/datos", "modo servidor: directorios donde dejar los JSON del mapa regenerado (separados por comas; se ignoran los que no existen)")
 	nodoLocal := flag.String("nodo-local", "", "modo servidor: id del nodo trabajador que corre en esta misma laptop (lo pone el lanzador)")
+	dirHistorial := flag.String("historial", "resultados/historial", "modo servidor: carpeta donde se guarda cada limpieza, entrenamiento y predicción terminados, para verlos en la página (vacío = no guardar)")
 	transferencias := flag.String("transferencias", "resultados/transferencias.csv", "modo servidor: CSV con los MB que pasan por la red en cada entrenamiento de la red neuronal y en cada predicción distribuida (vacío = no guardar)")
 	resultadoLimpieza := flag.String("resultado-limpieza", "resultados/limpieza.csv", "modo servidor: CSV al que se agregan los tiempos de cada limpieza (vacío = no guardar)")
 	pesosFlag := flag.String("pesos", "", "pesos del reparto proporcional, p. ej. angelo=1,josue=4; al terminar cada corrida el maestro sugiere unos a partir de lo medido")
@@ -107,20 +110,24 @@ func main() {
 
 	cfgMaestro := distribuido.ConfigMaestro{Capacidad: *nodos, Datos: datos, Huella: huella, RutaMuestra: *rutaMuestra, MesCorte: *mesCorte, EsperaGradiente: *espera}
 	var difusor *difusor
+	var hist *historial // modo servidor
 	if *web != "" {
 		difusor = nuevoDifusor()
 		cfgMaestro.Capacidad = *capacidad
 		cfgMaestro.Notificar = difusor.Publicar
 		cfgMaestro.AceptarOtraMuestra = true
 		dirsPagina := strings.Split(*datosPagina, ",")
+		hist = nuevoHistorial(*dirHistorial, *nodoLocal)
 		rutaTransferencias := *transferencias
 		cfgMaestro.PrediccionTerminada = func(e distribuido.EstadoPrediccion, filas []distribuido.FilaPrediccion, m distribuido.ModeloEntrenado) {
 			guardarTransferencia(rutaTransferencias, filaPrediccion(e))
+			hist.guardar(HistPrediccion, describirPrediccion(e), e.Estado, e.TTotalS, e)
 			datosDesdePrediccion(dirsPagina, e, filas, m)
 		}
 		cfgMaestro.NodoMaestro = *nodoLocal
 		ruta := *resultadoLimpieza
 		cfgMaestro.LimpiezaTerminada = func(e distribuido.EstadoLimpieza, guardar bool) {
+			hist.guardar(HistLimpieza, describirLimpieza(e), e.Estado, time.Since(e.Inicio).Seconds(), e)
 			if !guardar || ruta == "" {
 				return
 			}
@@ -152,7 +159,7 @@ func main() {
 	}()
 
 	cfg := configuracion{epocas: *epocas, tasa: *tasa, verificar: *verificar, resultado: *resultado, modo: *modo, maquina: *maquina, pesos: pesos,
-		rutaModelo: *rutaModelo, exportar: *exportar, datosPagina: strings.Split(*datosPagina, ","), transferencias: *transferencias}
+		rutaModelo: *rutaModelo, exportar: *exportar, datosPagina: strings.Split(*datosPagina, ","), transferencias: *transferencias, historial: hist}
 	if *web != "" {
 		if err := servir(ctx, *web, m, difusor, cfg); err != nil {
 			log.Fatal(err)

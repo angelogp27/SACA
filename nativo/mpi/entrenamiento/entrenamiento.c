@@ -22,7 +22,7 @@
  * Varias PCs: mpiexec --hostfile hosts -n 8 ...  (ver docs/cluster/arquitectura_cluster.md)
  *
  * El número de procesos lo da mpiexec -n, no --hilos. En el CSV va en la
- * columna "goroutines" (docs/contratos/contrato_formato_binario.md).
+ * columna "goroutines" (docs/desarrollo/contratos/contrato_formato_binario.md).
  */
 #include <mpi.h>
 

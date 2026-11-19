@@ -1,5 +1,5 @@
 // Exporta la muestra de entrenamiento al formato binario que leen los
-// núcleos nativos de nativo/ (docs/contratos/contrato_formato_binario.md, archivo 1)
+// núcleos nativos de nativo/ (docs/desarrollo/contratos/contrato_formato_binario.md, archivo 1)
 // y entrena la versión secuencial en Go para dejar el resultado de
 // referencia: la pérdida final de cualquier núcleo nativo debe coincidir
 // con ella dentro de 1e-6.

@@ -1,5 +1,5 @@
 // Package distribuido reúne lo que comparten el maestro y los trabajadores
-// del entrenamiento distribuido por TCP (Parte B, docs/contratos/contrato_protocolo_tcp.md):
+// del entrenamiento distribuido por TCP (Parte B, docs/desarrollo/contratos/contrato_protocolo_tcp.md):
 // la preparación local de la muestra, el filtrado por partición, la
 // agregación de los gradientes parciales y los motores de cálculo de cada
 // nodo (goroutines en Go o un proceso externo en CUDA).

@@ -250,9 +250,9 @@ sequenceDiagram
 ```
 
 - Cada conexión la atiende su propia goroutine (`distribuido.Maestro.Atender`), que le pasa los gradientes al bucle de entrenamiento por un **channel**. Así el modelo lo modifica una sola goroutine y no necesita locks. El registro de nodos (`internal/cluster`) es estado compartido protegido con `sync.Mutex`.
-- Cada trabajador calcula con goroutines o con el motor CUDA, un proceso aparte con el que habla por stdin/stdout ([nativo/cuda/README.md](../../nativo/cuda/README.md)).
+- Cada trabajador calcula con goroutines o con el motor CUDA, un proceso aparte con el que habla por stdin/stdout ([nativo/cuda/README.md](../../../nativo/cuda/README.md)).
 - Contrato completo: [contrato_protocolo_tcp.md](../contratos/contrato_protocolo_tcp.md).
-- En varias PCs: [guia_cluster.md](../cluster/arquitectura_cluster.md).
+- En varias PCs: [guia_cluster.md](arquitectura_cluster.md).
 
 ## 8. Pipeline completo (`scripts/pipeline.ps1` / `.sh`)
 
@@ -288,4 +288,4 @@ flowchart LR
 |---|---|
 | Una PC con Docker | `docker compose up -d mongo` y luego los programas con `go run` |
 | Una PC Windows sin Docker | `scripts/mongo-local.ps1` (MongoDB portable) y luego los programas |
-| Clúster del grupo | Maestro y Mongo en la PC principal; trabajadores y procesos MPI en las demás. Ver [guia_cluster.md](../cluster/arquitectura_cluster.md) |
+| Clúster del grupo | Maestro y Mongo en la PC principal; trabajadores y procesos MPI en las demás. Ver [guia_cluster.md](arquitectura_cluster.md) |

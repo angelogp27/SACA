@@ -2,7 +2,7 @@
 // maestro (reintentando si todavía no está arriba), se registra con la
 // huella de su muestra y su motor de cálculo, recibe su partición y
 // calcula un gradiente parcial por cada época que le pide el maestro
-// (docs/contratos/contrato_protocolo_tcp.md, pasos 1 a 7).
+// (docs/desarrollo/contratos/contrato_protocolo_tcp.md, pasos 1 a 7).
 //
 // Los datos salen de data/muestra.bin, generada o copiada en cada PC: el trabajador
 // no necesita MongoDB. El motor de cálculo puede ser:

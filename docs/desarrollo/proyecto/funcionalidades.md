@@ -10,7 +10,7 @@ Para el orden en que se usan, ver [guia_ejecucion.md](../guias/guia_ejecucion.md
 | [`cargador/cmd/secuencial`](#cargadores) | Cargar los CSV en Mongo con 1 goroutine (línea base) | Sí (salvo `-sin-mongo`) |
 | [`cargador/cmd/concurrente`](#cargadores) | Lo mismo con N goroutines y K agregadoras; con `-bin` genera `data/muestra.bin` | Sí (salvo `-sin-mongo`) |
 | `nativo/pthreads/cargador` | Cargador en C con Pthreads; con `--bin` genera el mismo `muestra.bin` byte a byte | No |
-| [`lanzador/cmd/saca`](../cluster/README.md) | Lanzador local: la página en `127.0.0.1:8090`, *Iniciar* / *Unirse al clúster*, limpieza y entrenamiento | No (solo el maestro, para regenerar el mapa) |
+| [`lanzador/cmd/saca`](../../README.md) | Lanzador local: la página en `127.0.0.1:8090`, *Iniciar* / *Unirse al clúster*, limpieza y entrenamiento | No (solo el maestro, para regenerar el mapa) |
 | [`entrenamiento/cmd/secuencial`](#entrenamiento) | Entrenar el modelo y evaluarlo | Solo la primera vez (luego usa la caché) |
 | [`entrenamiento/cmd/paralelo`](#entrenamiento) | Entrenar con N goroutines y 3 estrategias de sincronización | Ídem |
 | [`entrenamiento/cmd/maestro`](#cluster-tcp) | Maestro del clúster TCP: entrenamiento distribuido síncrono | No (usa `data/muestra.bin`) |
@@ -139,6 +139,8 @@ Las tres estrategias dan **la misma pérdida final**. Si no coincide, hay un err
 | maestro | `-web` | vacío. Con una dirección (p. ej. `127.0.0.1:8080`): **modo servidor**, con sala de espera y API para la página (ver abajo) |
 | maestro | `-capacidad` | `16` (modo servidor: máximo de nodos en la sala) |
 | maestro | `-resultado-limpieza` | `resultados/limpieza.csv` (modo servidor: tiempos de cada limpieza) |
+| maestro | `-historial` | `resultados/historial` (modo servidor: un JSON por cada limpieza, entrenamiento y predicción terminados; la página los muestra en *Resultados*) |
+| maestro | `-transferencias` | `resultados/transferencias.csv` (modo servidor: MB por la red de cada entrenamiento de la red neuronal y de cada predicción distribuida, con el reparto) |
 | maestro | `-modelo`, `-exportar` | vacíos. En modo servidor, al terminar bien una corrida guarda el modelo y corre `exportar` para regenerar el mapa (necesita MongoDB); el lanzador los activa |
 | maestro | `-nodo-local` | id del nodo que corre en la laptop del maestro (lo pone el lanzador) |
 | trabajador | `-maestro` | `localhost:9000` (por Tailscale: `100.x.y.z:9000`) |
@@ -149,7 +151,7 @@ Las tres estrategias dan **la misma pérdida final**. Si no coincide, hay un err
 | trabajador | `-hilos` | `0` = todos los núcleos lógicos (motor go) |
 | trabajador | `-reconectar` | `false` (los scripts `nodo.*` lo activan): si se pierde la conexión con el maestro, vuelve a intentar |
 
-El trabajador no necesita MongoDB y reintenta la conexión si el maestro todavía no arrancó. Con Ctrl+C se despide con un mensaje `baja`. Mensajes: [contrato_protocolo_tcp.md](../contratos/contrato_protocolo_tcp.md). Guías por rol para unir las PCs del grupo por internet: [cluster/README.md](../cluster/README.md). Motor CUDA: [nativo/cuda/README.md](../../nativo/cuda/README.md).
+El trabajador no necesita MongoDB y reintenta la conexión si el maestro todavía no arrancó. Con Ctrl+C se despide con un mensaje `baja`. Mensajes: [contrato_protocolo_tcp.md](../contratos/contrato_protocolo_tcp.md). Guías por rol para unir las PCs del grupo por internet: [cluster/README.md](../../README.md). Motor CUDA: [nativo/cuda/README.md](../../../nativo/cuda/README.md).
 
 **Modo servidor (`-web`).** El maestro queda encendido. Los nodos se conectan una vez y quedan en una sala; la página (`frontend`, pestaña *Clúster*) elige los nodos y lanza las corridas. API (en la dirección de `-web`; la página la usa por el proxy `/api` de Vite):
 
@@ -164,6 +166,9 @@ El trabajador no necesita MongoDB y reintenta la conexión si el maestro todaví
 | `POST /api/limpiezas` | `{"nodos":[...],"tecnologias":["pthreads","go"],"hilos":0}`: cada nodo limpia sus CSV y genera su `muestra.bin`; si ya hay una limpieza en curso, los nodos se suman |
 | `POST /api/limpiezas/cancelar` | `{"guardar":true\|false}`: para la limpieza; con `guardar`, los tiempos ya terminados van a `-resultado-limpieza` |
 | `POST /api/huellas/verificar` | Pregunta a cada nodo la huella de su `muestra.bin` y devuelve el estado |
+| `POST /api/predicciones` | `{"nodos":[...]}`: predicción distribuida con el último modelo entrenado |
+| `GET /api/historial?tipo=` | Procesos terminados guardados en `-historial` (`limpieza`, `entrenamiento` o `prediccion`; sin `tipo`, todos), el más reciente primero: id, fecha, maestro, descripción, estado y duración |
+| `GET /api/historial/{id}` | Un proceso del historial con todos sus datos (`datos`: el estado completo, como lo veía la página al terminar) |
 
 Scripts:
 

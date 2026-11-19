@@ -84,6 +84,16 @@ API del maestro para la página: `POST /api/limpiezas` `{"nodos":[...],"tecnolog
 
 `particion_asignada` lleva `modelo: "red"`, `capas` (p. ej. `[20,64,32,1]`) y `pasos_por_epoca`. Cada época son `pasos_por_epoca` pasos: en el paso `s`, cada nodo calcula el gradiente de su tramo `s` (`internal/red.Lote`, sin barajar) y el maestro los suma en orden de nodo y actualiza con Adam. `parametros` y `gradiente_parcial` llevan `paso` y los vectores en binario: `params_bin` y `grad_bin` (float64 little-endian, en base64 dentro del JSON).
 
+### Reparto dinámico (Fase 3)
+
+Con `dinamico: true` en `POST /api/corridas` (solo la red), al final de cada época (menos la última) el maestro calcula la velocidad de cada nodo (filas que calculó / ms de cálculo) y, si la parte de alguno cambia en más de un 1 % de las filas, envía a cada nodo:
+
+| Mensaje | Dirección | Campos |
+|---|---|---|
+| `reparto` | maestro → trabajador | `corrida`, `epoca` (la primera con el reparto nuevo) y `filtro_mongo` con `mod` = 1024 y `restos` (las cubetas del nodo) |
+
+El nodo vuelve a filtrar su `muestra.bin` (que tiene completa) con esas cubetas: no viajan datos. Llega por la misma conexión antes que los `parametros` de la época siguiente. Las cubetas se reparten por **filas** (`particion.RepartirPorFilas`), igual que en el reparto proporcional. `/api/estado` muestra en `corrida.reparto` (`iguales`, `capacidad` o `dinamico`) y en `corrida.fraccion` la parte de las filas de cada nodo en cada época.
+
 ### Comunicación entre nodos: árbol y anillo (Fase 4)
 
 En `registro` el nodo informa `puerto_pares` (TCP 9002). Con `comunicacion: "arbol"` o `"anillo"`, `particion_asignada` lleva además `rango`, `pares` (la dirección de pares de cada rango), `epocas` y `tasa`. Los nodos se conectan entre ellos (`internal/pares`; en el cable: saludo `corrida` y `rango` en uint32, luego mensajes = largo uint64 + float64 little-endian) y suman el gradiente con una reducción en árbol binomial o un *allreduce* en anillo: todos obtienen los mismos bits y cada uno aplica Adam. El maestro solo envía `parametros` sin vector (la señal del paso) y recibe `gradiente_parcial` sin vector, con `t_red_ms` y `bytes_pares`; el rango 0 adjunta `params_bin` en el último paso.

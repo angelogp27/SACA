@@ -1,5 +1,5 @@
 // Package registro define el esquema del documento que el cargador escribe
-// en MongoDB, según docs/contratos/contrato_registro_procesado.md.
+// en MongoDB, según docs/desarrollo/contratos/contrato_registro_procesado.md.
 package registro
 
 // RegistroProcesado es el resultado de limpiar y unir por (estacion_id,

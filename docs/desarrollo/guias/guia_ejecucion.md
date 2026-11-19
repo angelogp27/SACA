@@ -4,8 +4,8 @@ Para cualquier integrante del grupo que quiera ejecutar SACA en su PC, desde cer
 
 | Quiero… | Ir a | Tiempo |
 |---|---|---|
-| **Usar el clúster** (Iniciar / Unirse, limpieza, entrenamiento) | `bash scripts/saca.sh` o `scripts\saca.ps1` → **http://127.0.0.1:8090** ([guía del clúster](../cluster/README.md)) | 2 min |
-| Ver solo el Tablero (mapa y gráficas), sin instalar nada más | [Tutorial 1](#tutorial-1-ver-el-frontend-en-2-minutos) | 2 min |
+| **Usar el clúster** (Iniciar / Unirse, limpieza, entrenamiento) | `bash scripts/saca.sh` o `scripts\saca.ps1` → **http://127.0.0.1:8090** ([guía del clúster](../../README.md)) | 2 min |
+| Ver solo *Resultados finales* (mapa y gráficas), sin instalar nada más | [Tutorial 1](#tutorial-1-ver-el-frontend-en-2-minutos) | 2 min |
 | Comprobar que todo el proyecto funciona en mi PC | [Prueba end-to-end](#verificar-que-todo-funcione-prueba-end-to-end) | 5 min + descarga |
 | Tener todo el sistema funcionando con los datos completos | [Tutorial 2](#tutorial-2-sistema-completo-de-punta-a-punta) | 15 min + descarga |
 | Entender la concurrencia midiendo yo mismo | [Tutorial 3](#tutorial-3-comparar-diseños-y-estrategias-de-sincronización) | 10 min |
@@ -73,13 +73,13 @@ npm install
 npm run dev
 ```
 
-Abre la URL que aparece (normalmente http://localhost:5173) y ve a la pestaña **Tablero**:
+Abre la URL que aparece (normalmente http://localhost:5173) y ve a la pestaña **Resultados finales**:
 
-> **`npm run dev` solo sirve para el Tablero.** La pestaña **Clúster** (Iniciar / Unirse al clúster, limpieza, entrenamiento) necesita el **lanzador**, que es el que inicia el maestro o el nodo en tu laptop. Sin él, esa pestaña dice *"Falta el lanzador de SACA"*. Para el clúster corre `bash scripts/saca.sh` (Windows: `powershell -ExecutionPolicy Bypass -File scripts\saca.ps1`) y usa la página que abre: **http://127.0.0.1:8090**. Si de todos modos quieres `npm run dev` (para editar la página), deja corriendo `./bin/saca` en otra terminal.
+> **`npm run dev` solo sirve para *Resultados finales*.** La pestaña **Clúster** (Iniciar / Unirse al clúster, limpieza, entrenamiento) necesita el **lanzador**, que es el que inicia el maestro o el nodo en tu laptop. Sin él, esa pestaña dice *"Falta el lanzador de SACA"*. Para el clúster corre `bash scripts/saca.sh` (Windows: `powershell -ExecutionPolicy Bypass -File scripts\saca.ps1`) y usa la página que abre: **http://127.0.0.1:8090**. Si de todos modos quieres `npm run dev` (para editar la página), deja corriendo `./bin/saca` en otra terminal.
 
 - **Mapa:** 1447 estaciones reales. El color indica el % de horas de 2025 sobre el umbral AQI 51 del gas dominante. Al pasar el cursor se ve el detalle; con un clic se cambia la serie.
 - **Serie:** NO2 observado en el día con más alertas de la red y, debajo, la probabilidad que da el modelo de cruzar 53 ppb en la hora siguiente.
-- **Rendimiento:** pestañas Cargador / Entrenamiento con speedup, eficiencia, ideal y Amdahl de los experimentos. "Ver tabla" muestra los valores.
+- **Últimos procesos del clúster:** el último proceso de cada fase (limpieza, entrenamiento y predicción) con sus números clave. Solo aparece con el clúster encendido, porque los lee del historial del maestro.
 
 ---
 
@@ -211,7 +211,7 @@ go run ./entrenamiento/cmd/paralelo -goroutines 8 -estrategia atomico
 | `perdida final` | Es la misma en los cuatro: las cuatro implementaciones son correctas |
 | ms por época | La reducción va ~6× más rápido que el secuencial; mutex y atómico van **más lento** que el secuencial |
 
-La razón es que comparten un acumulador por cada ejemplo, y la contención cuesta más que el cálculo. Código: [internal/logistica/paralelo.go](../../internal/logistica/paralelo.go).
+La razón es que comparten un acumulador por cada ejemplo, y la contención cuesta más que el cálculo. Código: [internal/logistica/paralelo.go](../../../internal/logistica/paralelo.go).
 
 ### c) Detector de carreras
 
@@ -225,7 +225,7 @@ Si alguien introduce un acceso concurrente sin sincronizar, esto falla con un re
 
 ## Tutorial 4: clúster TCP en una PC o en varias
 
-> Para el clúster entre laptops con la página, usa el lanzador ([guía del clúster](../cluster/README.md)). Este tutorial es el modo manual por scripts.
+> Para el clúster entre laptops con la página, usa el lanzador ([guía del clúster](../../README.md)). Este tutorial es el modo manual por scripts.
 
 Requisito: `data/muestra.bin`, que se genera con la limpieza (`bin/cargador_pthreads --bin data/muestra.bin` o `go run ./cargador/cmd/concurrente -sin-mongo -agregadoras 0 -bin data/muestra.bin`) o se copia de otra PC.
 
@@ -254,7 +254,7 @@ Para ver más comportamiento:
 - un tercer trabajador es **rechazado** porque solo hay 2 particiones, y uno con otra muestra es rechazado por `muestra_distinta`;
 - al cerrar un trabajador con Ctrl+C a mitad del entrenamiento, el maestro **aborta** con `el nodo w1 se cayó`.
 
-**En varias PCs**, incluso en casas distintas por internet: seguir la guía de cada rol en [cluster/README.md](../cluster/README.md), que cubre Tailscale, el firewall, los nodos con GPU NVIDIA (motor CUDA) y los problemas frecuentes. Arquitectura y MPI: [guia_cluster.md](../cluster/arquitectura_cluster.md).
+**En varias PCs**, incluso en casas distintas por internet: seguir la guía de cada rol en [cluster/README.md](../../README.md), que cubre Tailscale, el firewall, los nodos con GPU NVIDIA (motor CUDA) y los problemas frecuentes. Arquitectura y MPI: [guia_cluster.md](../proyecto/arquitectura_cluster.md).
 
 ---
 

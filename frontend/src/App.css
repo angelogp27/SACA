@@ -209,3 +209,48 @@
   border-color: var(--status-critical);
   color: var(--status-critical);
 }
+
+/* Resultados finales: el último proceso de cada fase. */
+.resumen-procesos {
+  grid-column: 1 / -1;
+}
+
+.resumen-procesos h2 {
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+
+.resumen-procesos-tarjetas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.resumen-proceso {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.resumen-proceso h3 {
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+
+.resumen-proceso dl {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 12px;
+  margin: 10px 0 0;
+}
+
+.resumen-proceso dt {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.resumen-proceso dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 14px;
+}

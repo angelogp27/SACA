@@ -21,21 +21,21 @@ Cada tema se ve de dos formas:
 
 | Concepto | Dónde está | Qué mostrar |
 |---|---|---|
-| Creación y terminación de tareas | [cargador/cmd/concurrente/main.go](../../cargador/cmd/concurrente/main.go) | `go trabajador(...)` crea N tareas; `trabajadoras.Wait()` + `close(salida)` es la terminación ordenada, sin goroutines huérfanas. |
+| Creación y terminación de tareas | [cargador/cmd/concurrente/main.go](../../../cargador/cmd/concurrente/main.go) | `go trabajador(...)` crea N tareas; `trabajadoras.Wait()` + `close(salida)` es la terminación ordenada, sin goroutines huérfanas. |
 | Grafo de dependencias | El cargador concurrente | despachador → N trabajadoras (independientes entre sí) → K agregadoras → escritura en Mongo. Las trabajadoras no dependen unas de otras; la agregación depende de todas. |
-| Paralelismo ideal y sus límites | [resultados/experimento1.md](../../resultados/experimento1.md) | El speedup se compara con el ideal S(p)=p y con la ley de Amdahl usando la fracción serial **medida**. |
-| Métricas de rendimiento | [experimentos/cmd/analisis](../../experimentos/cmd/analisis/main.go) | Speedup, eficiencia, Karp-Flatt y predicción de Amdahl calculados con la mediana de 3 repeticiones. |
+| Paralelismo ideal y sus límites | [resultados/experimento1.md](../../../resultados/experimento1.md) | El speedup se compara con el ideal S(p)=p y con la ley de Amdahl usando la fracción serial **medida**. |
+| Métricas de rendimiento | [experimentos/cmd/analisis](../../../experimentos/cmd/analisis/main.go) | Speedup, eficiencia, Karp-Flatt y predicción de Amdahl calculados con la mediana de 3 repeticiones. |
 | Memoria compartida vs. distribuida | Parte A frente a Parte B | El cargador y el entrenamiento paralelo comparten memoria (goroutines). El maestro y los trabajadores no comparten nada y solo se envían mensajes TCP. |
-| Hardware paralelo: arquitecturas y modelos de memoria (sem. 2); clasificación física de computadores paralelos (sumilla) | [guia_cluster.md](../cluster/arquitectura_cluster.md) | El clúster del grupo es un multicomputador MIMD de memoria distribuida y heterogéneo: varias PCs con memoria compartida (multinúcleo) y 2 con GPU SIMT. Se programa como en HPC: MPI entre nodos, OpenMP dentro de cada nodo y CUDA en la GPU. |
-| Divide y vencerás | [internal/aqs/aqs.go](../../internal/aqs/aqs.go) `LimitesBloques` | Cada archivo se divide en bloques de bytes ajustados al salto de línea, se procesan por separado y los resultados se combinan. |
+| Hardware paralelo: arquitecturas y modelos de memoria (sem. 2); clasificación física de computadores paralelos (sumilla) | [guia_cluster.md](arquitectura_cluster.md) | El clúster del grupo es un multicomputador MIMD de memoria distribuida y heterogéneo: varias PCs con memoria compartida (multinúcleo) y 2 con GPU SIMT. Se programa como en HPC: MPI entre nodos, OpenMP dentro de cada nodo y CUDA en la GPU. |
+| Divide y vencerás | [internal/aqs/aqs.go](../../../internal/aqs/aqs.go) `LimitesBloques` | Cada archivo se divide en bloques de bytes ajustados al salto de línea, se procesan por separado y los resultados se combinan. |
 
 ## Unidad II: memoria compartida y paso de mensajes
 
 | Concepto (semana) | Dónde está | Qué mostrar |
 |---|---|---|
-| Paso de mensajes: envío y recepción (sem. 3) | [internal/protocolo](../../internal/protocolo/protocolo.go), [maestro](../../entrenamiento/cmd/maestro/main.go), [trabajador](../../entrenamiento/cmd/trabajador/main.go) | `Enviar`/`Recibir` hacen el papel de `MPI_Send`/`MPI_Recv`, con un JSON por línea sobre TCP. |
-| Comunicación colectiva: broadcast, scatter, gather, reduce (sem. 4) | Contrato TCP; [internal/logistica/paralelo.go](../../internal/logistica/paralelo.go) | `particion_asignada` es el scatter del dataset. `parametros` a todos los nodos es el broadcast (semana 9). La suma de gradientes es el reduce. |
-| Hilos, mutex y exclusión mutua (sem. 5) | [internal/cluster](../../internal/cluster/cluster.go); el conteo de filas en el cargador concurrente | El registro de nodos es estado compartido entre las goroutines de cada conexión, así que todas sus operaciones toman el mutex. El conteo de filas se suma bajo mutex una vez por bloque y no por fila, para que la contención sea mínima. |
+| Paso de mensajes: envío y recepción (sem. 3) | [internal/protocolo](../../../internal/protocolo/protocolo.go), [maestro](../../../entrenamiento/cmd/maestro/main.go), [trabajador](../../../entrenamiento/cmd/trabajador/main.go) | `Enviar`/`Recibir` hacen el papel de `MPI_Send`/`MPI_Recv`, con un JSON por línea sobre TCP. |
+| Comunicación colectiva: broadcast, scatter, gather, reduce (sem. 4) | Contrato TCP; [internal/logistica/paralelo.go](../../../internal/logistica/paralelo.go) | `particion_asignada` es el scatter del dataset. `parametros` a todos los nodos es el broadcast (semana 9). La suma de gradientes es el reduce. |
+| Hilos, mutex y exclusión mutua (sem. 5) | [internal/cluster](../../../internal/cluster/cluster.go); el conteo de filas en el cargador concurrente | El registro de nodos es estado compartido entre las goroutines de cada conexión, así que todas sus operaciones toman el mutex. El conteo de filas se suma bajo mutex una vez por bloque y no por fila, para que la contención sea mínima. |
 | Productor-consumidor (sem. 6) | Cargador concurrente | Las trabajadoras producen `ValorLeido` y las agregadoras los consumen por channels con buffer de 1000, que regulan el ritmo si la agregación va más lenta. |
 | Barreras (sem. 6) | `wg.Wait()` en `gradienteReduccion` | Nadie suma los gradientes parciales hasta que terminan todas las goroutines de la época. |
 | Thread-safety (sem. 6) | `Indice.Agregar` (no es seguro) frente a `procesarFila` (sí lo es) | Diseño por **propiedad**: cada índice tiene una sola goroutine dueña, así que no necesita lock. Se verifica con `go test -race`. |
@@ -61,7 +61,7 @@ Cada tema se ve de dos formas:
 | MPI | 3-4 | ✅ maestro TCP con registro de nodos | ✅ `nativo/mpi/entrenamiento` (Scatterv, Allreduce y variante Send/Recv + Bcast); misma pérdida que Go | 7 |
 | Pthreads | 5-6 | ✅ cargador concurrente | ✅ `nativo/pthreads/cargador` (cola productor-consumidor, mutex y agregadoras dueñas de su índice); mismos conteos que Go | 5 |
 | OpenMP | 7, 9-10 | ✅ `gradienteReduccion` | ✅ `nativo/openmp/entrenamiento` (`reduction` con `schedule` static/dynamic/guided); pendiente `variables` (tareas por estación) | 6 |
-| Clúster (MPI + OpenMP + CUDA entre PCs) | 2, 3-4, 10 | ✅ el maestro Go acepta nodos remotos | ✅ huella de hardware por nodo (`internal/hardware`) y reparto proporcional (`-reparto proporcional -pesos`, Experimento 9) en el maestro Go; pendiente: ping-pong MPI y el híbrido MPI + OpenMP + CUDA entre PCs; ver [guia_cluster.md](../cluster/arquitectura_cluster.md) | 2, 7, 7a, 9 |
+| Clúster (MPI + OpenMP + CUDA entre PCs) | 2, 3-4, 10 | ✅ el maestro Go acepta nodos remotos | ✅ huella de hardware por nodo (`internal/hardware`) y reparto proporcional (`-reparto proporcional -pesos`, Experimento 9) en el maestro Go; pendiente: ping-pong MPI y el híbrido MPI + OpenMP + CUDA entre PCs; ver [guia_cluster.md](arquitectura_cluster.md) | 2, 7, 7a, 9 |
 | CUDA | 11-13 | — | motor del clúster hecho (`gradiente_servidor.cu`); kernels `atomic`/`shared`/`shuffle` en `nativo/cuda/gradiente` (lógica comprobada con la emulación en CPU; falta compilarlos y medirlos en una PC con NVIDIA); pendiente `estaciones` (semana 13) | 8 |
 
 ## Hallazgos para defender oralmente

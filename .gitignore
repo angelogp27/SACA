@@ -9,6 +9,7 @@ presentacion_semana5.md
 /resultados/cluster.csv
 /resultados/limpieza.csv
 /resultados/transferencias.csv
+/resultados/historial/
 /resultados/*_anterior.csv
 /resultados/experimento2_lan.csv
 # .bin a medias de una limpieza interrumpida

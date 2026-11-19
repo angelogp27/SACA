@@ -10,8 +10,10 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { apiCluster, useCluster } from '../../data/cluster'
 import { apiLocal } from '../../data/local'
-import PanelCluster from '../PanelCluster'
-import Protector from '../Protector'
+import CuadrosEpocas from './CuadrosEpocas'
+import Fases from './Fases'
+import Historial from './Historial'
+import { csvEntrenamiento, csvLimpieza, csvPrediccion, descargarCSV } from './csv'
 import logoIntel from '../../assets/marcas/Intel.png'
 import logoNvidia from '../../assets/marcas/NVIDIA.png'
 import logoRyzen from '../../assets/marcas/Ryzen.svg'
@@ -297,24 +299,129 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
   )
 }
 
-// Durante el entrenamiento de la red: la figura de la comunicación y, en
-// cada tarjeta, qué parte de las filas calculó ese nodo en la última época
-// (con el reparto dinámico se ve cómo se ajusta).
+// Durante el entrenamiento: la figura de la comunicación con cada nodo de
+// un tamaño según la parte de las filas que calculó en la última época
+// (partes iguales: todos iguales; según la capacidad: fijos; dinámico:
+// cambian en cada época), con un tope para que ninguno tape a los demás.
 function TopologiaEntrenamiento({ corrida, inst }) {
   const sala = new Map((inst.sala ?? []).map((nd) => [nd.id, nd]))
   const maestro = (inst.sala ?? []).find((nd) => nd.id === inst.nodo_maestro)
+  const nodos = corrida.nodos ?? []
+  const n = Math.max(nodos.length, 1)
+  // Parte de cada nodo: la última época medida o, si no hay, los ejemplos.
   const ultima = (corrida.fraccion ?? []).at(-1)
-  const indice = new Map((corrida.nodos ?? []).map((nd, i) => [nd.id, i]))
+  const ejemplos = nodos.reduce((a, nd) => a + (nd.ejemplos ?? 0), 0)
+  const parte = (i) => ultima?.[i] ?? (ejemplos > 0 ? nodos[i].ejemplos / ejemplos : 1 / n)
+  const indice = new Map(nodos.map((nd, i) => [nd.id, i]))
   const reparto = { dinamico: 'reparto dinámico', capacidad: 'reparto según la capacidad', iguales: 'partes iguales' }[corrida.reparto]
+  const comunicacion = corrida.comunicacion || 'central'
   return (
     <Topologia
-      corrida={corrida} sala={sala} maestro={maestro} detallado fila={165}
-      subtitulo={`${NOMBRE_COMUNICACION[corrida.comunicacion || 'central']}${reparto ? ` · ${reparto}` : ''}`}
+      corrida={{ ...corrida, comunicacion }} sala={sala} maestro={maestro} detallado fila={200}
+      subtitulo={`${NOMBRE_COMUNICACION[comunicacion]}${reparto ? ` · ${reparto}` : ''}`}
       tarjeta={(nd) => {
-        const f = ultima?.[indice.get(nd.id)]
-        return <Nodo nodo={nd} tipo={nd.id === maestro?.id ? 'maestro' : 'nodo'} extra={f != null ? `${(f * 100).toFixed(1)} % de las filas` : undefined} />
+        const i = indice.get(nd.id)
+        const f = i == null ? null : parte(i)
+        // 1 = la parte de un reparto igual; entre 0,7 y 1,6 veces.
+        const escala = f == null ? 1 : Math.min(1.6, Math.max(0.7, Math.sqrt(f * n)))
+        return (
+          <div className="topo-escala" style={{ '--escala': escala.toFixed(3) }}>
+            <Nodo nodo={nd} tipo={nd.id === maestro?.id ? 'maestro' : 'nodo'} extra={f != null ? `${(f * 100).toFixed(1)} % de las filas` : undefined} />
+          </div>
+        )
       }}
     />
+  )
+}
+
+const fmtS2 = (s) => (s == null ? '—' : `${s.toLocaleString('es-PE', { maximumFractionDigits: s < 10 ? 2 : 1 })} s`)
+const fmtNum = (v, d = 0) => (v == null || Number.isNaN(v) ? '—' : v.toLocaleString('es-PE', { maximumFractionDigits: d, minimumFractionDigits: d }))
+
+// Resultados del entrenamiento: los números clave, un cuadro por época y la
+// comunicación entre los nodos.
+function ResultadoEntrenamiento({ corrida, inst, esMaestro, vivo, onSiguiente }) {
+  const [error, setError] = useState('')
+  const enCurso = vivo && (corrida.estado === 'entrenando' || corrida.estado === 'verificando')
+  const r = corrida.resultado
+  const ultimo = (serie) => serie?.at(-1)
+  const media = (serie) => (serie?.length ? serie.reduce((a, b) => a + b, 0) / serie.length : null)
+  const estado = {
+    entrenando: `Entrenando · época ${corrida.epoca} de ${corrida.epocas}`,
+    verificando: `Verificando contra el secuencial · época ${corrida.verificacion_epoca}`,
+    terminado: 'Terminado',
+    cancelado: 'Cancelado',
+    error: 'Con error',
+  }[corrida.estado] ?? corrida.estado
+  const datos = [
+    ['Estado', estado],
+    ['Modelo', (corrida.modelo ?? '').startsWith('red') ? `Red Neuronal · ${corrida.pasos_por_epoca} mini-lotes` : 'Regresión logística'],
+    ['Tiempo por época', `${fmtNum(media(corrida.t_epoca_ms))} ms`],
+    ['Cálculo / red y espera', `${fmtNum(media(corrida.t_calculo_ms))} / ${fmtNum(media(corrida.t_red_ms))} ms`],
+    ['Por la red', corrida.mb_epoca?.length ? `${fmtNum(media(corrida.mb_epoca), 1)} MB por época` : '—'],
+    ['Pérdida', fmtNum(ultimo(corrida.perdidas), 4)],
+  ]
+  if (r) {
+    datos.push(['Total', fmtS2(r.t_total_s)])
+    if (r.speedup > 0) datos.push(['Speedup', `${fmtNum(r.speedup, 2)}×`])
+    datos.push(['AUC / F1', `${fmtNum(r.auc, 3)} / ${fmtNum(r.f1, 3)}`])
+  }
+  return (
+    <>
+      <section className="flujo-limpieza resumen-entrenamiento" aria-label="Entrenamiento">
+        <dl className="datos-entrenamiento">
+          {datos.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
+        </dl>
+        {corrida.mensaje && <p className="error">{corrida.mensaje}</p>}
+        <CuadrosEpocas corrida={corrida} enCurso={enCurso && corrida.estado === 'entrenando'} />
+        {esMaestro && vivo && (
+          <div className="sala-botones sala-botones-fila">
+            {enCurso && (
+              <button type="button" className="boton" onClick={() => apiCluster.cancelar().catch((e) => setError(e.message))}>Cancelar entrenamiento</button>
+            )}
+            {!enCurso && corrida.estado === 'terminado' && inst.modelo_listo && (
+              <button type="button" className="boton-grande" onClick={onSiguiente}>Siguiente: predicción distribuida</button>
+            )}
+          </div>
+        )}
+        {error && <p className="error" role="alert">{error}</p>}
+      </section>
+      <TopologiaEntrenamiento corrida={corrida} inst={inst} />
+    </>
+  )
+}
+
+// Nuevo → Predicción distribuida: con qué nodos y el botón para empezar.
+function NuevoPrediccion({ inst, esMaestro, onPredecir, ocupado, error }) {
+  const sala = new Map((inst.sala ?? []).map((n) => [n.id, n]))
+  const maestro = sala.get(inst.nodo_maestro)
+  // Los nodos del último entrenamiento que siguen en la sala; si no, todos.
+  const deCorrida = (inst.corrida?.nodos ?? []).map((n) => sala.get(n.id)).filter(Boolean)
+  const nodos = deCorrida.length ? deCorrida : inst.sala ?? []
+  return (
+    <section className="flujo-sala" aria-label="Nueva predicción distribuida">
+      <div className="sala-centro">
+        <span className="rotulo">CLÚSTER INICIADO</span>
+        {maestro && <Nodo nodo={maestro} tipo="maestro coordinador" rol="Maestro" />}
+        {esMaestro && (
+          <div className="sala-botones">
+            <button type="button" className="boton-grande" disabled={!!ocupado || !inst.modelo_listo || nodos.length === 0} onClick={() => onPredecir(nodos.map((n) => n.id))}>
+              {ocupado === 'predecir' ? 'Iniciando…' : 'INICIAR PREDICCIÓN'}
+            </button>
+          </div>
+        )}
+        <p className="detalle">
+          {inst.modelo_listo
+            ? 'Cada nodo predice todas las horas de sus estaciones con el último modelo entrenado y le envía los resultados al maestro.'
+            : 'Todavía no hay un modelo entrenado con esta muestra: primero entrena uno.'}
+        </p>
+      </div>
+      <div className="sala-topologia">
+        {nodos.length > 0 && (
+          <Topologia corrida={{ nodos, comunicacion: 'central' }} maestro={maestro} rotulo="PREDICCIÓN DISTRIBUIDA" subtitulo="Cada nodo envía sus predicciones al maestro" />
+        )}
+      </div>
+      <div className="sala-pie">{error && <p className="error" role="alert">{error}</p>}</div>
+    </section>
   )
 }
 
@@ -561,7 +668,7 @@ function Topologia({ corrida, sala, maestro, rotulo = 'COMUNICACIÓN', subtitulo
             // el del origen.
             const l = Math.hypot(x2 - x1, y2 - y1) || 1
             const sube = y2 < y1 - 20, baja = y2 > y1 + 20
-            const minimo = sube ? 95 : 50
+            const minimo = sube ? 115 : 50
             const maximo = baja ? l - 95 : l - 50
             const d = minimo <= maximo ? Math.min(Math.max(70, minimo), maximo) : l / 2
             const mx = x2 - ((x2 - x1) / l) * d, my = y2 - ((y2 - y1) / l) * d
@@ -588,7 +695,7 @@ function Topologia({ corrida, sala, maestro, rotulo = 'COMUNICACIÓN', subtitulo
 // Pantalla de la predicción distribuida (Fase 5): cada nodo predice todas
 // las horas de sus estaciones con el modelo entrenado y le envía los
 // resultados al maestro (gather), que regenera el mapa y la línea de tiempo.
-function Prediccion({ inst, esMaestro, onVerMapa, onVolver }) {
+function Prediccion({ inst, onVerFinal }) {
   const p = inst.prediccion
   const sala = new Map((inst.sala ?? []).map((n) => [n.id, n]))
   const fmtN = (v) => (v ?? 0).toLocaleString('es-PE')
@@ -642,10 +749,9 @@ function Prediccion({ inst, esMaestro, onVerMapa, onVolver }) {
             {p.estado === 'terminada' && `Listo en ${p.t_total_s.toLocaleString('es-PE', { maximumFractionDigits: 2 })} s: el mapa (Alerta del modelo) y la línea de tiempo ya usan este modelo.`}
             {p.estado === 'error' && p.mensaje}
           </p>
-          {esMaestro && p.estado !== 'prediciendo' && (
+          {p.estado === 'terminada' && onVerFinal && (
             <div className="sala-botones">
-              {p.estado === 'terminada' && <button type="button" className="boton-grande" onClick={onVerMapa}>Ver en el mapa</button>}
-              <button type="button" className="boton" onClick={onVolver}>Volver a elegir nodos</button>
+              <button type="button" className="boton-grande" onClick={onVerFinal}>Ver resultados finales</button>
             </div>
           )}
         </footer>
@@ -720,13 +826,13 @@ function CeldaTec({ t }) {
 // Pantalla 3: limpieza de datos e ingeniería de features (escritura de
 // muestra.bin) en una sola tabla; cada tecnología, una gráfica con las dos
 // fases seguidas.
-function Limpieza({ inst, esMaestro, onContinuar }) {
+function Limpieza({ inst, esMaestro, vivo, onSiguiente }) {
   const l = inst.limpieza
   const [preguntar, setPreguntar] = useState(false)
   const [error, setError] = useState('')
-  const enCurso = l.estado === 'limpiando'
+  const enCurso = vivo && l.estado === 'limpiando'
   const enLimpieza = new Set(l.nodos.map((n) => n.id))
-  const nuevos = (inst.sala ?? []).filter((n) => !enLimpieza.has(n.id))
+  const nuevos = vivo ? (inst.sala ?? []).filter((n) => !enLimpieza.has(n.id)) : []
   const sala = new Map((inst.sala ?? []).map((n) => [n.id, n]))
   const huellas = new Set(l.nodos.flatMap((n) => n.tecnologias.filter((t) => t.huella).map((t) => t.huella)))
 
@@ -790,10 +896,11 @@ function Limpieza({ inst, esMaestro, onContinuar }) {
       <footer className="limpieza-pie">
         {/* Solo se avisa si algo salió mal: muestras con huellas distintas. */}
         {!enCurso && huellas.size > 1 ? <p className="error">Los nodos generaron {huellas.size} muestras distintas (huellas diferentes).</p> : <span />}
-        {esMaestro && (
+        {esMaestro && vivo && (
           <div className="sala-botones">
-            <button type="button" className="boton-grande" disabled={enCurso} onClick={onContinuar}>Continuar</button>
-            {enCurso && <button type="button" className="boton" onClick={() => setPreguntar(true)}>Parar limpieza</button>}
+            {enCurso
+              ? <button type="button" className="boton" onClick={() => setPreguntar(true)}>Parar limpieza</button>
+              : <button type="button" className="boton-grande" onClick={onSiguiente}>Siguiente: entrenamiento</button>}
           </div>
         )}
         {error && <p className="error" role="alert">{error}</p>}
@@ -838,27 +945,41 @@ function SinLanzador() {
 
 // ---------- flujo ----------
 
-export default function FlujoCluster({ datos, lanzador, onVerMapa }) {
+const ESTADO_FASE = {
+  limpieza: { limpiando: 'curso', terminada: 'hecho', cancelada: 'parada', error: 'parada' },
+  entrenamiento: { entrenando: 'curso', verificando: 'curso', terminado: 'hecho', cancelado: 'parada', error: 'parada' },
+  prediccion: { prediciendo: 'curso', terminada: 'hecho', error: 'parada' },
+}
+const NOMBRE_CSV = { limpieza: 'limpieza', entrenamiento: 'entrenamiento', prediccion: 'prediccion' }
+const ARMAR_CSV = { limpieza: csvLimpieza, entrenamiento: csvEntrenamiento, prediccion: csvPrediccion }
+
+// Flujo del clúster. Arriba: Nuevo (los paneles para iniciar cada fase;
+// las laptops que no son el maestro los ven sin botones) o Resultados (la
+// fase en vivo o un proceso del historial, con su CSV), y la línea de fases.
+// Cuando el maestro inicia algo, todas las laptops pasan a sus Resultados.
+export default function FlujoCluster({ lanzador, onVerFinal }) {
   const { datos: local, actualizar } = lanzador
   const rol = local?.rol ?? ''
   const { conectado, inst, perdido } = useCluster(rol !== '')
   const esMaestro = rol === 'maestro'
-  const [paso, setPaso] = useState('sala') // 'sala' | 'pre' | 'entrenamiento'
+  const [modo, setModo] = useState('nuevo') // 'nuevo' | 'resultados'
+  const [fase, setFase] = useState('limpieza') // 'limpieza' | 'entrenamiento' | 'prediccion'
+  // La limpieza se saltó en esta sesión (Saltar limpieza).
+  const [omitida, setOmitida] = useState(false)
+  // Proceso del historial que se está viendo: { fase, id, datos, descripcion, fecha }.
+  const [historico, setHistorico] = useState(null)
+  // Último proceso en curso visto: al aparecer uno nuevo, se pasa a sus Resultados.
+  const [ultimoEnCurso, setUltimoEnCurso] = useState('')
   // Nodos que el maestro quitó de la selección (en gris); los demás de la
   // sala, incluidos los que llegan, entran elegidos.
   const [quitados, setQuitados] = useState(new Set())
-  // Modelo a entrenar (pantalla "antes de entrenar").
+  // Modelo a entrenar (Nuevo → Entrenamiento).
   const [ajustes, setAjustes] = useState({ modelo: 'red', epocas: 20, pasos: 25, reparto: 'dinamico', comunicacion: 'arbol' })
-  // Limpieza ya vista (botón Continuar): mientras no, se sigue mostrando.
-  const [continuada, setContinuada] = useState(0)
   const [ocupado, setOcupado] = useState('')
   // Error y avisos de una acción, atados a la pantalla en que ocurrieron:
   // al cambiar de pantalla dejan de mostrarse.
-  const [mensaje, setMensaje] = useState({ paso: '', error: '', avisos: [] })
+  const [mensaje, setMensaje] = useState({ pantalla: '', error: '', avisos: [] })
 
-  const limpieza = inst?.limpieza
-  const corrida = inst?.corrida
-  const entrenando = corrida && (corrida.estado === 'entrenando' || corrida.estado === 'verificando')
   const seleccion = useMemo(() => new Set((inst?.sala ?? []).map((n) => n.id).filter((id) => !quitados.has(id))), [inst?.sala, quitados])
   const setSeleccion = (f) =>
     setQuitados(() => {
@@ -868,11 +989,7 @@ export default function FlujoCluster({ datos, lanzador, onVerMapa }) {
 
   if (!local && lanzador.disponible === false) return <SinLanzador />
   if (!local) return <p className="detalle">Conectando con el lanzador local…</p>
-
-  // El rol de esta laptop y el botón para salir van arriba a la izquierda (App).
-  const salir = null
-
-  if (!rol) return <>{salir}<Inicio local={local} actualizar={actualizar} /></>
+  if (!rol) return <Inicio local={local} actualizar={actualizar} />
   if (perdido && !conectado) {
     return (
       <section className="flujo-aviso" role="status">
@@ -883,22 +1000,43 @@ export default function FlujoCluster({ datos, lanzador, onVerMapa }) {
   }
   if (!inst) return <section className="flujo-aviso" role="status"><p className="detalle">Conectando con el maestro…</p></section>
 
-  // Un entrenamiento en curso siempre se muestra; una limpieza también,
-  // hasta que el maestro aprieta Continuar.
-  // (Las laptops que solo miran no tienen Continuar: ven la limpieza solo mientras corre.)
-  const viendoLimpieza = limpieza && (limpieza.estado === 'limpiando' || (esMaestro && limpieza.id !== continuada))
-  const prediciendo = inst?.prediccion?.estado === 'prediciendo'
-  const pasoActual = entrenando ? 'entrenamiento' : prediciendo ? 'prediccion' : viendoLimpieza ? 'limpieza' : paso
-  const error = mensaje.paso === pasoActual ? mensaje.error : ''
-  const avisos = mensaje.paso === pasoActual ? mensaje.avisos : []
+  // Lo actual de cada fase (en vivo): la última limpieza, corrida y predicción.
+  const actual = { limpieza: inst.limpieza, entrenamiento: inst.corrida, prediccion: inst.prediccion }
+  const estadoDe = (f) => ESTADO_FASE[f][actual[f]?.estado]
+  const enCurso = ['limpieza', 'entrenamiento', 'prediccion'].find((f) => estadoDe(f) === 'curso')
+  const claveEnCurso = enCurso ? `${enCurso}:${actual[enCurso].id}` : ''
+  if (claveEnCurso && claveEnCurso !== ultimoEnCurso) {
+    // Empezó un proceso: todas las laptops pasan a sus resultados en vivo.
+    setUltimoEnCurso(claveEnCurso)
+    setModo('resultados')
+    setFase(enCurso)
+    setHistorico(null)
+  }
+  const estados = {
+    limpieza: estadoDe('limpieza') ?? (omitida ? 'omitida' : 'pendiente'),
+    entrenamiento: estadoDe('entrenamiento') ?? 'pendiente',
+    prediccion: estadoDe('prediccion') ?? 'pendiente',
+    final: estadoDe('prediccion') === 'hecho' ? 'hecho' : 'pendiente',
+  }
+  // Cambia cuando termina algo: el historial se vuelve a pedir.
+  const recargarHistorial = ['limpieza', 'entrenamiento', 'prediccion'].map((f) => `${actual[f]?.id}:${actual[f]?.estado}`).join('|')
+
+  const pantalla = `${modo}:${fase}`
+  const error = mensaje.pantalla === pantalla ? mensaje.error : ''
+  const avisos = mensaje.pantalla === pantalla ? mensaje.avisos : []
+  const ir = (m, f) => {
+    setModo(m)
+    setFase(f)
+    setHistorico(null)
+  }
 
   const accion = async (nombre, f) => {
     setOcupado(nombre)
-    setMensaje({ paso: '', error: '', avisos: [] })
+    setMensaje({ pantalla: '', error: '', avisos: [] })
     try {
       await f()
     } catch (e) {
-      setMensaje({ paso: pasoActual, error: e.message, avisos: [] })
+      setMensaje({ pantalla, error: e.message, avisos: [] })
     } finally {
       setOcupado('')
     }
@@ -914,11 +1052,13 @@ export default function FlujoCluster({ datos, lanzador, onVerMapa }) {
 
   const onLimpiar = () => accion('limpiar', async () => {
     await apiCluster.limpiar((inst.sala ?? []).map((n) => n.id))
+    setOmitida(false)
   })
   const onSaltar = () => accion('saltar', async () => {
     const malos = await distintos((inst.sala ?? []).map((n) => n.id))
-    if (malos.length) setMensaje({ paso: 'pre', error: '', avisos: [`No todos tienen el mismo muestra.bin que el maestro: ${describir(malos)}. Puedes continuar sin ellos o realizar la limpieza.`] })
-    setPaso('pre')
+    setOmitida(true)
+    ir('nuevo', 'entrenamiento')
+    if (malos.length) setMensaje({ pantalla: 'nuevo:entrenamiento', error: '', avisos: [`No todos tienen el mismo muestra.bin que el maestro: ${describir(malos)}. Puedes continuar sin ellos o realizar la limpieza.`] })
   })
   const onEntrenar = () => accion('entrenar', async () => {
     const ids = (inst.sala ?? []).map((n) => n.id).filter((id) => seleccion.has(id))
@@ -928,52 +1068,97 @@ export default function FlujoCluster({ datos, lanzador, onVerMapa }) {
       throw new Error(`Se quitaron de la selección porque su muestra.bin no es la del maestro: ${describir(malos)}.`)
     }
     // Fase 3: reparto según la capacidad medida de cada nodo, si el maestro
-    // la conoce para todos los elegidos; si no, partes iguales.
+    // la conoce para todos los elegidos; si no, partes iguales. El dinámico
+    // (solo la red) empieza con la capacidad medida, si la hay.
     const sug = inst.pesos_sugeridos ?? {}
-    // Dinámico (solo la red): empieza con la capacidad medida, si la hay.
     const dinamico = ajustes.reparto === 'dinamico' && ajustes.modelo === 'red'
     const proporcional = (ajustes.reparto === 'capacidad' || dinamico) && ids.every((id) => sug[id] > 0)
     const pesos = proporcional ? Object.fromEntries(ids.map((id) => [id, sug[id]])) : undefined
     await apiCluster.entrenar(ids, ajustes.epocas, true, { modelo: ajustes.modelo, pasos: ajustes.pasos, pesos, comunicacion: ajustes.modelo === 'red' ? ajustes.comunicacion : undefined, dinamico })
-    setPaso('entrenamiento')
+  })
+  const onPredecir = (ids) => accion('predecir', () => apiCluster.predecir(ids))
+
+  const onFase = (f) => {
+    if (f === 'final') onVerFinal()
+    else {
+      setFase(f)
+      setHistorico(null)
+    }
+  }
+  const elegirHistorico = (id) => accion('historial', async () => {
+    const e = await apiCluster.historialDe(id)
+    setHistorico({ fase, id, datos: e.datos, descripcion: e.descripcion, fecha: e.fecha })
   })
 
-
+  // ---------- Nuevo ----------
   let vista
-  if (pasoActual === 'entrenamiento' && corrida) {
-    vista = (
-      <>
-        {(corrida.modelo ?? '').startsWith('red') && <TopologiaEntrenamiento corrida={corrida} inst={inst} />}
-        <Protector><PanelCluster datos={datos} /></Protector>
-        {esMaestro && !entrenando && (
-          <div className="sala-botones sala-botones-fila">
-            {corrida.estado === 'terminado' && inst.modelo_listo && (
-              <button type="button" className="boton-grande" disabled={!!ocupado}
-                onClick={() => accion('predecir', async () => { await apiCluster.predecir(corrida.nodos.map((n) => n.id)); setPaso('prediccion') })}>
-                PREDICCIÓN DISTRIBUIDA
-              </button>
-            )}
-            <button type="button" className="boton" onClick={() => setPaso('pre')}>Volver a elegir nodos</button>
-          </div>
-        )}
-        {error && <p className="error" role="alert">{error}</p>}
-      </>
-    )
-  } else if (pasoActual === 'prediccion' && inst.prediccion) {
-    vista = <Prediccion inst={inst} esMaestro={esMaestro} onVerMapa={onVerMapa} onVolver={() => setPaso('pre')} />
-  } else if (pasoActual === 'limpieza') {
-    vista = <Limpieza inst={inst} esMaestro={esMaestro} onContinuar={() => { setContinuada(limpieza.id); setPaso('pre') }} />
-  } else {
-    vista = (
+  if (modo === 'nuevo') {
+    const sala = (m) => (
       <Sala
-        inst={inst} local={local} esMaestro={esMaestro} modo={pasoActual === 'pre' ? 'pre' : 'sala'}
+        inst={inst} local={local} esMaestro={esMaestro} modo={m}
         seleccion={seleccion} setSeleccion={setSeleccion}
         onLimpiar={onLimpiar} onSaltar={onSaltar} onEntrenar={onEntrenar}
-        onRealizarLimpieza={() => setPaso('sala')}
+        onRealizarLimpieza={() => ir('nuevo', 'limpieza')}
         ajustes={ajustes} setAjustes={setAjustes}
         ocupado={ocupado} error={error} avisos={avisos}
       />
     )
+    if (fase === 'prediccion') vista = <NuevoPrediccion inst={inst} esMaestro={esMaestro} onPredecir={onPredecir} ocupado={ocupado} error={error} />
+    else if (fase === 'entrenamiento' && esMaestro) vista = sala('pre')
+    else vista = sala('sala')
+    if (!esMaestro) {
+      vista = (
+        <>
+          <p className="detalle aviso-nodo">El maestro elige qué hacer en cada fase; cuando empiece, aquí se verán los resultados en vivo.</p>
+          {vista}
+        </>
+      )
+    }
+  } else {
+    // ---------- Resultados ----------
+    const viendoHistorico = historico?.fase === fase
+    const datosFase = viendoHistorico ? historico.datos : actual[fase]
+    const vivo = !viendoHistorico
+    let contenido
+    if (!datosFase) {
+      contenido = <p className="detalle sin-datos">Todavía no hay {{ limpieza: 'una limpieza', entrenamiento: 'un entrenamiento', prediccion: 'una predicción distribuida' }[fase]} en esta sesión. Inícialo en <b>Nuevo</b> o elige uno del historial.</p>
+    } else if (fase === 'limpieza') {
+      contenido = <Limpieza key={`l${datosFase.id}${vivo}`} inst={{ ...inst, limpieza: datosFase }} esMaestro={esMaestro} vivo={vivo} onSiguiente={() => ir('nuevo', 'entrenamiento')} />
+    } else if (fase === 'entrenamiento') {
+      contenido = <ResultadoEntrenamiento corrida={datosFase} inst={inst} esMaestro={esMaestro} vivo={vivo} onSiguiente={() => ir('nuevo', 'prediccion')} />
+    } else {
+      contenido = <Prediccion inst={{ ...inst, prediccion: datosFase }} onVerFinal={onVerFinal} />
+    }
+    // AAAAMMDDHHMM del proceso (o de ahora, si es el actual).
+    const fechaCSV = () => new Date(viendoHistorico ? historico.fecha : Date.now()).toISOString().slice(0, 16).replace(/[-:T]/g, '')
+    vista = (
+      <>
+        <div className="resultados-barra">
+          <p className="detalle">
+            {viendoHistorico
+              ? <>Viendo del historial: <b>{historico.descripcion}</b> ({new Date(historico.fecha).toLocaleString('es-PE')})</>
+              : datosFase ? 'En vivo: el proceso actual de esta sesión.' : ''}
+          </p>
+          <div className="sala-botones sala-botones-fila">
+            {datosFase && (
+              <button type="button" className="boton" onClick={() => descargarCSV(`saca_${NOMBRE_CSV[fase]}_${fechaCSV()}.csv`, ARMAR_CSV[fase](datosFase))}>
+                Descargar CSV
+              </button>
+            )}
+            {viendoHistorico && <button type="button" className="boton" onClick={() => setHistorico(null)}>Volver a lo actual</button>}
+          </div>
+        </div>
+        {contenido}
+        {error && <p className="error" role="alert">{error}</p>}
+        <Historial tipo={fase} recargar={recargarHistorial} elegido={viendoHistorico ? historico.id : ''} onElegir={elegirHistorico} />
+      </>
+    )
   }
-  return <>{salir}{vista}</>
+
+  return (
+    <>
+      <Fases modo={modo} setModo={(m) => { setModo(m); setHistorico(null) }} fase={fase} estados={estados} onFase={onFase} />
+      {vista}
+    </>
+  )
 }

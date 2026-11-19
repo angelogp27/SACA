@@ -1,10 +1,7 @@
 import { useMemo, useState } from 'react'
 import PanelMapa from './components/PanelMapa'
 import PanelLineaTiempo from './components/PanelLineaTiempo'
-import PanelCluster from './components/PanelCluster'
-import PanelRendimiento from './components/PanelRendimiento'
-import PanelTecnologias from './components/PanelTecnologias'
-import Protector from './components/Protector'
+import ResumenProcesos from './components/ResumenProcesos'
 import FlujoCluster from './components/flujo/FlujoCluster'
 import { apiLocal, useLocal } from './data/local'
 import { useDatosReales, estacionesParaPaneles, serieDeEstacion } from './data/datosReales'
@@ -64,21 +61,21 @@ function App() {
           <RolLaptop lanzador={lanzador} />
           <div className="vistas" role="tablist" aria-label="Vista">
             <button type="button" role="tab" aria-selected={vistaActual === 'cluster'} onClick={() => setVista('cluster')}>Clúster</button>
-            <button type="button" role="tab" aria-selected={vistaActual === 'tablero'} onClick={() => setVista('tablero')}>Tablero</button>
+            <button type="button" role="tab" aria-selected={vistaActual === 'final'} onClick={() => setVista('final')}>Resultados finales</button>
           </div>
         </div>
         <h1 className="app-marca">
           <span className="app-sigla">SACA</span>
           <span className="app-nombre">Sistema de Alerta de Calidad del Aire</span>
         </h1>
-        {vistaActual === 'tablero' && (
+        {vistaActual === 'final' && (
           <p>
             {estaciones.real
               ? 'Datos reales de la red de monitoreo de la EPA (2025), procesados por el cargador concurrente.'
               : 'Maqueta con datos de ejemplo: ejecuta herramientas/cmd/exportar para ver datos reales.'}
           </p>
         )}
-        {vistaActual === 'tablero' && resumen && (
+        {vistaActual === 'final' && resumen && (
           <dl className="resumen">
             <div><dt>Filas crudas</dt><dd>{formato.format(resumen.filas_crudas)}</dd></div>
             <div><dt>Registros (estación, hora)</dt><dd>{formato.format(resumen.registros_unicos)}</dd></div>
@@ -93,11 +90,10 @@ function App() {
       {vistaActual === 'cluster' ? (
         <main>
           <FlujoCluster
-            datos={datos}
             lanzador={lanzador}
-            onVerMapa={() => {
+            onVerFinal={() => {
               setVersionDatos((v) => v + 1)
-              setVista('tablero')
+              setVista('final')
             }}
           />
         </main>
@@ -105,16 +101,7 @@ function App() {
       <main className="dashboard">
         <PanelMapa estaciones={estaciones} seleccionada={estacion?.id} onSeleccionar={setElegida} dia={resumen?.dia_series} />
         {estacion && <PanelLineaTiempo estacion={estacion} serie={serie} />}
-        <PanelRendimiento
-          experimento1={datos.experimento1}
-          experimento1b={datos.experimento1b}
-          experimento2={datos.experimento2}
-          experimento2Prueba={datos.experimento2_prueba}
-        />
-        <PanelTecnologias />
-        <Protector>
-          <PanelCluster datos={datos} />
-        </Protector>
+        <ResumenProcesos activo={!!lanzador.datos?.rol} version={versionDatos} />
       </main>
       )}
     </div>

@@ -108,6 +108,8 @@ func (a *api) rutas() *http.ServeMux {
 	mux.HandleFunc("POST /api/limpiezas/cancelar", a.cancelarLimpieza)
 	mux.HandleFunc("POST /api/huellas/verificar", a.verificarHuellas)
 	mux.HandleFunc("POST /api/predicciones", a.nuevaPrediccion)
+	mux.HandleFunc("GET /api/historial", a.listarHistorial)
+	mux.HandleFunc("GET /api/historial/{id}", a.leerHistorial)
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, r *http.Request) {
 		responder(w, http.StatusOK, map[string]any{"epocas": a.cfg.epocas, "tasa": a.cfg.tasa, "verificar": a.cfg.verificar})
 	})
@@ -231,6 +233,15 @@ func (a *api) nuevaCorrida(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer cancelar()
 		res, err := corrida.Ejecutar(ctx)
+		// Al historial, haya terminado bien o no: el estado completo de la
+		// corrida tal como lo veía la página.
+		if c := a.m.Instantanea().Corrida; c != nil {
+			dur := time.Since(c.Inicio).Seconds()
+			if c.Resultado != nil && c.Resultado.TTotalS > 0 {
+				dur = c.Resultado.TTotalS
+			}
+			a.cfg.historial.guardar(HistEntrenamiento, describirEntrenamiento(c), c.Estado, dur, c)
+		}
 		if err != nil {
 			log.Printf("corrida terminada sin completarse: %v", err)
 			return

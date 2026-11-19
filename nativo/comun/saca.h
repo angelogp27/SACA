@@ -1,6 +1,6 @@
 /* Utilidades comunes de los núcleos nativos de SACA (Pthreads, OpenMP, MPI).
  *
- * Lee la muestra binaria de docs/contratos/contrato_formato_binario.md (archivo 1),
+ * Lee la muestra binaria de docs/desarrollo/contratos/contrato_formato_binario.md (archivo 1),
  * mide tiempos, evalúa el modelo (F1 y AUC igual que internal/metricas),
  * compara contra la referencia de Go y agrega filas a los CSV de resultados.
  * Es un solo encabezado con funciones static: cada programa lo incluye y no

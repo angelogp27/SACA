@@ -956,3 +956,304 @@ button.nodo-caja {
   opacity: 0.85;
   border-style: dashed;
 }
+
+/* ---------- Nuevo / Resultados y línea de fases ---------- */
+.flujo-fases {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.modos {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  flex: none;
+}
+
+.modos button {
+  padding: 10px 22px;
+  font-size: 15px;
+  font-weight: 600;
+  background: var(--surface);
+  color: var(--text-secondary);
+  border: none;
+  cursor: pointer;
+}
+
+.modos button + button {
+  border-left: 1px solid var(--border);
+}
+
+.modos button[aria-selected='true'] {
+  background: var(--text-primary);
+  color: var(--page);
+}
+
+.fases {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  justify-content: space-between;
+  position: relative;
+}
+
+/* La línea que une los círculos. */
+.fases::before {
+  content: '';
+  position: absolute;
+  top: 17px;
+  left: 12%;
+  right: 12%;
+  height: 2px;
+  background: var(--border);
+}
+
+.fase {
+  flex: 1;
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.fase button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 0 4px;
+  font: inherit;
+}
+
+.fase-circulo {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--surface);
+}
+
+.fase.hecho .fase-circulo {
+  background: color-mix(in srgb, var(--status-good) 45%, var(--surface));
+  border-color: var(--status-good);
+}
+
+.fase.curso .fase-circulo {
+  background: color-mix(in srgb, var(--status-warning) 55%, var(--surface));
+  border-color: var(--status-warning);
+  animation: fase-pulso 1.4s ease-in-out infinite;
+}
+
+.fase.parada .fase-circulo {
+  border-color: var(--status-critical);
+}
+
+.fase.omitida .fase-circulo {
+  border-style: dashed;
+}
+
+.fase.actual .fase-circulo {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--serie-1) 40%, transparent);
+}
+
+.fase-nombre {
+  font-size: 13px;
+  text-align: center;
+  max-width: 140px;
+  line-height: 1.25;
+}
+
+.fase.actual .fase-nombre {
+  font-weight: 700;
+}
+
+.fase small {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+@keyframes fase-pulso {
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--status-warning) 30%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fase.curso .fase-circulo {
+    animation: none;
+  }
+}
+
+.aviso-nodo {
+  margin-bottom: 12px;
+}
+
+.sin-datos {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+/* ---------- Resultados ---------- */
+.resultados-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.resultados-barra .sala-botones-fila {
+  margin-top: 0;
+}
+
+.resumen-entrenamiento {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.datos-entrenamiento {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px 20px;
+  margin: 0;
+}
+
+.datos-entrenamiento dt {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.datos-entrenamiento dd {
+  margin: 2px 0 0;
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Un cuadro por época. */
+.cuadros-epocas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cuadros {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(24px, 1fr));
+  gap: 5px;
+  padding: 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text-primary) 6%, var(--surface));
+}
+
+.cuadro {
+  aspect-ratio: 1;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: transparent;
+  transition: background 0.4s;
+}
+
+.cuadro.hecha {
+  border-color: transparent;
+}
+
+.cuadro.actual {
+  border-color: var(--status-warning);
+  background: color-mix(in srgb, var(--status-warning) 35%, transparent);
+  animation: fase-pulso 1.4s ease-in-out infinite;
+}
+
+.leyenda-cuadros {
+  font-size: 12px;
+}
+
+/* Tarjetas del entrenamiento: tamaño según la parte de las filas. */
+.topo-escala .nodo-caja {
+  width: calc(92px * var(--escala, 1));
+  height: calc(76px * var(--escala, 1));
+  transition: width 0.6s ease, height 0.6s ease;
+}
+
+.topo-escala .logo-cpu {
+  max-width: calc(60px * var(--escala, 1));
+  max-height: calc(42px * var(--escala, 1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topo-escala .nodo-caja {
+    transition: none;
+  }
+}
+
+/* ---------- Historial ---------- */
+.historial {
+  margin-top: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.historial-envoltura {
+  overflow-x: auto;
+}
+
+.historial-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.historial-tabla th,
+.historial-tabla td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--gridline);
+}
+
+.historial-tabla th {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.historial-tabla tr.elegido td {
+  background: color-mix(in srgb, var(--serie-1) 14%, transparent);
+}
+
+.historial-ver {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-family: var(--mono);
+  color: var(--serie-1);
+  text-decoration: underline;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.historial-estado.error,
+.historial-estado.cancelada,
+.historial-estado.cancelado {
+  color: var(--status-critical);
+}

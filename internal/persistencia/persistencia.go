@@ -16,7 +16,7 @@ import (
 )
 
 // Coleccion es donde viven los registros procesados (contrato
-// docs/contratos/contrato_registro_procesado.md).
+// docs/desarrollo/contratos/contrato_registro_procesado.md).
 const Coleccion = "registros_procesados"
 
 // Reemplazar se conecta a MongoDB, vacía la colección de registros

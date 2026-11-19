@@ -1,6 +1,6 @@
 # Experimentos 1 y 1b — escalabilidad del cargador y del entrenamiento
 
-Resultados medidos el 13 y 14 de octubre de 2026. Las tablas completas las genera `experimentos/cmd/analisis` en [resultados/experimento1.md](../../resultados/experimento1.md) y [resultados/experimento1b.md](../../resultados/experimento1b.md). Los datos crudos de cada corrida están en los CSV de la misma carpeta.
+Resultados medidos el 13 y 14 de octubre de 2026. Las tablas completas las genera `experimentos/cmd/analisis` en [resultados/experimento1.md](../../../resultados/experimento1.md) y [resultados/experimento1b.md](../../../resultados/experimento1b.md). Los datos crudos de cada corrida están en los CSV de la misma carpeta.
 
 ## Entorno
 
@@ -79,7 +79,7 @@ Confirma que la agregadora única era el cuello de botella del procesamiento, y 
 
 ## Experimento 1b: entrenamiento en memoria compartida
 
-Se entrena la regresión logística: 146 715 ejemplos, 12 variables, 200 épocas. El gradiente de cada época se reparte entre p goroutines con tres estrategias de sincronización ([internal/logistica/paralelo.go](../../internal/logistica/paralelo.go)). T(1) = 2,396 s (secuencial).
+Se entrena la regresión logística: 146 715 ejemplos, 12 variables, 200 épocas. El gradiente de cada época se reparte entre p goroutines con tres estrategias de sincronización ([internal/logistica/paralelo.go](../../../internal/logistica/paralelo.go)). T(1) = 2,396 s (secuencial).
 
 | p | Reducción (casillas privadas) | | Mutex por ejemplo | | Atómico (CAS) por ejemplo | |
 |---:|---:|---:|---:|---:|---:|---:|
@@ -104,7 +104,7 @@ Se entrena la regresión logística: 146 715 ejemplos, 12 variables, 200 épocas
 
 - La ley de Amdahl **predijo** el estancamiento del diseño original con la fracción serial medida. El rediseño (particionar el estado compartido y no protegerlo) multiplicó el speedup por 3, de 1,13× a 3,77×.
 - En los dos experimentos, la lección es la misma: **la mejor sincronización es no necesitarla**. Hay que repartir la propiedad de los datos (agregadoras por partición, acumuladores privados) y sincronizar una sola vez al final.
-- Los límites que quedan son de hardware (6 núcleos físicos) y de I/O (MongoDB en la misma máquina). En el clúster ([guia_cluster.md](../cluster/arquitectura_cluster.md)) Mongo podrá ir en otra PC.
+- Los límites que quedan son de hardware (6 núcleos físicos) y de I/O (MongoDB en la misma máquina). En el clúster ([guia_cluster.md](../proyecto/arquitectura_cluster.md)) Mongo podrá ir en otra PC.
 
 ## Incidente durante la medición
 
