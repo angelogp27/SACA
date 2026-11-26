@@ -107,6 +107,13 @@ En `registro` el nodo informa `puerto_pares` (TCP 9002). Con `comunicacion: "arb
 
 API: `POST /api/predicciones` `{"nodos":[...]}`; `/api/estado` incluye `prediccion` (por nodo: filas, MB, tiempos) y `modelo_listo`.
 
+### Motores y MPI (Fase 6)
+
+- `registro` agrega `motores` (`go`, `openmp`, `cuda`) y `puente_mpi` (ruta del puente, si lo tiene).
+- `particion_asignada` y `predecir` agregan `motor_cpu` y `cuda`. Con `motor_cpu`, el nodo responde `particion_lista` cuando su motor tiene los datos (o con `motivo` si no puede) y el maestro no empieza a contar hasta que respondan todos.
+- `gradiente_parcial`, en el último paso de la época, agrega `cpu` (% de la CPU del nodo) y `parte_gpu`.
+- `comunicacion: "mpi"`: el puente se conecta al puerto de pares del trabajador con el rango `0xFFFFFFFF` en el saludo. En la predicción, el rango 0 entrega las filas de todos y pone en `nodo` de quién son.
+
 ### `parametros` (maestro → trabajador)
 
 ```json

@@ -83,7 +83,7 @@ export const apiCluster = {
   pararLimpieza: (guardar) => post('/api/limpiezas/cancelar', { guardar }),
   // Fase 5: cada nodo predice todas las horas de sus estaciones con el
   // último modelo y el maestro junta los resultados.
-  predecir: (nodos) => post('/api/predicciones', { nodos }),
+  predecir: (nodos, opciones = {}) => post('/api/predicciones', { nodos, ...opciones }),
   verificarHuellas: () => post('/api/huellas/verificar'),
   cancelar: () => post('/api/corridas/cancelar'),
   quitar: (id) => post('/api/nodos/quitar', { id }),

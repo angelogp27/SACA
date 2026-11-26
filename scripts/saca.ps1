@@ -12,7 +12,7 @@ Set-Location (Join-Path $PSScriptRoot "..")
 
 if (-not $SinCompilar) {
     New-Item -ItemType Directory -Force bin | Out-Null
-    Write-Host "== 1/3 programas en Go"
+    Write-Host "== 1/4 programas en Go"
     $programas = @{ maestro = "./entrenamiento/cmd/maestro"; trabajador = "./entrenamiento/cmd/trabajador";
                     cargador_concurrente = "./cargador/cmd/concurrente"; saca = "./lanzador/cmd/saca"; exportar = "./herramientas/cmd/exportar" }
     foreach ($p in $programas.GetEnumerator()) {
@@ -21,7 +21,7 @@ if (-not $SinCompilar) {
         Write-Host "   bin/$($p.Key).exe"
     }
 
-    Write-Host "== 2/3 cargador de Pthreads (C)"
+    Write-Host "== 2/4 Pthreads y OpenMP (C)"
     $gccMaquina = if (Get-Command gcc -ErrorAction SilentlyContinue) { (gcc -dumpmachine) } else { "" }
     if ($gccMaquina -and $gccMaquina -notmatch '^x86_64') {
         # Un gcc de 32 bits genera un cargador que solo puede usar ~2 GB:
@@ -35,13 +35,36 @@ if (-not $SinCompilar) {
         gcc -O3 -ffp-contract=off -o bin/cargador_pthreads.exe nativo/pthreads/cargador/cargador.c -static -lpthread -lm
         if ($LASTEXITCODE -ne 0) { throw "no se pudo compilar el cargador de Pthreads" }
         Write-Host "   bin/cargador_pthreads.exe"
+        # Optativo: sin él, la comparación OpenMP / Go no incluye esta laptop.
+        gcc -O3 -march=native -fopenmp -o bin/red_openmp.exe nativo/openmp/red/red_openmp.c -static -lm
+        if ($LASTEXITCODE -eq 0) { Write-Host "   bin/red_openmp.exe" } else { Write-Host "   AVISO: no se pudo compilar red_openmp; esta laptop entrena solo con Go" }
     } elseif (Test-Path bin/cargador_pthreads.exe) {
         Write-Host "   gcc no está instalado; se usa el bin/cargador_pthreads.exe que ya existe"
     } else {
         Write-Host "   AVISO: no hay gcc (MinGW-w64) ni bin/cargador_pthreads.exe: esta laptop limpiará solo con Go"
     }
 
-    Write-Host "== 3/3 página"
+    Write-Host "== 3/4 MPI y CUDA (opcionales)"
+    $ok = $false
+    if ($gccMaquina -match '^x86_64' -and (Test-Path (Join-Path (Split-Path (Get-Command gcc).Source) "..\include\mpi.h"))) {
+        gcc -O2 -o bin/puente_mpi.exe nativo/mpi/puente/puente.c -lmsmpi -lws2_32
+        $ok = ($LASTEXITCODE -eq 0)
+    }
+    if ($ok) { Write-Host "   bin/puente_mpi.exe" }
+    else { Write-Host "   sin MPI (ver docs/desarrollo/guias/fase6.md): esta laptop usa arbol, anillo o el maestro" }
+    if (Get-Command nvcc -ErrorAction SilentlyContinue) {
+        foreach ($f in @(@("red_cuda", "red/red"), @("gradiente_cuda", "gradiente_servidor"))) {
+            $exe = "bin/$($f[0]).exe"; $fuente = "nativo/cuda/$($f[1]).cu"
+            if ((Test-Path $exe) -and (Get-Item $exe).LastWriteTime -gt (Get-Item $fuente).LastWriteTime -and (Get-Item $exe).LastWriteTime -gt (Get-Item nativo/comun/motor_red.h).LastWriteTime) {
+                Write-Host "   $exe (ya estaba)"; continue
+            }
+            # nvcc necesita cl.exe: usa "x64 Native Tools Command Prompt" si no lo encuentra.
+            nvcc -O3 -o $exe $fuente
+            if ($LASTEXITCODE -eq 0) { Write-Host "   $exe" } else { Write-Host "   AVISO: no se pudo compilar $exe (nvcc necesita Visual Studio Build Tools); se sigue sin el" }
+        }
+    } else { Write-Host "   sin CUDA (no hay nvcc): esta laptop calcula solo con la CPU" }
+
+    Write-Host "== 4/4 página"
     if (Get-Command npm -ErrorAction SilentlyContinue) {
         Push-Location frontend
         if (-not (Test-Path node_modules)) { npm ci; if ($LASTEXITCODE -ne 0) { throw "npm ci falló" } }

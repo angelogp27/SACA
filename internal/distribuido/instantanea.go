@@ -40,7 +40,9 @@ type NodoVista struct {
 	Remoto         string         `json:"remoto"`
 	Estado         string         `json:"estado"` // "libre", "en_corrida" o "limpiando"
 	ConectadoDesde time.Time      `json:"conectado_desde"`
-	Huella         string         `json:"huella"` // de su muestra.bin; "" si no tiene
+	Huella         string         `json:"huella"`            // de su muestra.bin; "" si no tiene
+	Motores        []string       `json:"motores,omitempty"` // "go", "openmp", "cuda"
+	MPI            bool           `json:"mpi,omitempty"`     // tiene el puente MPI
 }
 
 // Estados de una corrida.
@@ -67,6 +69,13 @@ type EstadoCorrida struct {
 	PasosPorEpoca int    `json:"pasos_por_epoca,omitempty"`
 	Comunicacion  string `json:"comunicacion,omitempty"` // central, arbol o anillo (red neuronal)
 	Reparto       string `json:"reparto,omitempty"`      // iguales, capacidad o dinamico
+	// Fase 6: motor de CPU ("go" u "openmp"; vacío = el de antes), si los
+	// nodos cooperan con CUDA, y la comparación: Motores de todo el pedido
+	// y las corridas Anteriores del mismo pedido, ya terminadas.
+	MotorCPU   string           `json:"motor_cpu,omitempty"`
+	CUDA       bool             `json:"cuda,omitempty"`
+	Motores    []string         `json:"motores,omitempty"`
+	Anteriores []*EstadoCorrida `json:"anteriores,omitempty"`
 	// Fraccion: por época, la parte de las filas de cada nodo (en el orden
 	// de Nodos); con el reparto dinámico se ve cómo se ajusta.
 	Fraccion [][]float64 `json:"fraccion,omitempty"`
@@ -96,6 +105,10 @@ type NodoCorrida struct {
 	Particion   int            `json:"particion"`
 	Ejemplos    int            `json:"ejemplos"`
 	CalculoMs   []float64      `json:"calculo_ms"` // por época
+	// CPU: % de la CPU del nodo que usó el entrenamiento en cada época;
+	// GPU: fracción de sus filas que calculó CUDA (Fase 6).
+	CPU []float64 `json:"cpu,omitempty"`
+	GPU []float64 `json:"gpu,omitempty"`
 }
 
 // ResumenCorrida es una fila del historial (y el resultado de una corrida).
@@ -141,6 +154,7 @@ func (e *EstadoCorrida) copia() *EstadoCorrida {
 	c.Nodos = make([]NodoCorrida, len(e.Nodos))
 	for i, n := range e.Nodos {
 		n.CalculoMs = copiarSerie(n.CalculoMs)
+		n.CPU, n.GPU = copiarSerie(n.CPU), copiarSerie(n.GPU)
 		c.Nodos[i] = n
 	}
 	if e.Resultado != nil {

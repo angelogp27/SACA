@@ -98,6 +98,33 @@ Dos laptops por el switch de 100 Mbps: **fedora** (maestro y nodo; Ryzen 7 7735H
 - **Calidad del modelo:** calibrar el umbral de alerta (hoy 0,5 da F1 bajo y ~la mitad de las estaciones en alerta) y compararlo con la regla "la próxima hora igual que ahora".
 - **HP:** comprobar que el cargador de Pthreads compila con el gcc de 64 bits (MSYS2 UCRT64) y que su limpieza termina.
 - **Opcional:** más datos (otro año) para subir el cálculo por mini-lote frente a la comunicación (ley de Gustafson).
+- **Laptop de Piero (MSI, 19-nov):** rindió ~200 filas/ms y, más tarde el mismo día, ~910; no se comprobó la causa (¿modo de energía?). Medir siempre con todas enchufadas y en modo rendimiento: fedora también rindió menos en `powersave`.
+- **Fase 6:** probar CUDA, MPI y Windows en las otras laptops (ver abajo).
+
+### Fase 6. OpenMP, CUDA y MPI en el clúster (23-nov-2026)
+
+Implementada; guía en [guias/fase6.md](guias/fase6.md).
+
+| Fase | Go | OpenMP | CUDA | MPI |
+|---|---|---|---|---|
+| Limpieza | sí (frente a Pthreads) | — | — | — |
+| **Entrenamiento** | sí | sí, comparado con Go | coopera con Go u OpenMP | `Allreduce`, como cuarta comunicación |
+| **Predicción** | sí | sí | coopera con Go u OpenMP | `Gatherv` en vez de TCP |
+
+**Medido solo en fedora** (1 nodo, 2,5 M filas, enchufada pero en perfil `powersave`; una corrida de cada una):
+
+| | Go | OpenMP | |
+|---|---|---|---|
+| Red, 25 mini-lotes | 3 552 ms/época | 1 021 ms/época | 3,5× |
+| Regresión logística | 67 ms/época | 30 ms/época | 2,2× |
+| Predicción (cálculo, 3,3 M filas) | 2 311 ms | 628 ms | 3,7× |
+
+La pérdida final de la red con los dos motores coincide hasta ~3e-14. Parte de la ventaja de OpenMP es `simd` y `-march=native`: no es solo el reparto entre hilos.
+
+**Falta comprobar (necesita las otras laptops):**
+- CUDA en una GPU real: solo se probó emulado. Su velocidad no se conoce.
+- MPI entre dos laptops: solo se probó con 2 y 3 procesos en una.
+- La compilación en Windows (OpenMP, MPI y CUDA): no se pudo probar aquí.
 
 ## Registro de avance
 
@@ -113,3 +140,4 @@ Dos laptops por el switch de 100 Mbps: **fedora** (maestro y nodo; Ryzen 7 7735H
 | 12-nov-2026 | 3 | **Reparto dinámico** (balanceo de carga dinámico, solo la red): al final de cada época el maestro mide filas/ms de cada nodo y les manda su nueva parte (mensaje `reparto`: solo la lista de cubetas, porque todos tienen la muestra completa). Además, el reparto proporcional ahora cuenta **filas** por cubeta (antes contaba cubetas: 1024 cubetas para 436 estaciones, muchas vacías, y la proporción real de filas se desviaba). Prueba con datos reales, un nodo de 2 hilos y otro de 8: época 0 a partes iguales 7,8 s (cálculo 6,6 s frente a 2,2 s); tras reajustar a 22,5 % / 77,5 %, 3,7 s por época (×2,1), con los dos nodos calculando ~3,5 s. El reparto queda en `cluster.csv` (sufijo `_dinamico` o `_capacidad` en el modo) y en `transferencias.csv` (columna `reparto`) |
 | 12-nov-2026 | — | Primeras mediciones en el switch con 2 laptops (fedora + HP): ver [Resultados medidos](#resultados-medidos-en-el-switch-12-nov-2026). Nuevo `resultados/transferencias.csv` (MB por la red de cada entrenamiento de la red y de cada predicción, con el reparto). Pantalla *Antes de entrenar*: la comunicación elegida se dibuja con los nodos (el maestro se repite al centro en *todo por el maestro*), botón ▶ con el video de cada modelo |
 | 13-nov-2026 | — | Página reorganizada: **Nuevo** (paneles para iniciar cada fase; sin botones en las laptops que no son el maestro) / **Resultados** (la fase en vivo y su historial) con la línea de fases arriba. El maestro guarda cada limpieza, entrenamiento y predicción terminados en `resultados/historial/` (`GET /api/historial`); desde la página se vuelve a ver cualquiera y se baja su CSV. Entrenamiento: un cuadro por época (más oscuro = menor pérdida) y nodos de tamaño según su parte de las filas. *Resultados finales* reemplaza al Tablero (mapa, línea de tiempo y el último proceso de cada fase); se quitaron el panel *Clúster en vivo* y los paneles de experimentos antiguos |
+| 23-nov-2026 | 6 | OpenMP, CUDA (cooperando con la CPU) y MPI en entrenamiento y predicción; comparación OpenMP/Go en la página |

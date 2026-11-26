@@ -1,17 +1,17 @@
 package distribuido
 
 import (
+	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math"
-	"runtime"
 	"slices"
-	"sync"
 	"time"
 
 	"proyecto9/internal/dataset"
 	"proyecto9/internal/entrenador"
-	"proyecto9/internal/logistica"
+	"proyecto9/internal/pares"
 	"proyecto9/internal/particion"
 	"proyecto9/internal/protocolo"
 	"proyecto9/internal/red"
@@ -51,20 +51,16 @@ func listaEstaciones(d *entrenador.Datos) []string {
 	return lista
 }
 
-// modeloPrediccion arma la función de probabilidad: red neuronal (capas) o
-// regresión logística (params = pesos y, al final, el sesgo).
-func modeloPrediccion(capas []int, params []float64) (func(x []float64) float64, error) {
-	if len(capas) > 0 {
-		if len(params) != red.NumParametros(capas) {
-			return nil, fmt.Errorf("la red %v necesita %d parámetros y llegaron %d", capas, red.NumParametros(capas), len(params))
-		}
-		return func(x []float64) float64 { return red.Predecir(capas, params, x) }, nil
+// capasPrediccion valida el modelo: red neuronal (capas) o regresión
+// logística (params = pesos y, al final, el sesgo), que es la red {d, 1}.
+func capasPrediccion(capas []int, params []float64, d int) ([]int, error) {
+	if len(capas) == 0 {
+		capas = []int{d, 1}
 	}
-	if len(params) < 2 {
-		return nil, fmt.Errorf("modelo vacío")
+	if len(params) != red.NumParametros(capas) {
+		return nil, fmt.Errorf("el modelo %v necesita %d parámetros y llegaron %d", capas, red.NumParametros(capas), len(params))
 	}
-	m := &logistica.Modelo{Pesos: params[:len(params)-1], Sesgo: params[len(params)-1]}
-	return m.Predecir, nil
+	return capas, nil
 }
 
 // predecirNodo: el nodo predice todas las horas (entrenamiento y prueba) de
@@ -78,7 +74,7 @@ func predecirNodo(c *protocolo.Conexion, cfg *ConfigTrabajador, m protocolo.Mens
 	if err != nil {
 		return err
 	}
-	predecir, err := modeloPrediccion(m.Capas, params)
+	capas, err := capasPrediccion(m.Capas, params, len(cfg.Datos.Entrenamiento.X[0]))
 	if err != nil {
 		return err
 	}
@@ -103,57 +99,113 @@ func predecirNodo(c *protocolo.Conexion, cfg *ConfigTrabajador, m protocolo.Mens
 	}
 	norm := cfg.Datos.Normalizador
 
-	type fila struct {
-		x   []float64
-		est uint32
-		h   int64
-	}
-	var filas []fila
-	for _, mu := range []*dataset.Muestra{cfg.Datos.Entrenamiento, cfg.Datos.Prueba} {
+	// Todas las filas (entrenamiento y, después, prueba) de mis estaciones.
+	var idx []uint32
+	nEnt := uint32(cfg.Datos.Entrenamiento.Len())
+	for k, mu := range []*dataset.Muestra{cfg.Datos.Entrenamiento, cfg.Datos.Prueba} {
 		if mu.Hora == nil {
 			return fmt.Errorf("muestra.bin sin las horas de cada fila: regenérala con la limpieza")
 		}
 		for i, est := range mu.EstacionID {
 			if pertenece(est) {
-				filas = append(filas, fila{mu.X[i], indice[est], mu.Hora[i]})
+				idx = append(idx, uint32(k)*nEnt+uint32(i))
 			}
 		}
+	}
+	cpu := m.MotorCPU
+	if cpu == "" {
+		cpu = MotorCPUGo
+	}
+	motor, err := cfg.Motores.armar(cfg.Datos, cpu, m.CUDA)
+	if err != nil {
+		return err
+	}
+	var grupo *pares.Grupo
+	if m.Comunicacion == pares.MPI {
+		if cfg.Pares == nil {
+			return fmt.Errorf("este nodo no tiene puerto de pares para MPI")
+		}
+		if grupo, err = cfg.Pares.Unirse(context.Background(), m.Corrida+corridaPrediccion, m.Rango, m.Pares, pares.MPI); err != nil {
+			return err
+		}
+		defer grupo.Cerrar()
 	}
 
 	inicio := time.Now()
-	salida := make([]byte, BytesFilaPrediccion*len(filas))
-	hilos := runtime.NumCPU()
-	var wg sync.WaitGroup
-	for h := 0; h < hilos; h++ {
-		wg.Add(1)
-		go func(h int) {
-			defer wg.Done()
-			for i := h; i < len(filas); i += hilos {
-				fl := filas[i]
-				b := salida[BytesFilaPrediccion*i:]
-				// NO2 observado: la variable 0, sin normalizar.
-				no2 := fl.x[0]*norm.Desviaciones[0] + norm.Medias[0]
-				binary.LittleEndian.PutUint32(b, fl.est)
-				binary.LittleEndian.PutUint64(b[4:], uint64(fl.h))
-				binary.LittleEndian.PutUint32(b[12:], math.Float32bits(float32(predecir(fl.x))))
-				binary.LittleEndian.PutUint32(b[16:], math.Float32bits(float32(no2)))
-			}
-		}(h)
+	prob, err := motor.predecir(capas, params, idx)
+	if err != nil {
+		return err
 	}
-	wg.Wait()
+	salida := make([]byte, BytesFilaPrediccion*len(idx))
+	for i, f := range idx {
+		mu, k := cfg.Datos.Entrenamiento, f
+		if f >= nEnt {
+			mu, k = cfg.Datos.Prueba, f-nEnt
+		}
+		b := salida[BytesFilaPrediccion*i:]
+		// NO2 observado: la variable 0, sin normalizar.
+		no2 := mu.X[k][0]*norm.Desviaciones[0] + norm.Medias[0]
+		binary.LittleEndian.PutUint32(b, indice[mu.EstacionID[k]])
+		binary.LittleEndian.PutUint64(b[4:], uint64(mu.Hora[k]))
+		binary.LittleEndian.PutUint32(b[12:], math.Float32bits(float32(prob[i])))
+		binary.LittleEndian.PutUint32(b[16:], math.Float32bits(float32(no2)))
+	}
 	calc := time.Since(inicio)
+	resumen := resumenPrediccion{CalculoMs: ms(calc), ParteGPU: motor.parteGPU(), Motor: motor.nombre()}
 
-	for ini := 0; ini < len(filas) || ini == 0; ini += filasPorTrozo {
-		fin := min(ini+filasPorTrozo, len(filas))
+	if grupo == nil {
+		return enviarPredicciones(c, cfg.ID, "", m.Corrida, salida, resumen)
+	}
+	// MPI_Gatherv: cada nodo aporta su resumen y sus filas; el rango 0 le
+	// entrega al maestro lo de todos.
+	cab, err := json.Marshal(resumen)
+	if err != nil {
+		return err
+	}
+	paquete := binary.LittleEndian.AppendUint32(nil, uint32(len(cab)))
+	partes, err := grupo.Gatherv(append(append(paquete, cab...), salida...))
+	if err != nil {
+		return fmt.Errorf("MPI_Gatherv: %w", err)
+	}
+	for r, p := range partes {
+		if len(p) < 4 || len(p) < 4+int(binary.LittleEndian.Uint32(p)) || r >= len(m.Nodos) {
+			return fmt.Errorf("MPI_Gatherv: parte %d inválida", r)
+		}
+		largo := 4 + int(binary.LittleEndian.Uint32(p))
+		var res resumenPrediccion
+		if err := json.Unmarshal(p[4:largo], &res); err != nil {
+			return err
+		}
+		if err := enviarPredicciones(c, cfg.ID, m.Nodos[r], m.Corrida, p[largo:], res); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// corridaPrediccion separa los números de predicción de los de corrida en
+// el saludo de los puentes MPI.
+const corridaPrediccion = 1_000_000
+
+type resumenPrediccion struct {
+	CalculoMs float64
+	ParteGPU  float64
+	Motor     string
+}
+
+// enviarPredicciones manda las filas al maestro en trozos; dueno es el nodo
+// que las calculó, si no es este.
+func enviarPredicciones(c *protocolo.Conexion, id, dueno string, corrida int, salida []byte, r resumenPrediccion) error {
+	total := len(salida) / BytesFilaPrediccion
+	for ini := 0; ini < total || ini == 0; ini += filasPorTrozo {
+		fin := min(ini+filasPorTrozo, total)
 		err := c.Enviar(protocolo.Mensaje{
-			Tipo: protocolo.TipoPredicciones, WorkerID: cfg.ID, Corrida: m.Corrida, Total: len(filas), NMuestras: fin - ini,
-			PrediccionesBin: salida[BytesFilaPrediccion*ini : BytesFilaPrediccion*fin], Ultimo: fin == len(filas), TCalculoMs: ms(calc),
+			Tipo: protocolo.TipoPredicciones, WorkerID: id, Nodo: dueno, Corrida: corrida, Total: total, NMuestras: fin - ini,
+			PrediccionesBin: salida[BytesFilaPrediccion*ini : BytesFilaPrediccion*fin], Ultimo: fin == total,
+			TCalculoMs: r.CalculoMs, ParteGPU: r.ParteGPU, Motor: r.Motor,
 		})
 		if err != nil {
 			return fmt.Errorf("%w: no se pudieron enviar las predicciones: %v", ErrConexionPerdida, err)
-		}
-		if len(filas) == 0 {
-			break
 		}
 	}
 	return nil

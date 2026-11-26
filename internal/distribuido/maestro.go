@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"net"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -106,6 +107,14 @@ type OpcionesCorrida struct {
 	// para la siguiente (balanceo de carga dinámico). Pesos, si viene, es
 	// solo el reparto de la primera época.
 	Dinamico bool
+	// Fase 6. MotorCPU: "go" u "openmp" ("" = el motor con que se registró
+	// cada nodo, como antes); CUDA: cada nodo con GPU coopera con ella.
+	// Comparacion: todos los motores del pedido; Anteriores, las corridas
+	// del mismo pedido que ya terminaron (para mostrarlas juntas).
+	MotorCPU    string
+	CUDA        bool
+	Comparacion []string
+	Anteriores  []*EstadoCorrida
 }
 
 // InfoNodo describe a un nodo de una corrida para el reporte final.
@@ -173,6 +182,7 @@ type nodoSala struct {
 	// dar a los demás la dirección del nodo que corre junto al maestro).
 	puertoPares int
 	ipLocal     string
+	puenteMPI   string // ruta del puente MPI en la laptop del nodo
 }
 
 // corridaActiva recibe los mensajes de los nodos que participan en ella.
@@ -233,6 +243,7 @@ type Maestro struct {
 	siguientePrediccion int
 	predFilas           map[string][]FilaPrediccion
 	predLista           []string
+	predMPI             *pares.LanzadoMPI // con la predicción por MPI
 }
 
 func NuevoMaestro(cfg ConfigMaestro) *Maestro {
@@ -380,7 +391,8 @@ func (m *Maestro) Atender(conn net.Conn) {
 	m.mu.Lock()
 	m.llegadas++
 	m.nodos[msg.WorkerID] = &nodoSala{
-		vista:       NodoVista{ID: msg.WorkerID, Motor: msg.Motor, Dispositivo: msg.Dispositivo, Hardware: msg.Hardware, Remoto: remoto, Estado: "libre", ConectadoDesde: time.Now(), Huella: msg.Huella},
+		vista:       NodoVista{ID: msg.WorkerID, Motor: msg.Motor, Dispositivo: msg.Dispositivo, Hardware: msg.Hardware, Remoto: remoto, Estado: "libre", ConectadoDesde: time.Now(), Huella: msg.Huella, Motores: msg.Motores, MPI: msg.PuenteMPI != ""},
+		puenteMPI:   msg.PuenteMPI,
 		conexion:    c,
 		orden:       m.llegadas,
 		puertoPares: msg.PuertoPares,
@@ -440,7 +452,7 @@ func (m *Maestro) escuchar(c *protocolo.Conexion, id string) string {
 			m.mensajePrediccion(id, msg)
 		case msg.Tipo == protocolo.TipoHuellaMuestra:
 			m.huellaRecibida(id, msg.Huella)
-		case msg.Tipo == protocolo.TipoGradienteParcial:
+		case msg.Tipo == protocolo.TipoGradienteParcial, msg.Tipo == protocolo.TipoParticionLista:
 			m.mu.Lock()
 			activa := m.activa
 			m.mu.Unlock()
@@ -546,6 +558,7 @@ func (m *Maestro) Correr(ctx context.Context, op OpcionesCorrida) (*Resultado, e
 // Corrida es una corrida reservada: sus nodos ya están marcados como
 // ocupados y nadie más puede empezar otra hasta que termine.
 type Corrida struct {
+	mpi    *pares.LanzadoMPI // con comunicación por MPI
 	m      *Maestro
 	op     OpcionesCorrida
 	activa *corridaActiva
@@ -581,10 +594,16 @@ func (m *Maestro) Iniciar(op OpcionesCorrida) (*Corrida, error) {
 			op.Comunicacion = pares.Central
 		}
 		if !pares.Valido(op.Comunicacion) {
-			return nil, fmt.Errorf("comunicación desconocida %q (usa central, arbol o anillo)", op.Comunicacion)
+			return nil, fmt.Errorf("comunicación desconocida %q (usa central, arbol, anillo o mpi)", op.Comunicacion)
 		}
 	default:
 		return nil, fmt.Errorf("modelo desconocido %q (usa logistica o red)", op.Modelo)
+	}
+	if op.MotorCPU != "" && !motorCPUValido(op.MotorCPU) {
+		return nil, fmt.Errorf("motor desconocido %q (usa go u openmp)", op.MotorCPU)
+	}
+	if op.Modelo == "red" && op.Comunicacion == pares.MPI && op.MotorCPU == "" {
+		op.MotorCPU = MotorCPUGo // MPI necesita el aviso de que cada nodo está listo
 	}
 	if err := m.recargar(); err != nil {
 		return nil, err
@@ -633,13 +652,22 @@ func (m *Maestro) Iniciar(op OpcionesCorrida) (*Corrida, error) {
 			}
 		}
 	}
+	if err := conMotor(nodos, op.MotorCPU); err != nil {
+		return nil, err
+	}
+	if op.Modelo == "red" && op.Comunicacion == pares.MPI {
+		if err := pares.ComprobarMPI(nodosMPI(nodos)); err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrNodoNoDisponible, err)
+		}
+	}
 	if len(distintos) > 0 {
 		return nil, fmt.Errorf("%w: estos nodos no tienen el mismo muestra.bin que el maestro (%s): %s", ErrMuestraDistinta, Corta(m.huella), strings.Join(distintos, ", "))
 	}
 
 	m.siguiente++
 	activa := &corridaActiva{id: m.siguiente, indice: map[string]int{}, eventos: make(chan evento, 64), fin: make(chan struct{}), huella: m.huella}
-	estado := &EstadoCorrida{ID: m.siguiente, Estado: EstadoEntrenando, Epocas: op.Epocas, Inicio: time.Now(), Modelo: describirModelo(op), PasosPorEpoca: op.PasosPorEpoca, Comunicacion: op.Comunicacion, Reparto: nombreReparto(op)}
+	estado := &EstadoCorrida{ID: m.siguiente, Estado: EstadoEntrenando, Epocas: op.Epocas, Inicio: time.Now(), Modelo: describirModelo(op), PasosPorEpoca: op.PasosPorEpoca, Comunicacion: op.Comunicacion, Reparto: nombreReparto(op),
+		MotorCPU: op.MotorCPU, CUDA: op.CUDA, Motores: op.Comparacion, Anteriores: op.Anteriores}
 	if op.Modelo == "red" {
 		estado.Parametros = red.NumParametros(red.Arquitectura(len(m.datos.Entrenamiento.X[0]), op.Capas))
 	} else {
@@ -706,6 +734,7 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 			Tipo: protocolo.TipoParticionAsignada, WorkerID: nodo.vista.ID,
 			FiltroMongo: filtros[i], Huella: c.huella, Modelo: modeloMsg(op), Capas: capasMsg(op, c.datos), PasosPorEpoca: op.PasosPorEpoca,
 			Comunicacion: comunicacionMsg(op), Rango: i, Pares: c.direccionesPares(), Epocas: op.Epocas, Tasa: op.Tasa,
+			Corrida: c.activa.id, MotorCPU: op.MotorCPU, CUDA: op.CUDA,
 		})
 		if err != nil {
 			return nil, errCaida(0, nodo.vista.ID, "no se le pudo enviar la partición: "+err.Error())
@@ -719,6 +748,19 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 		}()
 	}
 
+	if op.MotorCPU != "" {
+		if op.Modelo == "red" && op.Comunicacion == pares.MPI {
+			mpi, err := pares.LanzarMPI(c.activa.id, nodosMPI(c.nodos))
+			if err != nil {
+				return nil, err
+			}
+			c.mpi = mpi
+			defer mpi.Detener()
+		}
+		if err := c.esperarListos(ctx); err != nil {
+			return nil, err
+		}
+	}
 	if op.Modelo == "red" {
 		return c.entrenarRed(ctx)
 	}
@@ -746,6 +788,7 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 		parciales := make([]Parcial, n)
 		recibido := make([]bool, n)
 		calcEpoca := make([]float64, n)
+		cpu, gpu := make([]float64, n), make([]float64, n)
 		var calcMax time.Duration
 		limite := time.NewTimer(m.cfg.EsperaGradiente)
 		for faltan := n; faltan > 0; {
@@ -777,6 +820,7 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 			calcEpoca[i] = ev.msg.TCalculoMs
 			nNodo[i] = ev.msg.NMuestras
 			motorNodo[i] = ev.msg.Motor
+			cpu[i], gpu[i] = ev.msg.CPU, ev.msg.ParteGPU
 			recibido[i] = true
 			faltan--
 		}
@@ -806,6 +850,9 @@ func (c *Corrida) entrenar(ctx context.Context) (*Resultado, error) {
 		for i := range est.Nodos {
 			est.Nodos[i].CalculoMs = append(est.Nodos[i].CalculoMs, calcEpoca[i])
 			est.Nodos[i].Ejemplos = nNodo[i]
+			if op.MotorCPU != "" {
+				est.Nodos[i].CPU, est.Nodos[i].GPU = append(est.Nodos[i].CPU, cpu[i]), append(est.Nodos[i].GPU, gpu[i])
+			}
 			if motorNodo[i] != "" {
 				est.Nodos[i].Motor = motorNodo[i]
 			}
@@ -1133,6 +1180,73 @@ func (m *Maestro) pesosSugeridos() (map[string]float64, string) {
 	return map[string]float64{}, ""
 }
 
+// conMotor comprueba que todos los nodos tengan el motor de CPU pedido.
+func conMotor(nodos []*nodoSala, motor string) error {
+	if motor == "" || motor == MotorCPUGo {
+		return nil
+	}
+	for _, n := range nodos {
+		if !slices.Contains(n.vista.Motores, motor) {
+			return fmt.Errorf("%w: %s no tiene el motor %s (instala gcc y vuelve a abrir SACA en esa laptop, o quítala)", ErrNodoNoDisponible, n.vista.ID, motor)
+		}
+	}
+	return nil
+}
+
+// nodosMPI: los nodos en orden de rango, con la dirección por la que se ven.
+func nodosMPI(nodos []*nodoSala) []pares.NodoMPI {
+	lista := make([]pares.NodoMPI, len(nodos))
+	for i, dir := range direcciones(nodos) {
+		n := nodos[i]
+		lista[i] = pares.NodoMPI{ID: n.vista.ID, IP: soloIP(dir), Puerto: n.puertoPares, Puente: n.puenteMPI}
+		if n.vista.Hardware != nil {
+			lista[i].SO = n.vista.Hardware.SO
+		}
+	}
+	return lista
+}
+
+// esperarListos espera a que cada nodo tenga su motor con los datos y sus
+// conexiones hechas (particion_lista). No cuenta en el tiempo de la corrida.
+func (c *Corrida) esperarListos(ctx context.Context) error {
+	limite := time.NewTimer(c.m.cfg.EsperaGradiente)
+	defer limite.Stop()
+	var finMPI chan struct{}
+	if c.mpi != nil {
+		finMPI = c.mpi.Fin
+	}
+	listos := make([]bool, len(c.nodos))
+	for faltan := len(c.nodos); faltan > 0; {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-limite.C:
+			return fmt.Errorf("%d nodo(s) no prepararon su motor en %s", faltan, c.m.cfg.EsperaGradiente)
+		case <-finMPI:
+			if err := c.mpi.Err(); err != nil {
+				return err
+			}
+			return errors.New("los puentes MPI terminaron antes de empezar")
+		case ev := <-c.activa.eventos:
+			i := c.activa.indice[ev.id]
+			switch {
+			case ev.tipo == caida:
+				return errCaida(0, ev.id, ev.motivo)
+			case ev.msg.Tipo != protocolo.TipoParticionLista || listos[i]:
+				continue
+			case ev.msg.Motivo != "":
+				return fmt.Errorf("%s no pudo prepararse: %s", ev.id, ev.msg.Motivo)
+			}
+			listos[i] = true
+			faltan--
+			c.m.mu.Lock()
+			c.estado.Nodos[i].Motor = ev.msg.Motor
+			c.m.mu.Unlock()
+		}
+	}
+	return nil
+}
+
 func comunicacionMsg(op OpcionesCorrida) string {
 	if op.Modelo == "red" && op.Comunicacion != pares.Central {
 		return op.Comunicacion
@@ -1148,15 +1262,19 @@ func (c *Corrida) direccionesPares() []string {
 	if comunicacionMsg(c.op) == "" {
 		return nil
 	}
+	return direcciones(c.nodos)
+}
+
+func direcciones(nodos []*nodoSala) []string {
 	ipMaestro := ""
-	for _, n := range c.nodos {
+	for _, n := range nodos {
 		if ip := soloIP(n.vista.Remoto); !esLoopback(ip) {
 			ipMaestro = n.ipLocal
 			break
 		}
 	}
-	dirs := make([]string, len(c.nodos))
-	for i, n := range c.nodos {
+	dirs := make([]string, len(nodos))
+	for i, n := range nodos {
 		ip := soloIP(n.vista.Remoto)
 		if esLoopback(ip) && ipMaestro != "" {
 			ip = ipMaestro

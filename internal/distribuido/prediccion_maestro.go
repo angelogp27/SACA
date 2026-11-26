@@ -9,6 +9,7 @@ import (
 
 	"proyecto9/internal/hardware"
 	"proyecto9/internal/metricas"
+	"proyecto9/internal/pares"
 	"proyecto9/internal/protocolo"
 	"proyecto9/internal/red"
 )
@@ -41,6 +42,17 @@ type EstadoPrediccion struct {
 	Filas   int              `json:"filas"`
 	MB      float64          `json:"mb"`
 	Nodos   []NodoPrediccion `json:"nodos"`
+	// Fase 6: con qué calculó cada nodo y por dónde se juntó ("tcp" o "mpi").
+	MotorCPU     string `json:"motor_cpu,omitempty"`
+	CUDA         bool   `json:"cuda,omitempty"`
+	Comunicacion string `json:"comunicacion,omitempty"`
+}
+
+// OpcionesPrediccion de la Fase 6; en cero, Go y TCP.
+type OpcionesPrediccion struct {
+	MotorCPU     string // "go" (por defecto) u "openmp"
+	CUDA         bool
+	Comunicacion string // "tcp" (por defecto) o "mpi"
 }
 
 // NodoPrediccion: la parte de un nodo. TCalculoMs es lo que tardó en
@@ -55,6 +67,8 @@ type NodoPrediccion struct {
 	TCalculoMs float64        `json:"t_calculo_ms"`
 	TTotalMs   float64        `json:"t_total_ms"`
 	Mensaje    string         `json:"mensaje,omitempty"`
+	Motor      string         `json:"motor,omitempty"`
+	ParteGPU   float64        `json:"parte_gpu,omitempty"`
 }
 
 func (e *EstadoPrediccion) copia() *EstadoPrediccion {
@@ -73,7 +87,16 @@ func (m *Maestro) prediccionEnCurso() bool {
 
 // IniciarPrediccion reparte las estaciones entre los nodos (como en el
 // entrenamiento) y les pide predecir todas sus horas con el último modelo.
-func (m *Maestro) IniciarPrediccion(ids []string) error {
+func (m *Maestro) IniciarPrediccion(ids []string, op OpcionesPrediccion) error {
+	if op.MotorCPU == "" {
+		op.MotorCPU = MotorCPUGo
+	}
+	if op.Comunicacion == "" {
+		op.Comunicacion = "tcp"
+	}
+	if !motorCPUValido(op.MotorCPU) || (op.Comunicacion != "tcp" && op.Comunicacion != pares.MPI) {
+		return fmt.Errorf("opciones de predicción inválidas (%q, %q)", op.MotorCPU, op.Comunicacion)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	switch {
@@ -107,20 +130,45 @@ func (m *Maestro) IniciarPrediccion(ids []string) error {
 		}
 		nodos = append(nodos, n)
 	}
+	if err := conMotor(nodos, op.MotorCPU); err != nil {
+		return err
+	}
+	var mpi *pares.LanzadoMPI
+	var dirs, rangos []string
+	if op.Comunicacion == pares.MPI {
+		// El nodo del maestro, si participa, es el rango 0: el que junta.
+		slices.SortStableFunc(nodos, func(a, b *nodoSala) int {
+			return btoi(esLoopback(soloIP(b.vista.Remoto))) - btoi(esLoopback(soloIP(a.vista.Remoto)))
+		})
+		dirs = direcciones(nodos)
+		for _, n := range nodos {
+			rangos = append(rangos, n.vista.ID)
+		}
+		var err error
+		if mpi, err = pares.LanzarMPI(m.siguientePrediccion+1+corridaPrediccion, nodosMPI(nodos)); err != nil {
+			return err
+		}
+	}
 	m.siguientePrediccion++
-	e := &EstadoPrediccion{ID: m.siguientePrediccion, Estado: PrediccionEnCurso, Modelo: m.ultimoModelo.Nombre, Inicio: time.Now()}
+	m.predMPI = mpi
+	e := &EstadoPrediccion{ID: m.siguientePrediccion, Estado: PrediccionEnCurso, Modelo: m.ultimoModelo.Nombre, Inicio: time.Now(),
+		MotorCPU: op.MotorCPU, CUDA: op.CUDA, Comunicacion: op.Comunicacion}
 	m.predFilas = map[string][]FilaPrediccion{}
 	m.predLista = listaEstaciones(m.datos)
 	params := red.Codificar(m.ultimoModelo.Params)
 	for i, n := range nodos {
 		e.Nodos = append(e.Nodos, NodoPrediccion{ID: n.vista.ID, Hardware: n.vista.Hardware, Estado: PrediccionEnCurso})
 		err := n.conexion.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoPredecir, WorkerID: n.vista.ID, Corrida: e.ID,
-			FiltroMongo: &protocolo.FiltroMongo{Mod: len(nodos), Resto: i}, Capas: m.ultimoModelo.Capas, ParamsBin: params})
+			FiltroMongo: &protocolo.FiltroMongo{Mod: len(nodos), Resto: i}, Capas: m.ultimoModelo.Capas, ParamsBin: params,
+			MotorCPU: op.MotorCPU, CUDA: op.CUDA, Comunicacion: op.Comunicacion, Rango: i, Pares: dirs, Nodos: rangos})
 		if err != nil {
 			e.Nodos[i].Estado, e.Nodos[i].Mensaje = PrediccionError, err.Error()
 		}
 	}
 	m.prediccion = e
+	if mpi != nil {
+		go m.vigilarMPI(e.ID, mpi)
+	}
 	log.Printf("predicción %d: %d nodos predicen todas las horas de sus estaciones con el modelo %s", e.ID, len(nodos), e.Modelo)
 	go m.publicar()
 	return nil
@@ -134,6 +182,9 @@ func (m *Maestro) mensajePrediccion(id string, msg protocolo.Mensaje) {
 		m.mu.Unlock()
 		return
 	}
+	if msg.Nodo != "" && e.Comunicacion == pares.MPI {
+		id = msg.Nodo // el rango 0 entrega lo de todos
+	}
 	var n *NodoPrediccion
 	for i := range e.Nodos {
 		if e.Nodos[i].ID == id {
@@ -146,6 +197,9 @@ func (m *Maestro) mensajePrediccion(id string, msg protocolo.Mensaje) {
 	}
 	if msg.Motivo != "" {
 		n.Estado, n.Mensaje = PrediccionError, msg.Motivo
+		if m.predMPI != nil { // los demás están esperándolo en el Gatherv
+			go m.predMPI.Detener()
+		}
 	} else if filas, err := decodificarPredicciones(msg.PrediccionesBin, m.predLista); err != nil {
 		n.Estado, n.Mensaje = PrediccionError, err.Error()
 	} else {
@@ -153,7 +207,7 @@ func (m *Maestro) mensajePrediccion(id string, msg protocolo.Mensaje) {
 		n.Filas += len(filas)
 		n.Total = msg.Total
 		n.MB += float64(len(msg.PrediccionesBin)) / (1 << 20)
-		n.TCalculoMs = msg.TCalculoMs
+		n.TCalculoMs, n.Motor, n.ParteGPU = msg.TCalculoMs, msg.Motor, msg.ParteGPU
 		n.TTotalMs = ms(time.Since(e.Inicio))
 		e.Filas += len(filas)
 		e.MB += float64(len(msg.PrediccionesBin)) / (1 << 20)
@@ -203,10 +257,47 @@ func (m *Maestro) prediccionCerrada() {
 	}
 	modelo := m.ultimoModelo
 	m.predFilas = nil
+	if m.predMPI != nil {
+		go m.predMPI.Detener()
+		m.predMPI = nil
+	}
 	m.mu.Unlock()
 	log.Printf("predicción %d %s: %d filas, %.1f MB por la red, %.2f s", e.ID, e.Estado, e.Filas, e.MB, e.TTotalS)
 	if e.Estado == PrediccionTerminada && m.cfg.PrediccionTerminada != nil {
 		go m.cfg.PrediccionTerminada(*e, filas, *modelo)
+	}
+}
+
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// vigilarMPI: si mpiexec falla con la predicción en curso, no va a terminar.
+func (m *Maestro) vigilarMPI(id int, mpi *pares.LanzadoMPI) {
+	<-mpi.Fin
+	err := mpi.Err()
+	if err == nil {
+		return
+	}
+	m.mu.Lock()
+	e := m.prediccion
+	if e == nil || e.ID != id || e.Estado != PrediccionEnCurso {
+		m.mu.Unlock()
+		return
+	}
+	for i := range e.Nodos {
+		if n := &e.Nodos[i]; n.Estado == PrediccionEnCurso {
+			n.Estado, n.Mensaje = PrediccionError, err.Error()
+		}
+	}
+	termino := m.cerrarPrediccionSiTermino()
+	m.mu.Unlock()
+	m.publicar()
+	if termino {
+		m.prediccionCerrada()
 	}
 }
 

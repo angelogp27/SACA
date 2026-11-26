@@ -10,6 +10,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { apiCluster, useCluster } from '../../data/cluster'
 import { apiLocal } from '../../data/local'
+import { NOMBRE_MOTOR, efectivo, hayCUDA, hayMPI, hayOpenMP, textoMotor } from './motores'
+import ComparacionMotores from './ComparacionMotores'
 import CuadrosEpocas from './CuadrosEpocas'
 import Fases from './Fases'
 import Historial from './Historial'
@@ -267,7 +269,8 @@ function Sala({ inst, local, esMaestro, modo, seleccion, setSeleccion, onLimpiar
               {ocupado === 'entrenar' ? 'Comprobando huellas…' : 'INICIAR ENTRENAMIENTO'}
             </button>
             <button type="button" className="boton" disabled={!!ocupado} onClick={onRealizarLimpieza}>REALIZAR LIMPIEZA</button>
-            <AjustesModelo ajustes={ajustes} setAjustes={setAjustes} />
+            <AjustesModelo ajustes={ajustes} setAjustes={setAjustes} nodos={sala.filter((n) => seleccion.has(n.id))} />
+            <AjustesMotor ajustes={ajustes} setAjustes={setAjustes} nodos={sala.filter((n) => seleccion.has(n.id))} />
             <AjustesReparto ajustes={ajustes} setAjustes={setAjustes} inst={inst} />
           </div>
         )}
@@ -355,9 +358,10 @@ function ResultadoEntrenamiento({ corrida, inst, esMaestro, vivo, onSiguiente })
   const datos = [
     ['Estado', estado],
     ['Modelo', (corrida.modelo ?? '').startsWith('red') ? `Red Neuronal · ${corrida.pasos_por_epoca} mini-lotes` : 'Regresión logística'],
+    ...(corrida.motor_cpu ? [['Motor', `${NOMBRE_MOTOR[corrida.motor_cpu]}${corrida.motores?.length > 1 ? ` (${corrida.motores.indexOf(corrida.motor_cpu) + 1} de ${corrida.motores.length})` : ''}${corrida.cuda ? ' + CUDA' : ''}`]] : []),
     ['Tiempo por época', `${fmtNum(media(corrida.t_epoca_ms))} ms`],
     ['Cálculo / red y espera', `${fmtNum(media(corrida.t_calculo_ms))} / ${fmtNum(media(corrida.t_red_ms))} ms`],
-    ['Por la red', corrida.mb_epoca?.length ? `${fmtNum(media(corrida.mb_epoca), 1)} MB por época` : '—'],
+    ['Por la red', corrida.mb_epoca?.length ? `${fmtNum(media(corrida.mb_epoca), 1)} MB por época${corrida.comunicacion === 'mpi' ? ' (estimado)' : ''}` : '—'],
     ['Pérdida', fmtNum(ultimo(corrida.perdidas), 4)],
   ]
   if (r) {
@@ -385,13 +389,16 @@ function ResultadoEntrenamiento({ corrida, inst, esMaestro, vivo, onSiguiente })
         )}
         {error && <p className="error" role="alert">{error}</p>}
       </section>
+      <ComparacionMotores corrida={corrida} tarjeta={(n) => (
+        <Nodo nodo={(inst.sala ?? []).find((x) => x.id === n.id) ?? n} tipo={n.id === inst.nodo_maestro ? 'maestro' : 'trabajador'} pequeno />
+      )} />
       <TopologiaEntrenamiento corrida={corrida} inst={inst} />
     </>
   )
 }
 
 // Nuevo → Predicción distribuida: con qué nodos y el botón para empezar.
-function NuevoPrediccion({ inst, esMaestro, onPredecir, ocupado, error }) {
+function NuevoPrediccion({ inst, esMaestro, onPredecir, ocupado, error, ajustes, setAjustes }) {
   const sala = new Map((inst.sala ?? []).map((n) => [n.id, n]))
   const maestro = sala.get(inst.nodo_maestro)
   // Los nodos del último entrenamiento que siguen en la sala; si no, todos.
@@ -404,9 +411,17 @@ function NuevoPrediccion({ inst, esMaestro, onPredecir, ocupado, error }) {
         {maestro && <Nodo nodo={maestro} tipo="maestro coordinador" rol="Maestro" />}
         {esMaestro && (
           <div className="sala-botones">
-            <button type="button" className="boton-grande" disabled={!!ocupado || !inst.modelo_listo || nodos.length === 0} onClick={() => onPredecir(nodos.map((n) => n.id))}>
+            <button type="button" className="boton-grande" disabled={!!ocupado || !inst.modelo_listo || nodos.length === 0} onClick={() => onPredecir(nodos)}>
               {ocupado === 'predecir' ? 'Iniciando…' : 'INICIAR PREDICCIÓN'}
             </button>
+            <AjustesMotor ajustes={ajustes} setAjustes={setAjustes} nodos={nodos} soloUno />
+            <label className="ajustes-select">
+              Juntar los resultados
+              <select value={ajustes.gather === 'mpi' && hayMPI(nodos) ? 'mpi' : 'tcp'} onChange={(e) => setAjustes((a) => ({ ...a, gather: e.target.value }))}>
+                <option value="tcp">TCP (cada nodo al maestro)</option>
+                <option value="mpi" disabled={!hayMPI(nodos)}>MPI (Gatherv){hayMPI(nodos) ? '' : ': faltan MPI o hay sistemas distintos'}</option>
+              </select>
+            </label>
           </div>
         )}
         <p className="detalle">
@@ -433,7 +448,7 @@ function NuevoPrediccion({ inst, esMaestro, onPredecir, ocupado, error }) {
 function TopologiaPrevia({ sala, maestroNodo, seleccion, ajustes, tarjeta }) {
   const elegidos = sala.filter((n) => seleccion.has(n.id))
   const fuera = sala.filter((n) => !seleccion.has(n.id))
-  const comunicacion = ajustes.modelo === 'red' ? ajustes.comunicacion : 'central'
+  const comunicacion = ajustes.modelo === 'red' ? efectivo(ajustes, elegidos).comunicacion : 'central'
   return (
     <div className="sala-topologia">
       {elegidos.length > 0 ? (
@@ -504,7 +519,7 @@ function BotonVideo({ modelo, onVer }) {
   )
 }
 
-function AjustesModelo({ ajustes, setAjustes }) {
+function AjustesModelo({ ajustes, setAjustes, nodos }) {
   const [video, setVideo] = useState(null)
   const cambiar = (campo) => (e) => {
     const v = e.target.type === 'number' ? Math.max(1, Number(e.target.value) || 1) : e.target.value
@@ -542,13 +557,49 @@ function AjustesModelo({ ajustes, setAjustes }) {
       {ajustes.modelo === 'red' && (
         <label className="ajustes-select">
           Comunicación
-          <select value={ajustes.comunicacion} onChange={cambiar('comunicacion')}>
+          <select value={efectivo(ajustes, nodos).comunicacion} onChange={cambiar('comunicacion')}>
             <option value="arbol">En árbol entre los nodos</option>
             <option value="anillo">En anillo entre los nodos</option>
             <option value="central">Todo por el maestro</option>
+            <option value="mpi" disabled={!hayMPI(nodos)}>MPI (Allreduce){hayMPI(nodos) ? '' : ': faltan MPI o hay sistemas distintos'}</option>
           </select>
         </label>
       )}
+    </fieldset>
+  )
+}
+
+// Con qué calcula cada laptop (Fase 6): OpenMP y Go, uno tras otro, para
+// compararlos; o uno solo. Con CUDA, las laptops con NVIDIA reparten cada
+// mini-lote entre la CPU y la GPU.
+function AjustesMotor({ ajustes, setAjustes, nodos, soloUno }) {
+  const omp = hayOpenMP(nodos), gpu = hayCUDA(nodos)
+  const { motores } = efectivo(ajustes, nodos)
+  const elegido = soloUno ? ajustes.motorPrediccion : motores.length > 1 ? 'comparar' : motores[0]
+  const campo = soloUno ? 'motorPrediccion' : 'motores'
+  const cambiar = (e) => setAjustes((a) => ({ ...a, [campo]: e.target.value }))
+  const sinOMP = nodos.filter((n) => !n.motores?.includes('openmp')).map((n) => n.id)
+  const opciones = [
+    ...(soloUno ? [] : [['comparar', 'Comparar OpenMP y Go']]),
+    ['openmp', soloUno ? 'OpenMP' : 'Solo OpenMP'],
+    ['go', soloUno ? 'Go' : 'Solo Go'],
+  ]
+  const valor = !omp ? 'go' : elegido
+  return (
+    <fieldset className="ajustes-modelo">
+      <legend>Cálculo en cada laptop</legend>
+      {opciones.map(([v, texto]) => (
+        <label key={v} className="casilla">
+          <input type="radio" name="motor" value={v} checked={valor === v} disabled={v !== 'go' && !omp} onChange={cambiar} />
+          {texto}
+        </label>
+      ))}
+      <label className="casilla">
+        <input type="checkbox" checked={ajustes.cuda && gpu} disabled={!gpu} onChange={(e) => setAjustes((a) => ({ ...a, cuda: e.target.checked }))} />
+        Cooperar con CUDA (laptops con NVIDIA)
+      </label>
+      {sinOMP.length > 0 && <p className="detalle">Sin OpenMP: {sinOMP.join(', ')}.</p>}
+      {!gpu && <p className="detalle">Ninguna laptop tiene compilado el motor CUDA.</p>}
     </fieldset>
   )
 }
@@ -596,7 +647,7 @@ function AjustesReparto({ ajustes, setAjustes, inst }) {
 // arriba y cada nivel debajo (la flecha va del hijo a su padre en la
 // reducción; la suma vuelve por el mismo camino). Anillo: en círculo.
 // Central: el maestro al centro.
-const NOMBRE_COMUNICACION = { central: 'Todo por el maestro', arbol: 'En árbol', anillo: 'En anillo' }
+const NOMBRE_COMUNICACION = { central: 'Todo por el maestro', arbol: 'En árbol', anillo: 'En anillo', mpi: 'Con MPI (Allreduce)' }
 
 function Topologia({ corrida, sala, maestro, rotulo = 'COMUNICACIÓN', subtitulo, tarjeta, detallado, fila = 150, children }) {
   const nodos = (corrida.nodos ?? []).map((n) => sala?.get(n.id) ?? n)
@@ -623,6 +674,7 @@ function Topologia({ corrida, sala, maestro, rotulo = 'COMUNICACIÓN', subtitulo
     const xs = tipo === 'central' ? (n === 1 ? [W / 2 - 110] : [W / 2 - 220, W / 2 + 220]) : n === 1 ? [W / 2] : [W / 2 - 180, W / 2 + 180]
     pos = nodos.map((_, i) => [xs[i], H / 2])
     if (tipo === 'central') nodos.forEach((_, i) => flechas.push([i, 'M', 0, 0]))
+    else if (n === 2 && tipo === 'mpi') flechas.push([0, 1, 0, 0])
     else if (n === 2) flechas.push([0, 1, 0, -14], [1, 0, 0, -14])
   } else {
     const central = tipo === 'central'
@@ -633,6 +685,7 @@ function Topologia({ corrida, sala, maestro, rotulo = 'COMUNICACIÓN', subtitulo
       return [W / 2 + radio[0] * Math.cos(a), H / 2 + radio[1] * Math.sin(a)]
     })
     if (tipo === 'anillo') nodos.forEach((_, i) => flechas.push([i, (i + 1) % n, 0]))
+    else if (tipo === 'mpi') nodos.forEach((_, i) => { for (let j = i + 1; j < n; j++) flechas.push([i, j, 0]) }) // el camino lo elige MPI
     else nodos.forEach((_, i) => flechas.push([i, 'M', 0]))
   }
   // El maestro (central) va al centro; con un solo nodo, la pareja queda centrada.
@@ -673,7 +726,7 @@ function Topologia({ corrida, sala, maestro, rotulo = 'COMUNICACIÓN', subtitulo
             const d = minimo <= maximo ? Math.min(Math.max(70, minimo), maximo) : l / 2
             const mx = x2 - ((x2 - x1) / l) * d, my = y2 - ((y2 - y1) / l) * d
             return <polyline key={i} points={`${x1},${y1} ${mx},${my} ${x2},${y2}`} fill="none"
-              style={{ stroke: colores[k] }} strokeWidth="3" markerMid={`url(#punta-${k})`} />
+              style={{ stroke: colores[k] }} strokeWidth="3" markerMid={tipo === 'mpi' ? undefined : `url(#punta-${k})`} />
           })}
         </svg>
         {tipo === 'central' && (
@@ -704,11 +757,11 @@ function Prediccion({ inst, onVerFinal }) {
   return (
     <>
       <Topologia
-        corrida={{ nodos: p.nodos, comunicacion: 'central' }}
+        corrida={{ nodos: p.nodos, comunicacion: p.comunicacion === 'mpi' ? 'mpi' : 'central' }}
         sala={sala}
         maestro={sala.get(inst.nodo_maestro)}
         rotulo="PREDICCIÓN DISTRIBUIDA"
-        subtitulo="Cada nodo envía sus predicciones al maestro"
+        subtitulo={p.comunicacion === 'mpi' ? 'Las predicciones se juntan con MPI (Gatherv)' : 'Cada nodo envía sus predicciones al maestro'}
       />
       <section className="flujo-limpieza" aria-label="Predicción distribuida">
         <div className="tabla-limpieza-envoltura">
@@ -735,7 +788,7 @@ function Prediccion({ inst, onVerFinal }) {
                       {n.mensaje && <small className="nodo-nota"> {n.mensaje}</small>}
                     </td>
                     <td className="celda-tiempo">{fmtMB(n.mb)}</td>
-                    <td className="celda-tiempo">{fmtMs(n.t_calculo_ms)}</td>
+                    <td className="celda-tiempo">{fmtMs(n.t_calculo_ms)}{n.motor && <small className="cpu-media">{textoMotor(n.motor)}{n.parte_gpu > 0 ? ` · GPU ${Math.round(n.parte_gpu * 100)} %` : ''}</small>}</td>
                     <td className="celda-tiempo">{fmtMs(n.t_total_ms)}</td>
                   </tr>
                 )
@@ -974,7 +1027,7 @@ export default function FlujoCluster({ lanzador, onVerFinal }) {
   // sala, incluidos los que llegan, entran elegidos.
   const [quitados, setQuitados] = useState(new Set())
   // Modelo a entrenar (Nuevo → Entrenamiento).
-  const [ajustes, setAjustes] = useState({ modelo: 'red', epocas: 20, pasos: 25, reparto: 'dinamico', comunicacion: 'arbol' })
+  const [ajustes, setAjustes] = useState({ modelo: 'red', epocas: 20, pasos: 25, reparto: 'dinamico', comunicacion: 'arbol', motores: 'comparar', cuda: true, motorPrediccion: 'openmp', gather: 'tcp' })
   const [ocupado, setOcupado] = useState('')
   // Error y avisos de una acción, atados a la pantalla en que ocurrieron:
   // al cambiar de pantalla dejan de mostrarse.
@@ -1074,9 +1127,16 @@ export default function FlujoCluster({ lanzador, onVerFinal }) {
     const dinamico = ajustes.reparto === 'dinamico' && ajustes.modelo === 'red'
     const proporcional = (ajustes.reparto === 'capacidad' || dinamico) && ids.every((id) => sug[id] > 0)
     const pesos = proporcional ? Object.fromEntries(ids.map((id) => [id, sug[id]])) : undefined
-    await apiCluster.entrenar(ids, ajustes.epocas, true, { modelo: ajustes.modelo, pasos: ajustes.pasos, pesos, comunicacion: ajustes.modelo === 'red' ? ajustes.comunicacion : undefined, dinamico })
+    const ef = efectivo(ajustes, (inst.sala ?? []).filter((n) => ids.includes(n.id)))
+    await apiCluster.entrenar(ids, ajustes.epocas, true, {
+      modelo: ajustes.modelo, pasos: ajustes.pasos, pesos, dinamico, motores: ef.motores, cuda: ef.cuda,
+      comunicacion: ajustes.modelo === 'red' ? ef.comunicacion : undefined,
+    })
   })
-  const onPredecir = (ids) => accion('predecir', () => apiCluster.predecir(ids))
+  const onPredecir = (nodos) => accion('predecir', () => apiCluster.predecir(nodos.map((n) => n.id), {
+    motor: hayOpenMP(nodos) ? ajustes.motorPrediccion : 'go', cuda: efectivo(ajustes, nodos).cuda,
+    comunicacion: ajustes.gather === 'mpi' && hayMPI(nodos) ? 'mpi' : 'tcp',
+  }))
 
   const onFase = (f) => {
     if (f === 'final') onVerFinal()
@@ -1103,7 +1163,7 @@ export default function FlujoCluster({ lanzador, onVerFinal }) {
         ocupado={ocupado} error={error} avisos={avisos}
       />
     )
-    if (fase === 'prediccion') vista = <NuevoPrediccion inst={inst} esMaestro={esMaestro} onPredecir={onPredecir} ocupado={ocupado} error={error} />
+    if (fase === 'prediccion') vista = <NuevoPrediccion inst={inst} esMaestro={esMaestro} onPredecir={onPredecir} ocupado={ocupado} error={error} ajustes={ajustes} setAjustes={setAjustes} />
     else if (fase === 'entrenamiento' && esMaestro) vista = sala('pre')
     else vista = sala('sala')
     if (!esMaestro) {

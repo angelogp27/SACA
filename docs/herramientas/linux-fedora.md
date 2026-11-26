@@ -36,16 +36,21 @@ Compila todo y abre **http://127.0.0.1:8090**.
 
 ## 4. NVIDIA (opcional)
 
-Solo si tienes GPU NVIDIA. La usa la **regresión logística**; la Red Neuronal, la limpieza y la predicción calculan con el procesador. Si no te sale, sáltalo: tu laptop funciona igual.
+Solo si tienes GPU NVIDIA. Ayuda a la CPU en el entrenamiento y la predicción. Si no te sale, sáltalo: tu laptop funciona igual.
 
 ```sh
 nvidia-smi                                    # tu tarjeta y CUDA Version 12 o mayor
 sudo dnf install cuda-toolkit                 # repositorio de NVIDIA; en Ubuntu: sudo apt install nvidia-cuda-toolkit
 nvcc -O3 -o bin/gradiente_cuda nativo/cuda/gradiente_servidor.cu
+nvcc -O3 -o bin/red_cuda nativo/cuda/red/red.cu
 ./bin/gradiente_cuda --info                   # debe mostrar tu tarjeta
 ```
 
 Más detalle: [nativo/cuda/README.md](../../nativo/cuda/README.md).
+
+## MPI (opcional)
+
+Como comunicación entre laptops: [OpenMP, CUDA y MPI](../desarrollo/guias/fase6.md).
 
 ## Si algo falla
 

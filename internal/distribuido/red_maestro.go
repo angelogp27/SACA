@@ -98,6 +98,7 @@ func (c *Corrida) entrenarRed(ctx context.Context) (*Resultado, error) {
 	res := &Resultado{ID: c.activa.id, Red: &ResultadoRed{Capas: capas, Params: p}, Normalizador: c.datos.Normalizador}
 	tCalcNodo := make([]time.Duration, n)
 	nNodo := make([]int, n)
+	motorNodo := make([]string, n)
 	inicio := time.Now()
 
 	for e := 0; e < op.Epocas; e++ {
@@ -105,6 +106,7 @@ func (c *Corrida) entrenarRed(ctx context.Context) (*Resultado, error) {
 		var calcEpoca time.Duration
 		calcNodoEpoca := make([]float64, n)
 		filasNodoEpoca := make([]int, n)
+		cpu, gpu := make([]float64, n), make([]float64, n)
 		perdidaEpoca, nEpoca, bytes := 0.0, 0, 0
 		for s := 0; s < pasos; s++ {
 			var params []byte
@@ -139,7 +141,7 @@ func (c *Corrida) entrenarRed(ctx context.Context) (*Resultado, error) {
 					limite.Stop()
 					return nil, errCaida(e, ev.id, ev.motivo)
 				}
-				if llego[i] || ev.msg.Epoca != e || ev.msg.Paso != s {
+				if llego[i] || ev.msg.Tipo != protocolo.TipoGradienteParcial || ev.msg.Epoca != e || ev.msg.Paso != s {
 					continue
 				}
 				llego[i] = true
@@ -158,6 +160,10 @@ func (c *Corrida) entrenarRed(ctx context.Context) (*Resultado, error) {
 					}
 					grads[i] = g
 					bytes += len(ev.msg.GradBin)
+				}
+				motorNodo[i] = ev.msg.Motor
+				if s == pasos-1 {
+					cpu[i], gpu[i] = ev.msg.CPU, ev.msg.ParteGPU
 				}
 				perdidas[i], cuantos[i] = ev.msg.Perdida, ev.msg.NMuestras
 				calc := time.Duration(ev.msg.TCalculoMs * float64(time.Millisecond))
@@ -211,7 +217,10 @@ func (c *Corrida) entrenarRed(ctx context.Context) (*Resultado, error) {
 		for i := range est.Nodos {
 			est.Nodos[i].CalculoMs = append(est.Nodos[i].CalculoMs, calcNodoEpoca[i])
 			est.Nodos[i].Ejemplos = filasNodoEpoca[i]
-			est.Nodos[i].Motor = "go"
+			est.Nodos[i].Motor = motorNodo[i]
+			if op.MotorCPU != "" {
+				est.Nodos[i].CPU, est.Nodos[i].GPU = append(est.Nodos[i].CPU, cpu[i]), append(est.Nodos[i].GPU, gpu[i])
+			}
 			fraccion[i] = float64(filasNodoEpoca[i]) / float64(max(nEpoca, 1))
 		}
 		est.Fraccion = append(est.Fraccion, fraccion)
@@ -238,7 +247,7 @@ func (c *Corrida) entrenarRed(ctx context.Context) (*Resultado, error) {
 	}
 	m.mu.Unlock()
 	for i, nodo := range c.nodos {
-		res.Nodos = append(res.Nodos, InfoNodo{ID: nodo.vista.ID, Motor: "go", Dispositivo: nodo.vista.Dispositivo, Hardware: nodo.vista.Hardware,
+		res.Nodos = append(res.Nodos, InfoNodo{ID: nodo.vista.ID, Motor: motorNodo[i], Dispositivo: nodo.vista.Dispositivo, Hardware: nodo.vista.Hardware,
 			Remoto: nodo.vista.Remoto, Particion: i, N: nNodo[i] / max(op.Epocas, 1), TCalculo: tCalcNodo[i]})
 	}
 	res.Evaluacion = EvaluarRed(capas, p, c.datos.Prueba.X, c.datos.Prueba.Y)

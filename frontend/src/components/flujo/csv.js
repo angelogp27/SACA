@@ -33,20 +33,22 @@ export function csvLimpieza(l) {
   return filas
 }
 
-// Entrenamiento: una fila por época, con el cálculo y la parte de las
-// filas de cada nodo.
+// Entrenamiento: una fila por época (y motor, si se compararon), con el
+// cálculo, la CPU, la parte de la GPU y la parte de las filas de cada nodo.
 export function csvEntrenamiento(c) {
   const nodos = c.nodos ?? []
   const filas = [[
-    'epoca', 'perdida', 't_epoca_ms', 't_calculo_ms', 't_red_ms', 'mb_red',
-    ...nodos.flatMap((n) => [`calculo_ms_${n.id}`, `fraccion_${n.id}`]),
+    'motor', 'epoca', 'perdida', 't_epoca_ms', 't_calculo_ms', 't_red_ms', 'mb_red',
+    ...nodos.flatMap((n) => [`calculo_ms_${n.id}`, `cpu_${n.id}`, `gpu_${n.id}`, `fraccion_${n.id}`]),
   ]]
-  const total = (c.perdidas ?? []).length
-  for (let e = 0; e < total; e++) {
-    filas.push([
-      e + 1, c.perdidas[e], c.t_epoca_ms?.[e], c.t_calculo_ms?.[e], c.t_red_ms?.[e], c.mb_epoca?.[e],
-      ...nodos.flatMap((n, i) => [n.calculo_ms?.[e], c.fraccion?.[e]?.[i]]),
-    ])
+  for (const k of [...(c.anteriores ?? []), c]) {
+    const motor = k.motor_cpu ? `${k.motor_cpu}${k.cuda ? '+cuda' : ''}` : ''
+    for (let e = 0; e < (k.perdidas ?? []).length; e++) {
+      filas.push([
+        motor, e + 1, k.perdidas[e], k.t_epoca_ms?.[e], k.t_calculo_ms?.[e], k.t_red_ms?.[e], k.mb_epoca?.[e],
+        ...(k.nodos ?? []).flatMap((n, i) => [n.calculo_ms?.[e], n.cpu?.[e], n.gpu?.[e], k.fraccion?.[e]?.[i]]),
+      ])
+    }
   }
   return filas
 }
@@ -54,10 +56,10 @@ export function csvEntrenamiento(c) {
 // Predicción: un resumen por nodo (las 3,3 millones de filas predichas no:
 // pesarían ~150 MB; ya están en el mapa y en la línea de tiempo).
 export function csvPrediccion(p) {
-  const filas = [['prediccion', 'modelo', 'nodo', 'estado', 'filas', 'mb_enviados', 't_calculo_s', 't_hasta_ultimo_trozo_s', 'mensaje']]
+  const filas = [['prediccion', 'modelo', 'comunicacion', 'nodo', 'motor', 'parte_gpu', 'estado', 'filas', 'mb_enviados', 't_calculo_s', 't_hasta_ultimo_trozo_s', 'mensaje']]
   for (const n of p.nodos ?? []) {
-    filas.push([p.id, p.modelo, n.id, n.estado, n.filas, n.mb, (n.t_calculo_ms ?? 0) / 1000, (n.t_total_ms ?? 0) / 1000, n.mensaje])
+    filas.push([p.id, p.modelo, p.comunicacion, n.id, n.motor, n.parte_gpu, n.estado, n.filas, n.mb, (n.t_calculo_ms ?? 0) / 1000, (n.t_total_ms ?? 0) / 1000, n.mensaje])
   }
-  filas.push([p.id, p.modelo, 'total', p.estado, p.filas, p.mb, '', p.t_total_s, p.mensaje])
+  filas.push([p.id, p.modelo, p.comunicacion, 'total', '', '', p.estado, p.filas, p.mb, '', p.t_total_s, p.mensaje])
   return filas
 }

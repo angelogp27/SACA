@@ -9,6 +9,8 @@ Las mismas partes del sistema que ya resuelve Go, programadas con las tecnologí
 | `mpi/entrenamiento` | MPI (sem. 3-4) | `Scatterv` de la muestra, `Allreduce` o `Send`/`Recv` + `Bcast` del gradiente | ídem |
 | `cuda/gradiente` | CUDA (sem. 11-12) | kernels `atomic`, `shared` y `shuffle` | ídem, y el gradiente de la CPU en la época 0 |
 | `cuda/gradiente_servidor.cu` | CUDA | motor del trabajador Go del clúster | ver [cuda/README.md](cuda/README.md) |
+| `openmp/red`, `cuda/red`, `mpi/puente` | OpenMP, CUDA, MPI | la red neuronal y la comunicación en el clúster (la página) | [guía](../docs/desarrollo/guias/fase6.md) |
+| `comun/motor_red.h` | – | protocolo de los motores de la red con el trabajador Go | – |
 | `comun/saca.h` | – | lectura de `muestra.bin`, F1/AUC, verificación y CSV | – |
 
 ```sh

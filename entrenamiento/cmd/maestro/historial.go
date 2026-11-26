@@ -181,7 +181,7 @@ func (a *api) leerHistorial(w http.ResponseWriter, r *http.Request) {
 
 // ---------- descripciones de cada proceso ----------
 
-var nombresTec = map[string]string{"pthreads": "Pthreads", "go": "Go"}
+var nombresTec = map[string]string{"pthreads": "Pthreads", "go": "Go", "openmp": "OpenMP"}
 
 func describirLimpieza(e distribuido.EstadoLimpieza) string {
 	tecs := make([]string, len(e.Tecnologias))
@@ -201,7 +201,7 @@ func describirModeloTexto(modelo string) string {
 func describirEntrenamiento(c *distribuido.EstadoCorrida) string {
 	partes := []string{describirModeloTexto(c.Modelo)}
 	if strings.HasPrefix(c.Modelo, "red") {
-		partes = append(partes, map[string]string{"central": "todo por el maestro", "arbol": "en árbol", "anillo": "en anillo"}[c.Comunicacion])
+		partes = append(partes, map[string]string{"central": "todo por el maestro", "arbol": "en árbol", "anillo": "en anillo", "mpi": "con MPI"}[c.Comunicacion])
 		if c.PasosPorEpoca > 0 {
 			partes = append(partes, fmt.Sprintf("%d mini-lotes", c.PasosPorEpoca))
 		}
@@ -209,12 +209,34 @@ func describirEntrenamiento(c *distribuido.EstadoCorrida) string {
 	if r := map[string]string{"dinamico": "reparto dinámico", "capacidad": "según la capacidad", "iguales": "partes iguales"}[c.Reparto]; r != "" {
 		partes = append(partes, r)
 	}
+	if t := describirMotores(c.Motores, c.CUDA); t != "" {
+		partes = append(partes, t)
+	}
 	partes = append(partes, plural(len(c.Nodos), "nodo", "nodos"), plural(c.Epocas, "época", "épocas"))
 	return "Entrenamiento · " + strings.Join(partes, " · ")
 }
 
+// describirMotores: "OpenMP y Go", "Go + CUDA"…
+func describirMotores(motores []string, cuda bool) string {
+	var nombres []string
+	for _, m := range motores {
+		if n := nombresTec[m]; n != "" {
+			nombres = append(nombres, n)
+		}
+	}
+	t := strings.Join(nombres, " y ")
+	if t != "" && cuda {
+		t += " + CUDA"
+	}
+	return t
+}
+
 func describirPrediccion(e distribuido.EstadoPrediccion) string {
-	return fmt.Sprintf("Predicción distribuida · %s · %s · %.1f MB", describirModeloTexto(e.Modelo), plural(len(e.Nodos), "nodo", "nodos"), e.MB)
+	motor := describirMotores([]string{e.MotorCPU}, e.CUDA)
+	if e.Comunicacion == "mpi" {
+		motor += " · MPI"
+	}
+	return fmt.Sprintf("Predicción distribuida · %s · %s · %s · %.1f MB", describirModeloTexto(e.Modelo), motor, plural(len(e.Nodos), "nodo", "nodos"), e.MB)
 }
 
 func plural(n int, uno, varios string) string {

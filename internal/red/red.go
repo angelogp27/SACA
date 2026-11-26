@@ -252,3 +252,21 @@ func Decodificar(b []byte) ([]float64, error) {
 	}
 	return v, nil
 }
+
+// PredecirLote calcula la probabilidad de cada fila de X en salida, con
+// hilos goroutines que reutilizan su memoria de trabajo.
+func PredecirLote(capas []int, p []float64, X [][]float64, salida []float64, hilos int) {
+	hilos = max(1, min(hilos, len(X)))
+	var wg sync.WaitGroup
+	for h := 0; h < hilos; h++ {
+		wg.Add(1)
+		go func(h int) {
+			defer wg.Done()
+			t := nuevoTrabajo(capas)
+			for i := h * len(X) / hilos; i < (h+1)*len(X)/hilos; i++ {
+				salida[i] = adelante(capas, p, X[i], t)
+			}
+		}(h)
+	}
+	wg.Wait()
+}

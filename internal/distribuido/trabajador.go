@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/rand/v2"
 	"net"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -47,6 +48,10 @@ type ConfigTrabajador struct {
 	// Hardware es la huella de esta máquina que se manda al registrarse;
 	// si es nil, Trabajar la detecta.
 	Hardware *hardware.Info
+	// Motores de la Fase 6 (Go, OpenMP y CUDA) y la ruta del puente MPI de
+	// este nodo ("" = no tiene).
+	Motores   *MotoresRed
+	PuenteMPI string
 
 	validado bool
 }
@@ -80,11 +85,19 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 	// Una limpieza en curso se cancela si la sesión termina.
 	var lim limpiezaNodo
 	defer lim.cancelar(0)
+	if cfg.Motores == nil {
+		cfg.Motores = &MotoresRed{}
+	}
+	if cfg.Motores.Hilos == 0 && cfg.Respaldo != nil {
+		cfg.Motores.Hilos = cfg.Respaldo.Hilos
+	}
+	defer cfg.Motores.Cerrar()
 	puertoPares := 0
 	if cfg.Pares != nil {
 		puertoPares = cfg.Pares.Puerto()
 	}
-	err := c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoRegistro, WorkerID: cfg.ID, Huella: cfg.Huella, Motor: cfg.Motor.Nombre(), Dispositivo: cfg.Motor.Dispositivo(), Hardware: cfg.Hardware, PuertoPares: puertoPares})
+	err := c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoRegistro, WorkerID: cfg.ID, Huella: cfg.Huella, Motor: cfg.Motor.Nombre(), Dispositivo: cfg.Motor.Dispositivo(), Hardware: cfg.Hardware, PuertoPares: puertoPares,
+		Motores: cfg.Motores.Disponibles(), PuenteMPI: cfg.PuenteMPI})
 	if err != nil {
 		return fmt.Errorf("%w: no se pudo enviar el registro: %v", ErrConexionPerdida, err)
 	}
@@ -103,6 +116,17 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 	var paramsLocal []float64
 	var adamLocal *red.Adam
 	var rango, epocasRed int
+	// Fase 6: con qué calcula esta corrida (nil = como antes) y su uso de CPU.
+	var motor *hibrido
+	var uso *limpieza.MedidorUso
+	soltarMotor := func() {
+		motor = nil
+		if uso != nil {
+			uso.Cerrar()
+			uso = nil
+		}
+	}
+	defer func() { soltarMotor() }()
 	defer func() {
 		if grupo != nil {
 			grupo.Cerrar()
@@ -130,6 +154,7 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 			}
 
 		case m.Tipo == protocolo.TipoIniciarLimpieza:
+			cfg.Motores.Cerrar() // la limpieza necesita la memoria
 			lim.iniciar(c, cfg, m)
 
 		case m.Tipo == protocolo.TipoCancelarLimpieza:
@@ -159,6 +184,7 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 				return fmt.Errorf("particion_asignada sin filtro")
 			}
 			cargado = false
+			soltarMotor()
 			if err := cfg.asegurarMuestra(); err != nil {
 				log.Printf("AVISO: %v", err)
 			}
@@ -181,8 +207,28 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 				log.Printf("registrado como %s: partición %d de %d → %d de %d ejemplos de entrenamiento (%.1f%%)",
 					cfg.ID, resto, mod, len(X), entrenamiento.Len(), 100*float64(len(X))/float64(entrenamiento.Len()))
 			}
-			if err := cfg.cargar(d, X, y); err != nil {
-				return err
+			// noListo avisa al maestro que este nodo no puede con la corrida y
+			// lo deja en la sala.
+			noListo := func(err error) error {
+				log.Printf("no puedo participar en la corrida: %v", err)
+				return c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoParticionLista, WorkerID: cfg.ID, Corrida: m.Corrida, Motivo: err.Error()})
+			}
+			if m.MotorCPU == "" {
+				if err := cfg.cargar(d, X, y); err != nil {
+					return err
+				}
+			} else {
+				var err error
+				if motor, err = cfg.Motores.armar(cfg.Datos, m.MotorCPU, m.CUDA); err == nil {
+					err = motor.particion(filasDe(entrenamiento.EstacionID, mod, resto, m.FiltroMongo.Restos))
+				}
+				if err != nil {
+					soltarMotor()
+					if err := noListo(err); err != nil {
+						return fmt.Errorf("%w: %v", ErrConexionPerdida, err)
+					}
+					continue
+				}
 			}
 			cargado, tCalculo, epocas = true, 0, 0
 			Y, capas = y, nil
@@ -192,13 +238,22 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 					grupo.Cerrar()
 					grupo = nil
 				}
-				if m.Comunicacion == pares.Arbol || m.Comunicacion == pares.Anillo {
+				if m.Comunicacion != "" && m.Comunicacion != pares.Central {
 					if cfg.Pares == nil {
 						return fmt.Errorf("el maestro pidió comunicación en %s y este nodo no tiene puerto de pares", m.Comunicacion)
 					}
 					g, err := cfg.Pares.Unirse(context.Background(), m.Corrida, m.Rango, m.Pares, m.Comunicacion)
 					if err != nil {
-						return fmt.Errorf("no se pudo conectar con los otros nodos (%s): %w", m.Comunicacion, err)
+						err = fmt.Errorf("no se pudo conectar con los otros nodos (%s): %w", m.Comunicacion, err)
+						if m.MotorCPU == "" {
+							return err
+						}
+						cargado = false
+						soltarMotor()
+						if err := noListo(err); err != nil {
+							return fmt.Errorf("%w: %v", ErrConexionPerdida, err)
+						}
+						continue
 					}
 					grupo, rango, epocasRed = g, m.Rango, m.Epocas
 					paramsLocal = red.Inicializar(capas, 1)
@@ -207,7 +262,21 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 				}
 				log.Printf("modelo: red neuronal %v (%d parámetros), %d pasos por época", capas, red.NumParametros(capas), m.PasosPorEpoca)
 			}
-			log.Printf("listo: calcula con el motor %s (%s); esperando los parámetros del maestro", cfg.Motor.Nombre(), cfg.Motor.Dispositivo())
+			if motor == nil {
+				log.Printf("listo: calcula con el motor %s (%s); esperando los parámetros del maestro", cfg.Motor.Nombre(), cfg.Motor.Dispositivo())
+				continue
+			}
+			pids := []int{os.Getpid()}
+			for _, mr := range []motorRed{motor.cpu, motor.gpu} {
+				if mr != nil && mr.pid() > 0 {
+					pids = append(pids, mr.pid())
+				}
+			}
+			uso = limpieza.NuevoMedidorUso(runtime.NumCPU(), pids...)
+			if err := c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoParticionLista, WorkerID: cfg.ID, Corrida: m.Corrida, Motor: motor.nombre()}); err != nil {
+				return fmt.Errorf("%w: %v", ErrConexionPerdida, err)
+			}
+			log.Printf("listo: calcula con %s; esperando los parámetros del maestro", motor.nombre())
 
 		case m.Tipo == protocolo.TipoReparto:
 			// Reparto dinámico: desde la próxima época, estas cubetas. La
@@ -218,6 +287,11 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 			}
 			antes := len(X)
 			X, Y = FiltrarRestos(cfg.Datos.Entrenamiento, m.FiltroMongo.Mod, m.FiltroMongo.Restos)
+			if motor != nil {
+				if err := motor.particion(filasDe(cfg.Datos.Entrenamiento.EstacionID, m.FiltroMongo.Mod, 0, m.FiltroMongo.Restos)); err != nil {
+					return fmt.Errorf("reparto de la época %d: %w", m.Epoca, err)
+				}
+			}
 			log.Printf("reparto dinámico (época %d): %d → %d ejemplos", m.Epoca, antes, len(X))
 
 		case m.Tipo == protocolo.TipoEntrenamientoFinalizado:
@@ -225,6 +299,7 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 				grupo.Cerrar()
 				grupo = nil
 			}
+			soltarMotor()
 			promedio := 0.0
 			if epocas > 0 {
 				promedio = ms(tCalculo) / float64(epocas)
@@ -259,11 +334,20 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 			}
 			ini, fin := red.Lote(len(X), m.Paso, pasosRed)
 			inicio := time.Now()
-			hilos := runtime.NumCPU()
-			if cfg.Respaldo != nil {
-				hilos = cfg.Respaldo.Hilos
+			var grad []float64
+			var perdida float64
+			if motor != nil {
+				var err error
+				if grad, perdida, err = motor.gradiente(capas, p, ini, fin); err != nil {
+					return fmt.Errorf("época %d paso %d: %w", m.Epoca, m.Paso, err)
+				}
+			} else {
+				hilos := runtime.NumCPU()
+				if cfg.Respaldo != nil {
+					hilos = cfg.Respaldo.Hilos
+				}
+				grad, perdida = red.Gradiente(capas, p, X[ini:fin], Y[ini:fin], cfg.Datos.PesosClase, hilos)
 			}
-			grad, perdida := red.Gradiente(capas, p, X[ini:fin], Y[ini:fin], cfg.Datos.PesosClase, hilos)
 			calc := time.Since(inicio)
 			tCalculo += calc
 			if m.Paso == 0 {
@@ -272,6 +356,12 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 			resp := protocolo.Mensaje{
 				Tipo: protocolo.TipoGradienteParcial, WorkerID: cfg.ID, Corrida: m.Corrida, Epoca: m.Epoca, Paso: m.Paso,
 				Modelo: "red", Perdida: perdida, NMuestras: fin - ini, TCalculoMs: ms(calc), Motor: "go",
+			}
+			if motor != nil {
+				resp.Motor = motor.nombre()
+				if m.Paso == pasosRed-1 {
+					resp.ParteGPU, resp.CPU = motor.parteGPU(), uso.Leer()
+				}
 			}
 			if grupo == nil {
 				resp.GradBin = red.Codificar(grad)
@@ -307,19 +397,26 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 				return fmt.Errorf("época %d: llegaron %d pesos, se esperaban %d", m.Epoca, len(m.Pesos), d)
 			}
 			inicio := time.Now()
-			grad, gradSesgo, perdida, err := cfg.Motor.Gradiente(m.Pesos, m.Sesgo)
-			if err != nil {
-				return fmt.Errorf("época %d: %w", m.Epoca, err)
+			resp := protocolo.Mensaje{Tipo: protocolo.TipoGradienteParcial, WorkerID: cfg.ID, Corrida: m.Corrida, Epoca: m.Epoca, NMuestras: len(X), Motor: cfg.Motor.Nombre()}
+			if motor != nil {
+				// La regresión logística es la red de capas {d, 1}.
+				g, l, err := motor.gradiente([]int{d, 1}, append(append([]float64(nil), m.Pesos...), m.Sesgo), 0, len(X))
+				if err != nil {
+					return fmt.Errorf("época %d: %w", m.Epoca, err)
+				}
+				resp.Gradiente, resp.GradienteSesgo, resp.Perdida = g[:d], g[d], l
+				resp.Motor, resp.ParteGPU, resp.CPU = motor.nombre(), motor.parteGPU(), uso.Leer()
+			} else {
+				var err error
+				if resp.Gradiente, resp.GradienteSesgo, resp.Perdida, err = cfg.Motor.Gradiente(m.Pesos, m.Sesgo); err != nil {
+					return fmt.Errorf("época %d: %w", m.Epoca, err)
+				}
 			}
 			calc := time.Since(inicio)
 			tCalculo += calc
 			epocas++
-			err = c.Enviar(protocolo.Mensaje{
-				Tipo: protocolo.TipoGradienteParcial, WorkerID: cfg.ID, Corrida: m.Corrida, Epoca: m.Epoca,
-				Gradiente: grad, GradienteSesgo: gradSesgo, Perdida: perdida, NMuestras: len(X),
-				TCalculoMs: ms(calc), Motor: cfg.Motor.Nombre(),
-			})
-			if err != nil {
+			resp.TCalculoMs = ms(calc)
+			if err := c.Enviar(resp); err != nil {
 				return fmt.Errorf("%w: época %d: no se pudo enviar el gradiente: %v", ErrConexionPerdida, m.Epoca, err)
 			}
 			if m.Epoca%50 == 0 {

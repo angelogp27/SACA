@@ -1257,3 +1257,9 @@ button.nodo-caja {
 .historial-estado.cancelado {
   color: var(--status-critical);
 }
+
+/* Comparación de motores (OpenMP y Go) en el entrenamiento */
+.resumen-entrenamiento + .flujo-limpieza { margin-bottom: 1rem; }
+.cpu-epocas { display: block; width: 100%; height: 3rem; }
+.tabla-motores .fila-total th,
+.tabla-motores .fila-total td { border-bottom: 0; }

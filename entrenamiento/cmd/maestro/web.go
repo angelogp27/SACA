@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -186,6 +187,11 @@ type pedidoCorrida struct {
 	Comunicacion string `json:"comunicacion"`
 	// Dinamico: reparto dinámico (solo la red): se reajusta en cada época.
 	Dinamico bool `json:"dinamico"`
+	// Motores de CPU, uno tras otro sobre el mismo entrenamiento ("openmp",
+	// "go"); vacío = como se registró cada nodo. CUDA: cada laptop con GPU
+	// coopera con ella.
+	Motores []string `json:"motores"`
+	CUDA    bool     `json:"cuda"`
 	// Pesos: reparto proporcional (Fase 3); vacío = partes iguales.
 	Pesos map[string]float64 `json:"pesos"`
 }
@@ -214,8 +220,20 @@ func (a *api) nuevaCorrida(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	corrida, err := a.m.Iniciar(distribuido.OpcionesCorrida{Nodos: p.Nodos, Epocas: p.Epocas, Tasa: a.cfg.tasa, Verificar: p.Verificar, Continuar: true,
-		Modelo: p.Modelo, Capas: p.Capas, PasosPorEpoca: p.Pasos, Pesos: pesosValidos(p.Pesos, p.Nodos), Comunicacion: p.Comunicacion, Dinamico: p.Dinamico})
+	if len(p.Motores) > 2 {
+		fallo(w, http.StatusBadRequest, errors.New("como máximo dos motores"))
+		return
+	}
+	if len(p.Motores) == 0 {
+		p.Motores = []string{""}
+	}
+	op := distribuido.OpcionesCorrida{Nodos: p.Nodos, Epocas: p.Epocas, Tasa: a.cfg.tasa, Verificar: p.Verificar, Continuar: true,
+		Modelo: p.Modelo, Capas: p.Capas, PasosPorEpoca: p.Pasos, Pesos: pesosValidos(p.Pesos, p.Nodos), Comunicacion: p.Comunicacion, Dinamico: p.Dinamico,
+		CUDA: p.CUDA, MotorCPU: p.Motores[0]}
+	if p.Motores[0] != "" {
+		op.Comparacion = p.Motores
+	}
+	corrida, err := a.m.Iniciar(op)
 	switch {
 	case errors.Is(err, distribuido.ErrOcupado), errors.Is(err, distribuido.ErrLimpiando),
 		errors.Is(err, distribuido.ErrMuestraDistinta), errors.Is(err, distribuido.ErrSinMuestra):
@@ -232,7 +250,26 @@ func (a *api) nuevaCorrida(w http.ResponseWriter, r *http.Request) {
 	a.mu.Unlock()
 	go func() {
 		defer cancelar()
-		res, err := corrida.Ejecutar(ctx)
+		// Los motores se miden uno tras otro, nunca a la vez. El historial
+		// guarda el pedido entero: la última corrida lleva las anteriores.
+		for i, motor := range p.Motores {
+			if i > 0 {
+				op.MotorCPU = motor
+				if c := a.m.Instantanea().Corrida; c != nil {
+					previas := append([]*distribuido.EstadoCorrida{}, c.Anteriores...)
+					c.Anteriores = nil
+					op.Anteriores = append(previas, c)
+				}
+				var err error
+				if corrida, err = a.m.Iniciar(op); err != nil {
+					log.Printf("no se pudo seguir con el motor %s: %v", motor, err)
+					break
+				}
+			}
+			if !a.ejecutar(ctx, corrida, p) {
+				break
+			}
+		}
 		// Al historial, haya terminado bien o no: el estado completo de la
 		// corrida tal como lo veía la página.
 		if c := a.m.Instantanea().Corrida; c != nil {
@@ -240,47 +277,68 @@ func (a *api) nuevaCorrida(w http.ResponseWriter, r *http.Request) {
 			if c.Resultado != nil && c.Resultado.TTotalS > 0 {
 				dur = c.Resultado.TTotalS
 			}
-			a.cfg.historial.guardar(HistEntrenamiento, describirEntrenamiento(c), c.Estado, dur, c)
-		}
-		if err != nil {
-			log.Printf("corrida terminada sin completarse: %v", err)
-			return
-		}
-		reportar(res, p.Epocas)
-		regenerarMapa(a.cfg, res, p.Epocas)
-		reparto := ""
-		if c := a.m.Instantanea().Corrida; c != nil {
-			reparto = c.Reparto
-		}
-		if res.Red != nil {
-			guardarTransferencia(a.cfg.transferencias, filaEntrenamiento(res, p.Comunicacion, reparto, p.Epocas))
-		}
-		if a.cfg.resultado == "" {
-			return
-		}
-		base := a.cfg.modo
-		if res.Red != nil {
-			base += "_red"
-			if c := a.m.Instantanea().Corrida; c != nil && c.Comunicacion != "" && c.Comunicacion != "central" {
-				base += "_" + c.Comunicacion
+			for _, previa := range c.Anteriores {
+				if previa.Resultado != nil {
+					dur += previa.Resultado.TTotalS
+				}
 			}
-		}
-		// El reparto queda en el nombre del modo (cluster.csv no cambia de
-		// columnas): _capacidad o _dinamico; sin sufijo, partes iguales.
-		if reparto == "capacidad" || reparto == "dinamico" {
-			base += "_" + reparto
-		}
-		modo, maquina := combinacion(base, res.Nodos, a.m.Instantanea().EjemplosEntrenamiento)
-		if a.cfg.maquina != "" {
-			maquina = a.cfg.maquina
-		}
-		if err := agregarCSV(a.cfg.resultado, filasCSV(res, modo, maquina, p.Epocas)); err != nil {
-			log.Printf("no se pudo escribir %s: %v", a.cfg.resultado, err)
-		} else {
-			log.Printf("resultados agregados a %s", a.cfg.resultado)
+			a.cfg.historial.guardar(HistEntrenamiento, describirEntrenamiento(c), c.Estado, dur, c)
 		}
 	}()
 	responder(w, http.StatusAccepted, map[string]any{"ok": true})
+}
+
+// ejecutar corre una corrida ya iniciada y guarda sus resultados; false si
+// no se completó.
+func (a *api) ejecutar(ctx context.Context, corrida *distribuido.Corrida, p pedidoCorrida) bool {
+	res, err := corrida.Ejecutar(ctx)
+	if err != nil {
+		log.Printf("corrida terminada sin completarse: %v", err)
+		return false
+	}
+	reportar(res, p.Epocas)
+	regenerarMapa(a.cfg, res, p.Epocas)
+	reparto := ""
+	if c := a.m.Instantanea().Corrida; c != nil {
+		reparto = c.Reparto
+	}
+	if res.Red != nil {
+		guardarTransferencia(a.cfg.transferencias, filaEntrenamiento(res, p.Comunicacion, reparto, p.Epocas))
+	}
+	if a.cfg.resultado == "" {
+		return true
+	}
+	base := a.cfg.modo
+	if res.Red != nil {
+		base += "_red"
+		if c := a.m.Instantanea().Corrida; c != nil && c.Comunicacion != "" && c.Comunicacion != "central" {
+			base += "_" + c.Comunicacion
+		}
+	}
+	// El reparto queda en el nombre del modo (cluster.csv no cambia de
+	// columnas): _capacidad o _dinamico; sin sufijo, partes iguales.
+	if reparto == "capacidad" || reparto == "dinamico" {
+		base += "_" + reparto
+	}
+	// El motor también, si no es el de siempre (Go en CPU).
+	if c := a.m.Instantanea().Corrida; c != nil && c.MotorCPU != "" {
+		if c.MotorCPU != distribuido.MotorCPUGo {
+			base += "_" + c.MotorCPU
+		}
+		if slices.ContainsFunc(res.Nodos, func(n distribuido.InfoNodo) bool { return strings.Contains(n.Motor, "cuda") }) {
+			base += "_cuda"
+		}
+	}
+	modo, maquina := combinacion(base, res.Nodos, a.m.Instantanea().EjemplosEntrenamiento)
+	if a.cfg.maquina != "" {
+		maquina = a.cfg.maquina
+	}
+	if err := agregarCSV(a.cfg.resultado, filasCSV(res, modo, maquina, p.Epocas)); err != nil {
+		log.Printf("no se pudo escribir %s: %v", a.cfg.resultado, err)
+	} else {
+		log.Printf("resultados agregados a %s", a.cfg.resultado)
+	}
+	return true
 }
 
 // combinacion nombra la corrida en el CSV por su combinación exacta de
@@ -399,10 +457,13 @@ func (a *api) verificarHuellas(w http.ResponseWriter, r *http.Request) {
 // el último modelo entrenado y el maestro junta los resultados (Fase 5).
 func (a *api) nuevaPrediccion(w http.ResponseWriter, r *http.Request) {
 	var p struct {
-		Nodos []string `json:"nodos"`
+		Nodos        []string `json:"nodos"`
+		Motor        string   `json:"motor"`
+		CUDA         bool     `json:"cuda"`
+		Comunicacion string   `json:"comunicacion"`
 	}
 	json.NewDecoder(r.Body).Decode(&p)
-	if err := a.m.IniciarPrediccion(p.Nodos); err != nil {
+	if err := a.m.IniciarPrediccion(p.Nodos, distribuido.OpcionesPrediccion{MotorCPU: p.Motor, CUDA: p.CUDA, Comunicacion: p.Comunicacion}); err != nil {
 		fallo(w, http.StatusConflict, err)
 		return
 	}

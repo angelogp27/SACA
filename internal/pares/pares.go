@@ -37,7 +37,7 @@ const (
 )
 
 // Valido dice si t es una topología conocida.
-func Valido(t string) bool { return t == Central || t == Arbol || t == Anillo }
+func Valido(t string) bool { return t == Central || t == Arbol || t == Anillo || t == MPI }
 
 type clave struct{ corrida, rango int }
 
@@ -166,6 +166,9 @@ func nuevoEnlace(c net.Conn) *enlace {
 // siguiente.
 func (p *Pares) Unirse(ctx context.Context, corrida, rango int, dirs []string, topo string) (*Grupo, error) {
 	n := len(dirs)
+	if topo == MPI { // también con un nodo: su puente espera la conexión
+		return p.unirseMPI(ctx, corrida, rango, n)
+	}
 	g := &Grupo{topo: topo, rango: rango, n: n, salida: map[int]*enlace{}, entrada: map[int]*enlace{}}
 	if n <= 1 || topo == Central {
 		return g, nil
@@ -257,9 +260,7 @@ func (g *Grupo) enviar(r int, v []float64) error {
 		return err
 	}
 	buf := make([]byte, 8*len(v))
-	for i, x := range v {
-		binary.LittleEndian.PutUint64(buf[8*i:], math.Float64bits(x))
-	}
+	codificar(buf, v)
 	if _, err := e.w.Write(buf); err != nil {
 		return err
 	}
@@ -280,10 +281,20 @@ func (g *Grupo) recibir(r int, dst []float64) error {
 	if _, err := io.ReadFull(e.r, buf); err != nil {
 		return err
 	}
+	decodificar(dst, buf)
+	return nil
+}
+
+func codificar(buf []byte, v []float64) {
+	for i, x := range v {
+		binary.LittleEndian.PutUint64(buf[8*i:], math.Float64bits(x))
+	}
+}
+
+func decodificar(dst []float64, buf []byte) {
 	for i := range dst {
 		dst[i] = math.Float64frombits(binary.LittleEndian.Uint64(buf[8*i:]))
 	}
-	return nil
 }
 
 // AllReduce suma v entre todos los nodos del grupo, en el lugar: al volver,
@@ -293,6 +304,8 @@ func (g *Grupo) AllReduce(v []float64) error {
 		return nil
 	}
 	switch g.topo {
+	case MPI:
+		return g.allreduceMPI(v)
 	case Arbol:
 		return g.arbol(v)
 	case Anillo:

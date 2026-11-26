@@ -21,8 +21,8 @@ Arriba: **Nuevo** / **Resultados** y las fases **Limpieza e ingeniería de featu
 | Fase | En Nuevo (maestro) | En Resultados |
 |---|---|---|
 | **Limpieza e ingeniería de features** | **Iniciar limpieza**: cada laptop limpia sus 4 CSV con Pthreads y con Go y genera su `muestra.bin`. Si ya limpiaron: **Saltar limpieza** (solo comprueba que todos tengan el mismo archivo) | Por nodo y tecnología: % de CPU y tiempo de cada fase |
-| **Entrenamiento** | Modelo (▶ = video), épocas, mini-lotes, comunicación (árbol, anillo o todo por el maestro) y reparto (dinámico, según la capacidad o partes iguales). Toca un nodo para quitarlo o sumarlo. **Iniciar entrenamiento** | Un cuadro por época (más oscuro = menor pérdida) y los nodos de tamaño según su parte de los datos |
-| **Predicción distribuida** | **Iniciar predicción** (con el último modelo entrenado) | Filas, MB y tiempos de cada nodo |
+| **Entrenamiento** | Modelo (▶ = video), épocas, mini-lotes, comunicación (árbol, anillo, todo por el maestro o MPI), cálculo (comparar OpenMP y Go, o uno solo; con o sin CUDA) y reparto (dinámico, según la capacidad o partes iguales). Toca un nodo para quitarlo o sumarlo. **Iniciar entrenamiento** | Un cuadro por época (más oscuro = menor pérdida), la CPU y el tiempo de cada motor por nodo, y los nodos de tamaño según su parte de los datos |
+| **Predicción distribuida** | **Iniciar predicción** (con el último modelo entrenado): OpenMP o Go, con o sin CUDA, y TCP o MPI | Filas, MB y tiempos de cada nodo |
 
 **Resultados finales** (también arriba a la derecha): el mapa de estaciones, el NO2 con la alerta del modelo y el último proceso de cada fase.
 

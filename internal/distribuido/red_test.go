@@ -129,13 +129,13 @@ func TestPrediccionDistribuida(t *testing.T) {
 	if err := maestro.EsperarNodos(context.Background(), 2); err != nil {
 		t.Fatal(err)
 	}
-	if err := maestro.IniciarPrediccion(nil); err == nil {
+	if err := maestro.IniciarPrediccion(nil, OpcionesPrediccion{}); err == nil {
 		t.Fatal("sin modelo entrenado no se puede predecir")
 	}
 	if _, err := maestro.Correr(context.Background(), OpcionesCorrida{Epocas: 2, Modelo: "red", Capas: []int{6, 3}, PasosPorEpoca: 3, Continuar: true}); err != nil {
 		t.Fatal(err)
 	}
-	if err := maestro.IniciarPrediccion(nil); err != nil {
+	if err := maestro.IniciarPrediccion(nil, OpcionesPrediccion{}); err != nil {
 		t.Fatal(err)
 	}
 	var r entrega

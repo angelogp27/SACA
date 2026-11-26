@@ -14,7 +14,7 @@ Instala con *Next* en todo:
 
 Abre una **PowerShell nueva** y comprueba: `git --version; go version; node --version`
 
-## 2. gcc de 64 bits (para Pthreads)
+## 2. gcc de 64 bits (para Pthreads y OpenMP)
 
 1. Instala MSYS2 desde https://www.msys2.org (carpeta `C:\msys64`).
 2. Abre **MSYS2 UCRT64** (ícono amarillo, **no** "MSYS2 MSYS") y pega:
@@ -66,7 +66,7 @@ Compila todo y abre **http://127.0.0.1:8090**. Si Windows pregunta por el firewa
 
 ## 6. NVIDIA (opcional)
 
-Solo si tienes GPU NVIDIA. La usa la **regresión logística**; la Red Neuronal, la limpieza y la predicción calculan con el procesador igual que en las demás laptops. Si no te sale en 30 min, sáltalo: tu laptop funciona igual.
+Solo si tienes GPU NVIDIA. Ayuda a la CPU en el entrenamiento y la predicción. Si no te sale en 30 min, sáltalo: tu laptop funciona igual.
 
 1. `nvidia-smi` debe mostrar tu tarjeta y `CUDA Version` 12 o mayor (si no, actualiza el driver desde https://www.nvidia.com/es-la/drivers/).
 2. Instala **Visual Studio Build Tools 2022** (carga *Desarrollo para el escritorio con C++*) y el **CUDA Toolkit** 12.x (https://developer.nvidia.com/cuda-downloads). Reinicia.
@@ -74,10 +74,15 @@ Solo si tienes GPU NVIDIA. La usa la **regresión logística**; la Red Neuronal,
 
    ```bat
    nvcc -O3 -o bin\gradiente_cuda.exe nativo\cuda\gradiente_servidor.cu
+   nvcc -O3 -o bin\red_cuda.exe nativo\cuda\red\red.cu
    bin\gradiente_cuda.exe --info
    ```
 
    Debe mostrar tu tarjeta. Desde ahí tu nodo la usa solo. Más detalle: [nativo/cuda/README.md](../../nativo/cuda/README.md).
+
+## MPI (opcional)
+
+Como comunicación entre laptops: [OpenMP, CUDA y MPI](../desarrollo/guias/fase6.md).
 
 ## Si algo falla
 

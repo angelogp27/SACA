@@ -26,6 +26,11 @@ const (
 	// neuronal): entre dos épocas, las cubetas que le tocan desde la
 	// siguiente. Todos tienen la muestra completa: no viajan datos.
 	TipoReparto = "reparto"
+	// TipoParticionLista (trabajador → maestro): el nodo ya cargó su
+	// partición en su motor y se conectó con los demás; con Motivo, no pudo.
+	// Solo si particion_asignada trae MotorCPU: así preparar los motores no
+	// cuenta en el tiempo de la primera época.
+	TipoParticionLista = "particion_lista"
 
 	// Limpieza (docs/desarrollo/contratos/contrato_protocolo_tcp.md, "Limpieza"): cada nodo
 	// limpia sus propios CSV y genera su data/muestra.bin; por la red solo
@@ -69,6 +74,17 @@ type Mensaje struct {
 	// Hardware es la huella de la máquina (CPU, núcleos, RAM, GPU): con
 	// ella el maestro deja constancia de en qué equipos se midió.
 	Hardware *hardware.Info `json:"hardware,omitempty"`
+
+	// Motores de la Fase 6. En registro: Motores que tiene el nodo ("go",
+	// "openmp", "cuda") y la ruta de su puente MPI ("" = no tiene). En
+	// particion_asignada y predecir: MotorCPU ("go" u "openmp"; vacío = el
+	// comportamiento anterior) y si coopera con CUDA. En gradiente_parcial
+	// y predicciones: ParteGPU, la fracción de filas que hizo la GPU.
+	Motores   []string `json:"motores,omitempty"`
+	PuenteMPI string   `json:"puente_mpi,omitempty"`
+	MotorCPU  string   `json:"motor_cpu,omitempty"`
+	CUDA      bool     `json:"cuda,omitempty"`
+	ParteGPU  float64  `json:"parte_gpu,omitempty"`
 
 	// particion_asignada
 	FiltroMongo *FiltroMongo `json:"filtro_mongo,omitempty"`
@@ -146,6 +162,11 @@ type Mensaje struct {
 	PrediccionesBin []byte `json:"predicciones_bin,omitempty"`
 	Total           int    `json:"total,omitempty"`
 	Ultimo          bool   `json:"ultimo,omitempty"`
+	// Nodo dueño de las filas, cuando las manda otro (con MPI, el rango 0
+	// las junta con Gatherv y las entrega por todos).
+	Nodo string `json:"nodo,omitempty"`
+	// Nodos: en predecir con MPI, el id de cada rango.
+	Nodos []string `json:"nodos,omitempty"`
 
 	// Fase de la limpieza a la que se refiere el avance ("limpieza" o
 	// "variables"), y el tiempo de cada una al terminar.

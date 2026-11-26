@@ -44,7 +44,9 @@ func main() {
 	rutaMuestra := flag.String("muestra", "data/muestra.bin", "muestra de entrenamiento (la misma que la del maestro)")
 	mesCorte := flag.Int("mes-corte", 10, "los meses >= mes-corte son de prueba (igual que en el maestro)")
 	nombreMotor := flag.String("motor", "auto", "motor de cálculo: auto, go o cuda")
-	cudaExe := flag.String("cuda-exe", ejecutableCUDA(), "ejecutable compilado de nativo/cuda/gradiente_servidor.cu")
+	cudaExe := flag.String("cuda-exe", ejecutable("gradiente_cuda"), "ejecutable compilado de nativo/cuda/gradiente_servidor.cu")
+	openmpExe := flag.String("openmp-exe", ejecutable("red_openmp"), "ejecutable compilado de nativo/openmp/red (motor OpenMP)")
+	redCudaExe := flag.String("red-cuda-exe", ejecutable("red_cuda"), "ejecutable compilado de nativo/cuda/red (CUDA junto a la CPU)")
 	hilos := flag.Int("hilos", 0, "goroutines del motor go (0 = todos los núcleos lógicos)")
 	dirDatos := flag.String("datos", "data/raw", "directorio con los 4 CSV de la EPA, para la limpieza que pide el maestro")
 	sinLimpieza := flag.Bool("sin-limpieza", false, "no aceptar pedidos de limpieza del maestro")
@@ -73,7 +75,8 @@ func main() {
 	ctx, cancelar := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancelar()
 
-	cfg := &distribuido.ConfigTrabajador{ID: *id, Datos: datos, Huella: huella, RutaMuestra: *rutaMuestra, MesCorte: *mesCorte, Motor: motor, Respaldo: respaldo, Hardware: &hw}
+	cfg := &distribuido.ConfigTrabajador{ID: *id, Datos: datos, Huella: huella, RutaMuestra: *rutaMuestra, MesCorte: *mesCorte, Motor: motor, Respaldo: respaldo, Hardware: &hw,
+		Motores: &distribuido.MotoresRed{ExeOpenMP: *openmpExe, ExeCUDA: *redCudaExe, Hilos: *hilos}, PuenteMPI: pares.Puente("bin")}
 	if *dirPares != "" {
 		p, err := pares.Escuchar(*dirPares)
 		if err != nil {
@@ -172,11 +175,11 @@ func elegirMotor(nombre, cudaExe string, respaldo *distribuido.MotorGo) (distrib
 	return nil, fmt.Errorf("motor desconocido %q (usa auto, go o cuda)", nombre)
 }
 
-func ejecutableCUDA() string {
+func ejecutable(nombre string) string {
 	if runtime.GOOS == "windows" {
-		return "bin/gradiente_cuda.exe"
+		nombre += ".exe"
 	}
-	return "bin/gradiente_cuda"
+	return "bin/" + nombre
 }
 
 // conectar reintenta hasta que el maestro acepte la conexión: los nodos
