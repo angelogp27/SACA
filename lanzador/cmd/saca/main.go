@@ -40,6 +40,7 @@ import (
 	"proyecto9/internal/aqs"
 	"proyecto9/internal/distribuido"
 	"proyecto9/internal/hardware"
+	"proyecto9/internal/redes"
 )
 
 // maxLaptops es el tamaño máximo del clúster, contando la del maestro.
@@ -377,9 +378,14 @@ func (l *lanzador) elegirMaestro(escrito string) (destino, web string, err error
 		host, puerto = escrito, itoa(l.cfg.puertoTCP)
 	}
 	if net.ParseIP(host) == nil {
-		if _, err := net.LookupHost(host); err != nil {
+		ips, err := net.LookupHost(host)
+		if err != nil {
 			return "", "", fmt.Errorf("dirección inválida %q", escrito)
 		}
+		host = ips[0]
+	}
+	if !redes.PermitidaTexto(host) {
+		return "", "", errors.New(redes.Motivo(host))
 	}
 	web = "http://" + net.JoinHostPort(host, itoa(l.cfg.puertoWeb))
 	for _, v := range l.desc.Vistos() {
@@ -456,7 +462,7 @@ func (l *lanzador) datosPagina() string {
 
 // ipPrincipal elige la IP por la que los demás llegan al maestro: la del
 // switch (subred 192.168.50.0/24 de docs/cluster/switch); si no hay
-// switch, la de Tailscale (100.64.0.0/10); si tampoco, la primera.
+// switch, la de Tailscale (100.64.0.0/10); si tampoco, ninguna.
 func ipPrincipal(ips []string) string {
 	_, tailscale, _ := net.ParseCIDR("100.64.0.0/10")
 	var ts string
@@ -469,13 +475,9 @@ func ipPrincipal(ips []string) string {
 			ts = s
 		}
 	}
-	if ts != "" {
-		return ts
-	}
-	if len(ips) > 0 {
-		return ips[0]
-	}
-	return ""
+	// Nunca el Wi-Fi: sin cable ni VPN, no hay IP que dar (la página dice
+	// "sin red").
+	return ts
 }
 
 // ipsLocales: las IPv4 por las que los nodos pueden llegar a esta laptop,

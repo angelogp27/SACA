@@ -2,6 +2,8 @@
 
 Cada laptop usa **una IP fija y distinta** en el cable, en la red `192.168.50.x`, **sin gateway** (así Internet sigue por Wi-Fi). Por convención, el maestro es la `.1`.
 
+El clúster **solo** viaja por esta red (o por la VPN): si una laptop no tiene su IP `192.168.50.x`, no ve el clúster y el maestro la rechaza aunque esté en el mismo Wi-Fi.
+
 | # | Laptop (dueño) | Sistema | IP | Rol |
 |---|---|---|---|---|
 | 1 | _____ | _____ | `192.168.50.1` | Maestro |

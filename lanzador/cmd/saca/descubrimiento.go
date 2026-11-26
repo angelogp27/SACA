@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"proyecto9/internal/redes"
 )
 
 // Descubrimiento en la LAN: la laptop que inicia el clúster anuncia cada
@@ -72,6 +74,9 @@ func (d *descubridor) escuchar() {
 		// maestro y, de sus IP, la del switch (192.168.50.x) si llega por ahí:
 		// si no, el clúster iría por el Wi-Fi.
 		ip := origen.(*net.UDPAddr).IP.String()
+		if !redes.PermitidaTexto(ip) {
+			continue // llegó por el Wi-Fi: ese camino no se usa
+		}
 		d.mu.Lock()
 		v, ok := d.vistos[a.Instancia]
 		switch {

@@ -6,6 +6,7 @@
 2. **Conecta la red** (una vez), según dónde estén:
    - En la misma mesa, por cable: [switch](switch/ips.md) → tu IP, y luego [maestro](switch/maestro.md) o [nodo](switch/nodo.md)
    - Cada uno en su casa: [VPN (Tailscale)](vpn/nodo.md) → [maestro](vpn/maestro.md) o [nodo](vpn/nodo.md)
+   - **Nunca por Wi-Fi:** SACA solo acepta el cable del switch (`192.168.50.x`) o la VPN (`100.x`). Un nodo que llega por Wi-Fi es rechazado y no se detecta el clúster.
 3. **Usa la página**: [uso.md](uso.md)
 
 ## En cada sesión

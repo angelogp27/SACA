@@ -25,6 +25,7 @@ import (
 	"proyecto9/internal/particion"
 	"proyecto9/internal/protocolo"
 	"proyecto9/internal/red"
+	"proyecto9/internal/redes"
 )
 
 // Motivos de "baja" que el trabajador entiende.
@@ -352,6 +353,12 @@ func (m *Maestro) Atender(conn net.Conn) {
 
 	rechazar := func(motivo string) {
 		c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoBaja, WorkerID: msg.WorkerID, Motivo: motivo})
+	}
+	// El clúster va por el cable del switch o la VPN, nunca por el Wi-Fi.
+	if ip := soloIP(remoto); !redes.PermitidaTexto(ip) {
+		log.Printf("%s: %s rechazado: %s", remoto, msg.WorkerID, redes.Motivo(ip))
+		rechazar("red_no_permitida: " + redes.Motivo(ip))
+		return
 	}
 	m.mu.Lock()
 	huellaMaestro := m.huella
