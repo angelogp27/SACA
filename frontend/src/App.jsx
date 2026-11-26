@@ -59,10 +59,6 @@ function App() {
       <header className="app-header">
         <div className="app-barra">
           <RolLaptop lanzador={lanzador} />
-          <div className="vistas" role="tablist" aria-label="Vista">
-            <button type="button" role="tab" aria-selected={vistaActual === 'cluster'} onClick={() => setVista('cluster')}>Clúster</button>
-            <button type="button" role="tab" aria-selected={vistaActual === 'final'} onClick={() => setVista('final')}>Resultados finales</button>
-          </div>
         </div>
         <h1 className="app-marca">
           <span className="app-sigla">SACA</span>
@@ -87,23 +83,25 @@ function App() {
         )}
       </header>
 
-      {vistaActual === 'cluster' ? (
-        <main>
-          <FlujoCluster
-            lanzador={lanzador}
-            onVerFinal={() => {
-              setVersionDatos((v) => v + 1)
-              setVista('final')
-            }}
-          />
-        </main>
-      ) : (
-      <main className="dashboard">
-        <PanelMapa estaciones={estaciones} seleccionada={estacion?.id} onSeleccionar={setElegida} dia={resumen?.dia_series} />
-        {estacion && <PanelLineaTiempo estacion={estacion} serie={serie} />}
-        <ResumenProcesos activo={!!lanzador.datos?.rol} version={versionDatos} />
+      {/* Los resultados finales se abren desde la línea de fases del clúster
+          y, desde ahí, cualquier otra fase vuelve al clúster. */}
+      <main>
+        <FlujoCluster
+          lanzador={lanzador}
+          final={vistaActual === 'final'}
+          onVerFinal={() => {
+            setVersionDatos((v) => v + 1)
+            setVista('final')
+          }}
+          onVolver={() => setVista('cluster')}
+        >
+          <div className="dashboard">
+            <PanelMapa estaciones={estaciones} seleccionada={estacion?.id} onSeleccionar={setElegida} dia={resumen?.dia_series} />
+            {estacion && <PanelLineaTiempo estacion={estacion} serie={serie} />}
+            <ResumenProcesos activo={!!lanzador.datos?.rol} version={versionDatos} />
+          </div>
+        </FlujoCluster>
       </main>
-      )}
     </div>
   )
 }

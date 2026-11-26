@@ -47,6 +47,9 @@ const (
 	// devuelve los resultados en trozos binarios (el gather).
 	TipoPredecir     = "predecir"     // maestro → trabajador
 	TipoPredicciones = "predicciones" // trabajador → maestro, uno por trozo
+
+	// saca-top: cada trabajador manda cada 2 s lo que gasta su laptop.
+	TipoUso = "uso" // trabajador → maestro
 )
 
 // FiltroMongo indica qué porción de los datos le toca a un trabajador:
@@ -74,6 +77,8 @@ type Mensaje struct {
 	// Hardware es la huella de la máquina (CPU, núcleos, RAM, GPU): con
 	// ella el maestro deja constancia de en qué equipos se midió.
 	Hardware *hardware.Info `json:"hardware,omitempty"`
+	// Uso: CPU, RAM y GPU de la laptop ahora mismo (TipoUso).
+	Uso *hardware.Uso `json:"uso,omitempty"`
 
 	// Motores de la Fase 6. En registro: Motores que tiene el nodo ("go",
 	// "openmp", "cuda") y la ruta de su puente MPI ("" = no tiene). En

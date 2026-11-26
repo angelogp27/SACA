@@ -14,7 +14,8 @@ if (-not $SinCompilar) {
     New-Item -ItemType Directory -Force bin | Out-Null
     Write-Host "== 1/4 programas en Go"
     $programas = @{ maestro = "./entrenamiento/cmd/maestro"; trabajador = "./entrenamiento/cmd/trabajador";
-                    cargador_concurrente = "./cargador/cmd/concurrente"; saca = "./lanzador/cmd/saca"; exportar = "./herramientas/cmd/exportar" }
+                    cargador_concurrente = "./cargador/cmd/concurrente"; saca = "./lanzador/cmd/saca"; exportar = "./herramientas/cmd/exportar";
+                    "saca-top" = "./herramientas/cmd/saca-top" }
     foreach ($p in $programas.GetEnumerator()) {
         go build -o "bin/$($p.Key).exe" $p.Value
         if ($LASTEXITCODE -ne 0) { throw "no se pudo compilar $($p.Key)" }
@@ -44,14 +45,14 @@ if (-not $SinCompilar) {
         Write-Host "   AVISO: no hay gcc (MinGW-w64) ni bin/cargador_pthreads.exe: esta laptop limpiará solo con Go"
     }
 
-    Write-Host "== 3/4 MPI y CUDA (opcionales)"
+    Write-Host "== 3/4 MPI y CUDA (MPI obligatorio, CUDA opcional)"
     $ok = $false
     if ($gccMaquina -match '^x86_64' -and (Test-Path (Join-Path (Split-Path (Get-Command gcc).Source) "..\include\mpi.h"))) {
         gcc -O2 -o bin/puente_mpi.exe nativo/mpi/puente/puente.c -lmsmpi -lws2_32
         $ok = ($LASTEXITCODE -eq 0)
     }
     if ($ok) { Write-Host "   bin/puente_mpi.exe" }
-    else { Write-Host "   sin MPI (ver docs/desarrollo/guias/fase6.md): esta laptop usa arbol, anillo o el maestro" }
+    else { Write-Host "   FALTA MPI: instala MS-MPI y el paquete msmpi (docs/herramientas/windows.md, paso 2)" }
     if (Get-Command nvcc -ErrorAction SilentlyContinue) {
         foreach ($f in @(@("red_cuda", "red/red"), @("gradiente_cuda", "gradiente_servidor"))) {
             $exe = "bin/$($f[0]).exe"; $fuente = "nativo/cuda/$($f[1]).cu"
@@ -67,7 +68,9 @@ if (-not $SinCompilar) {
     Write-Host "== 4/4 página"
     if (Get-Command npm -ErrorAction SilentlyContinue) {
         Push-Location frontend
-        if (-not (Test-Path node_modules)) { npm ci; if ($LASTEXITCODE -ne 0) { throw "npm ci falló" } }
+        # npm ci si faltan las dependencias o package-lock.json cambió (git pull)
+        $lock = "node_modules/.package-lock.json"
+        if (-not (Test-Path $lock) -or (Get-Item package-lock.json).LastWriteTime -gt (Get-Item $lock).LastWriteTime) { npm ci; if ($LASTEXITCODE -ne 0) { throw "npm ci falló" } }
         npm run build | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "no se pudo compilar la página" }
         Pop-Location

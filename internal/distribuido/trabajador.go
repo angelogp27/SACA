@@ -102,6 +102,10 @@ func Trabajar(c *protocolo.Conexion, cfg *ConfigTrabajador) error {
 		return fmt.Errorf("%w: no se pudo enviar el registro: %v", ErrConexionPerdida, err)
 	}
 	log.Printf("conectado al maestro como %s; esperando que inicie una corrida", cfg.ID)
+	// saca-top: lo que gasta esta laptop, cada 2 s, mientras siga en la sala.
+	finUso := make(chan struct{})
+	defer close(finUso)
+	go enviarUso(c, cfg.ID, finUso)
 
 	var d int
 	var X [][]float64
@@ -579,4 +583,24 @@ func (l *limpiezaNodo) iniciar(c *protocolo.Conexion, cfg *ConfigTrabajador, m p
 			}
 		}
 	}()
+}
+
+// PeriodoUso: cada cuánto manda un trabajador su uso de CPU, RAM y GPU.
+var PeriodoUso = 2 * time.Second
+
+func enviarUso(c *protocolo.Conexion, id string, fin <-chan struct{}) {
+	m := hardware.NuevoMuestreador()
+	t := time.NewTicker(PeriodoUso)
+	defer t.Stop()
+	for {
+		select {
+		case <-fin:
+			return
+		case <-t.C:
+			u := m.Leer()
+			if c.Enviar(protocolo.Mensaje{Tipo: protocolo.TipoUso, WorkerID: id, Uso: &u}) != nil {
+				return
+			}
+		}
+	}
 }

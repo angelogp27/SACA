@@ -232,7 +232,11 @@ func describirMotores(motores []string, cuda bool) string {
 }
 
 func describirPrediccion(e distribuido.EstadoPrediccion) string {
-	motor := describirMotores([]string{e.MotorCPU}, e.CUDA)
+	motores := e.Motores
+	if len(motores) == 0 {
+		motores = []string{e.MotorCPU}
+	}
+	motor := describirMotores(motores, e.CUDA)
 	if e.Comunicacion == "mpi" {
 		motor += " · MPI"
 	}

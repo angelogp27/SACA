@@ -183,6 +183,9 @@ type nodoSala struct {
 	puertoPares int
 	ipLocal     string
 	puenteMPI   string // ruta del puente MPI en la laptop del nodo
+	// uso: lo último que mandó para saca-top (no se publica a la página).
+	uso     *hardware.Uso
+	usoHora time.Time
 }
 
 // corridaActiva recibe los mensajes de los nodos que participan en ella.
@@ -244,6 +247,7 @@ type Maestro struct {
 	predFilas           map[string][]FilaPrediccion
 	predLista           []string
 	predMPI             *pares.LanzadoMPI // con la predicción por MPI
+	predResto           *restoPrediccion  // motores que faltan del pedido (comparación)
 }
 
 func NuevoMaestro(cfg ConfigMaestro) *Maestro {
@@ -450,6 +454,12 @@ func (m *Maestro) escuchar(c *protocolo.Conexion, id string) string {
 			m.mensajeLimpieza(id, msg)
 		case msg.Tipo == protocolo.TipoPredicciones:
 			m.mensajePrediccion(id, msg)
+		case msg.Tipo == protocolo.TipoUso:
+			m.mu.Lock()
+			if n := m.nodos[id]; n != nil {
+				n.uso, n.usoHora = msg.Uso, time.Now()
+			}
+			m.mu.Unlock()
 		case msg.Tipo == protocolo.TipoHuellaMuestra:
 			m.huellaRecibida(id, msg.Huella)
 		case msg.Tipo == protocolo.TipoGradienteParcial, msg.Tipo == protocolo.TipoParticionLista:
@@ -1294,4 +1304,29 @@ func soloIP(dir string) string {
 func esLoopback(ip string) bool {
 	p := net.ParseIP(ip)
 	return p != nil && p.IsLoopback()
+}
+
+// UsoNodo: una fila de saca-top.
+type UsoNodo struct {
+	ID       string         `json:"id"`
+	Maestro  bool           `json:"maestro,omitempty"` // corre junto al maestro
+	Estado   string         `json:"estado"`
+	Hardware *hardware.Info `json:"hardware,omitempty"`
+	Uso      *hardware.Uso  `json:"uso,omitempty"`
+	HaceS    float64        `json:"hace_s"` // desde el último dato; -1 = nunca llegó
+}
+
+// Usos: lo que gasta cada laptop de la sala, en orden de llegada.
+func (m *Maestro) Usos() []UsoNodo {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var lista []UsoNodo
+	for _, n := range m.ordenSala() {
+		u := UsoNodo{ID: n.vista.ID, Maestro: n.vista.ID == m.cfg.NodoMaestro, Estado: n.vista.Estado, Hardware: n.vista.Hardware, Uso: n.uso, HaceS: -1}
+		if !n.usoHora.IsZero() {
+			u.HaceS = time.Since(n.usoHora).Seconds()
+		}
+		lista = append(lista, u)
+	}
+	return lista
 }

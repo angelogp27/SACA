@@ -55,11 +55,14 @@ export function csvEntrenamiento(c) {
 
 // Predicción: un resumen por nodo (las 3,3 millones de filas predichas no:
 // pesarían ~150 MB; ya están en el mapa y en la línea de tiempo).
-export function csvPrediccion(p) {
+export function csvPrediccion(ultima) {
   const filas = [['prediccion', 'modelo', 'comunicacion', 'nodo', 'motor', 'parte_gpu', 'estado', 'filas', 'mb_enviados', 't_calculo_s', 't_hasta_ultimo_trozo_s', 'mensaje']]
-  for (const n of p.nodos ?? []) {
-    filas.push([p.id, p.modelo, p.comunicacion, n.id, n.motor, n.parte_gpu, n.estado, n.filas, n.mb, (n.t_calculo_ms ?? 0) / 1000, (n.t_total_ms ?? 0) / 1000, n.mensaje])
+  // Con la comparación de motores, una tanda de filas por motor.
+  for (const p of [...(ultima.anteriores ?? []), ultima]) {
+    for (const n of p.nodos ?? []) {
+      filas.push([p.id, p.modelo, p.comunicacion, n.id, n.motor, n.parte_gpu, n.estado, n.filas, n.mb, (n.t_calculo_ms ?? 0) / 1000, (n.t_total_ms ?? 0) / 1000, n.mensaje])
+    }
+    filas.push([p.id, p.modelo, p.comunicacion, 'total', p.motor_cpu, '', p.estado, p.filas, p.mb, '', p.t_total_s, p.mensaje])
   }
-  filas.push([p.id, p.modelo, p.comunicacion, 'total', '', '', p.estado, p.filas, p.mb, '', p.t_total_s, p.mensaje])
   return filas
 }

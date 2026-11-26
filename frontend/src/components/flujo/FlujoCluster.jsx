@@ -10,7 +10,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { apiCluster, useCluster } from '../../data/cluster'
 import { apiLocal } from '../../data/local'
-import { NOMBRE_MOTOR, efectivo, hayCUDA, hayMPI, hayOpenMP, textoMotor } from './motores'
+import { NOMBRE_MOTOR, efectivo, hayCUDA, hayMPI, hayOpenMP, mpiPrediccion, textoMotor } from './motores'
 import ComparacionMotores from './ComparacionMotores'
 import CuadrosEpocas from './CuadrosEpocas'
 import Fases from './Fases'
@@ -403,7 +403,10 @@ function NuevoPrediccion({ inst, esMaestro, onPredecir, ocupado, error, ajustes,
   const maestro = sala.get(inst.nodo_maestro)
   // Los nodos del último entrenamiento que siguen en la sala; si no, todos.
   const deCorrida = (inst.corrida?.nodos ?? []).map((n) => sala.get(n.id)).filter(Boolean)
-  const nodos = deCorrida.length ? deCorrida : inst.sala ?? []
+  const candidatos = deCorrida.length ? deCorrida : inst.sala ?? []
+  const mpi = mpiPrediccion(candidatos, maestro)
+  const conMPI = ajustes.gather === 'mpi' && mpi.nodos.length > 0
+  const nodos = conMPI ? mpi.nodos : candidatos
   return (
     <section className="flujo-sala" aria-label="Nueva predicción distribuida">
       <div className="sala-centro">
@@ -411,17 +414,20 @@ function NuevoPrediccion({ inst, esMaestro, onPredecir, ocupado, error, ajustes,
         {maestro && <Nodo nodo={maestro} tipo="maestro coordinador" rol="Maestro" />}
         {esMaestro && (
           <div className="sala-botones">
-            <button type="button" className="boton-grande" disabled={!!ocupado || !inst.modelo_listo || nodos.length === 0} onClick={() => onPredecir(nodos)}>
+            <button type="button" className="boton-grande" disabled={!!ocupado || !inst.modelo_listo || nodos.length === 0} onClick={() => onPredecir(nodos, conMPI ? 'mpi' : 'tcp')}>
               {ocupado === 'predecir' ? 'Iniciando…' : 'INICIAR PREDICCIÓN'}
             </button>
-            <AjustesMotor ajustes={ajustes} setAjustes={setAjustes} nodos={nodos} soloUno />
+            <AjustesMotor ajustes={ajustes} setAjustes={setAjustes} nodos={nodos} prediccion />
             <label className="ajustes-select">
               Juntar los resultados
-              <select value={ajustes.gather === 'mpi' && hayMPI(nodos) ? 'mpi' : 'tcp'} onChange={(e) => setAjustes((a) => ({ ...a, gather: e.target.value }))}>
+              <select value={conMPI ? 'mpi' : 'tcp'} onChange={(e) => setAjustes((a) => ({ ...a, gather: e.target.value }))}>
                 <option value="tcp">TCP (cada nodo al maestro)</option>
-                <option value="mpi" disabled={!hayMPI(nodos)}>MPI (Gatherv){hayMPI(nodos) ? '' : ': faltan MPI o hay sistemas distintos'}</option>
+                <option value="mpi" disabled={mpi.nodos.length === 0}>MPI (Gatherv), solo Windows{mpi.motivo ? `: ${mpi.motivo}` : ''}</option>
               </select>
             </label>
+            {conMPI && mpi.fuera.length > 0 && (
+              <p className="detalle">Con MPI no participan: {mpi.fuera.map((n) => n.id).join(', ')} (no son Windows o no tienen MPI).</p>
+            )}
           </div>
         )}
         <p className="detalle">
@@ -572,25 +578,21 @@ function AjustesModelo({ ajustes, setAjustes, nodos }) {
 // Con qué calcula cada laptop (Fase 6): OpenMP y Go, uno tras otro, para
 // compararlos; o uno solo. Con CUDA, las laptops con NVIDIA reparten cada
 // mini-lote entre la CPU y la GPU.
-function AjustesMotor({ ajustes, setAjustes, nodos, soloUno }) {
+function AjustesMotor({ ajustes, setAjustes, nodos, prediccion }) {
   const omp = hayOpenMP(nodos), gpu = hayCUDA(nodos)
   const { motores } = efectivo(ajustes, nodos)
-  const elegido = soloUno ? ajustes.motorPrediccion : motores.length > 1 ? 'comparar' : motores[0]
-  const campo = soloUno ? 'motorPrediccion' : 'motores'
+  const elegido = prediccion ? ajustes.motorPrediccion : motores.length > 1 ? 'comparar' : motores[0]
+  const campo = prediccion ? 'motorPrediccion' : 'motores'
   const cambiar = (e) => setAjustes((a) => ({ ...a, [campo]: e.target.value }))
   const sinOMP = nodos.filter((n) => !n.motores?.includes('openmp')).map((n) => n.id)
-  const opciones = [
-    ...(soloUno ? [] : [['comparar', 'Comparar OpenMP y Go']]),
-    ['openmp', soloUno ? 'OpenMP' : 'Solo OpenMP'],
-    ['go', soloUno ? 'Go' : 'Solo Go'],
-  ]
+  const opciones = [['comparar', 'Comparar OpenMP y Go'], ['openmp', 'Solo OpenMP'], ['go', 'Solo Go']]
   const valor = !omp ? 'go' : elegido
   return (
     <fieldset className="ajustes-modelo">
       <legend>Cálculo en cada laptop</legend>
       {opciones.map(([v, texto]) => (
         <label key={v} className="casilla">
-          <input type="radio" name="motor" value={v} checked={valor === v} disabled={v !== 'go' && !omp} onChange={cambiar} />
+          <input type="radio" name={`motor-${campo}`} value={v} checked={valor === v} disabled={v !== 'go' && !omp} onChange={cambiar} />
           {texto}
         </label>
       ))}
@@ -631,8 +633,10 @@ function AjustesReparto({ ajustes, setAjustes, inst }) {
       </label>
       <p className="detalle">
         {elegido === 'dinamico'
-          ? 'Al final de cada época, cada nodo recibe filas según lo rápido que calculó.'
-          : hay ? `Capacidad ${origen}.` : 'Sin mediciones todavía: limpia o entrena una vez para medir la capacidad.'}
+          ? `Al final de cada época, cada nodo recibe filas según lo rápido que calculó${hay ? ` (empieza con la capacidad ${origen})` : ''}.`
+          : elegido === 'igual'
+            ? 'Cada nodo recibe la misma cantidad de filas, sin importar su capacidad.'
+            : hay ? `Capacidad ${origen}.` : 'Sin mediciones todavía: limpia o entrena una vez para medir la capacidad.'}
       </p>
     </fieldset>
   )
@@ -754,6 +758,12 @@ function Prediccion({ inst, onVerFinal }) {
   const fmtN = (v) => (v ?? 0).toLocaleString('es-PE')
   const fmtMB = (v) => `${(v ?? 0).toLocaleString('es-PE', { maximumFractionDigits: 1 })} MB`
   const fmtMs = (v) => (v > 0 ? `${(v / 1000).toLocaleString('es-PE', { maximumFractionDigits: 2 })} s` : '—')
+  const fmtS = (v) => `${(v ?? 0).toLocaleString('es-PE', { maximumFractionDigits: 2 })} s`
+  // Comparación: los motores del pedido corren uno tras otro (como en el
+  // entrenamiento); las predicciones ya hechas llegan en anteriores.
+  const corridas = [...(p.anteriores ?? []), p]
+  const motores = p.motores?.length ? p.motores : [p.motor_cpu || 'go']
+  const de = (m) => corridas.find((c) => (c.motor_cpu || 'go') === m)
   return (
     <>
       <Topologia
@@ -765,15 +775,17 @@ function Prediccion({ inst, onVerFinal }) {
       />
       <section className="flujo-limpieza" aria-label="Predicción distribuida">
         <div className="tabla-limpieza-envoltura">
-          <table className="tabla-limpieza">
+          <table className="tabla-limpieza tabla-motores">
             <thead>
               <tr>
-                <th scope="col">Nodo</th>
-                <th scope="col">Filas predichas</th>
-                <th scope="col">Enviado al maestro</th>
-                <th scope="col">Cálculo</th>
-                <th scope="col">Hasta el último trozo</th>
+                <th scope="col" rowSpan={2} className="cabeza-doble">Nodo</th>
+                <th scope="col" rowSpan={2} className="cabeza-doble">Filas predichas</th>
+                <th scope="col" rowSpan={2} className="cabeza-doble">Enviado al maestro</th>
+                {motores.map((m) => (
+                  <th key={m} scope="colgroup" colSpan={2} className="cabeza-tec">{NOMBRE_MOTOR[m] ?? m}{de(m)?.cuda ? ' + CUDA' : ''}</th>
+                ))}
               </tr>
+              <tr>{motores.map((m) => [<th key={`${m}c`} scope="col">Cálculo</th>, <th key={`${m}t`} scope="col">Hasta el último trozo</th>])}</tr>
             </thead>
             <tbody>
               {p.nodos.map((n) => {
@@ -784,22 +796,41 @@ function Prediccion({ inst, onVerFinal }) {
                     <th scope="row"><Nodo nodo={vista} tipo={n.id === inst.nodo_maestro ? 'maestro' : 'trabajador'} pequeno /></th>
                     <td>
                       <div className="progreso"><div className={`progreso-fill ${n.estado === 'error' ? 'abortado' : ''}`} style={{ width: `${100 * avance}%` }} /></div>
-                      <small className="detalle">{fmtN(n.filas)}{n.total ? ` de ${fmtN(n.total)}` : ''}</small>
+                      <small className="detalle">{fmtN(n.filas)}{n.total ? ` de ${fmtN(n.total)}` : ''}{motores.length > 1 ? ` · ${NOMBRE_MOTOR[p.motor_cpu] ?? p.motor_cpu}` : ''}</small>
                       {n.mensaje && <small className="nodo-nota"> {n.mensaje}</small>}
                     </td>
                     <td className="celda-tiempo">{fmtMB(n.mb)}</td>
-                    <td className="celda-tiempo">{fmtMs(n.t_calculo_ms)}{n.motor && <small className="cpu-media">{textoMotor(n.motor)}{n.parte_gpu > 0 ? ` · GPU ${Math.round(n.parte_gpu * 100)} %` : ''}</small>}</td>
-                    <td className="celda-tiempo">{fmtMs(n.t_total_ms)}</td>
+                    {motores.map((m) => {
+                      const x = de(m)?.nodos?.find((y) => y.id === n.id)
+                      if (!x) return [<td key={`${m}c`} className="detalle">en espera</td>, <td key={`${m}t`} />]
+                      return [
+                        <td key={`${m}c`} className="celda-tiempo">{fmtMs(x.t_calculo_ms)}{x.motor && <small className="cpu-media">{textoMotor(x.motor)}{x.parte_gpu > 0 ? ` · GPU ${Math.round(x.parte_gpu * 100)} %` : ''}</small>}</td>,
+                        <td key={`${m}t`} className="celda-tiempo">{fmtMs(x.t_total_ms)}</td>,
+                      ]
+                    })}
                   </tr>
                 )
               })}
+              {motores.length > 1 && (
+                <tr className="fila-total">
+                  <th scope="row" colSpan={3}>Clúster</th>
+                  {motores.map((m) => {
+                    const c = de(m)
+                    const calc = c?.nodos?.length ? Math.max(...c.nodos.map((x) => x.t_calculo_ms ?? 0)) : 0
+                    return [
+                      <td key={`${m}c`} className="celda-tiempo">{c ? fmtMs(calc) : '—'}<small className="cpu-media">el nodo más lento</small></td>,
+                      <td key={`${m}t`} className="celda-tiempo">{c?.estado === 'terminada' ? `${fmtS(c.t_total_s)}` : '—'}</td>,
+                    ]
+                  })}
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
         <footer className="limpieza-pie">
           <p className="detalle">
-            {p.estado === 'prediciendo' && 'Prediciendo…'}
-            {p.estado === 'terminada' && `Listo en ${p.t_total_s.toLocaleString('es-PE', { maximumFractionDigits: 2 })} s: el mapa (Alerta del modelo) y la línea de tiempo ya usan este modelo.`}
+            {p.estado === 'prediciendo' && (motores.length > 1 ? `Prediciendo con ${NOMBRE_MOTOR[p.motor_cpu] ?? p.motor_cpu} (${motores.indexOf(p.motor_cpu) + 1} de ${motores.length})…` : 'Prediciendo…')}
+            {p.estado === 'terminada' && `Listo${motores.length > 1 ? `: ${corridas.map((c) => `${NOMBRE_MOTOR[c.motor_cpu] ?? c.motor_cpu} ${fmtS(c.t_total_s)}`).join(' · ')}` : ` en ${fmtS(p.t_total_s)}`}. El mapa (Alerta del modelo) y la línea de tiempo ya usan este modelo.`}
             {p.estado === 'error' && p.mensaje}
           </p>
           {p.estado === 'terminada' && onVerFinal && (
@@ -1010,7 +1041,7 @@ const ARMAR_CSV = { limpieza: csvLimpieza, entrenamiento: csvEntrenamiento, pred
 // las laptops que no son el maestro los ven sin botones) o Resultados (la
 // fase en vivo o un proceso del historial, con su CSV), y la línea de fases.
 // Cuando el maestro inicia algo, todas las laptops pasan a sus Resultados.
-export default function FlujoCluster({ lanzador, onVerFinal }) {
+export default function FlujoCluster({ lanzador, final, onVerFinal, onVolver, children }) {
   const { datos: local, actualizar } = lanzador
   const rol = local?.rol ?? ''
   const { conectado, inst, perdido } = useCluster(rol !== '')
@@ -1027,7 +1058,7 @@ export default function FlujoCluster({ lanzador, onVerFinal }) {
   // sala, incluidos los que llegan, entran elegidos.
   const [quitados, setQuitados] = useState(new Set())
   // Modelo a entrenar (Nuevo → Entrenamiento).
-  const [ajustes, setAjustes] = useState({ modelo: 'red', epocas: 20, pasos: 25, reparto: 'dinamico', comunicacion: 'arbol', motores: 'comparar', cuda: true, motorPrediccion: 'openmp', gather: 'tcp' })
+  const [ajustes, setAjustes] = useState({ modelo: 'red', epocas: 20, pasos: 25, reparto: 'dinamico', comunicacion: 'arbol', motores: 'comparar', cuda: true, motorPrediccion: 'comparar', gather: 'tcp' })
   const [ocupado, setOcupado] = useState('')
   // Error y avisos de una acción, atados a la pantalla en que ocurrieron:
   // al cambiar de pantalla dejan de mostrarse.
@@ -1133,14 +1164,17 @@ export default function FlujoCluster({ lanzador, onVerFinal }) {
       comunicacion: ajustes.modelo === 'red' ? ef.comunicacion : undefined,
     })
   })
-  const onPredecir = (nodos) => accion('predecir', () => apiCluster.predecir(nodos.map((n) => n.id), {
-    motor: hayOpenMP(nodos) ? ajustes.motorPrediccion : 'go', cuda: efectivo(ajustes, nodos).cuda,
-    comunicacion: ajustes.gather === 'mpi' && hayMPI(nodos) ? 'mpi' : 'tcp',
+  const onPredecir = (nodos, comunicacion) => accion('predecir', () => apiCluster.predecir(nodos.map((n) => n.id), {
+    ...(!hayOpenMP(nodos) ? { motor: 'go' } : ajustes.motorPrediccion === 'comparar' ? { motores: ['openmp', 'go'] } : { motor: ajustes.motorPrediccion }),
+    cuda: efectivo(ajustes, nodos).cuda, comunicacion,
   }))
 
+  // La línea de fases lleva a los resultados finales y, desde ahí, de
+  // vuelta a cualquier fase del clúster.
   const onFase = (f) => {
     if (f === 'final') onVerFinal()
     else {
+      onVolver()
       setFase(f)
       setHistorico(null)
     }
@@ -1217,8 +1251,8 @@ export default function FlujoCluster({ lanzador, onVerFinal }) {
 
   return (
     <>
-      <Fases modo={modo} setModo={(m) => { setModo(m); setHistorico(null) }} fase={fase} estados={estados} onFase={onFase} />
-      {vista}
+      <Fases modo={modo} setModo={(m) => { onVolver(); setModo(m); setHistorico(null) }} fase={final ? 'final' : fase} estados={estados} onFase={onFase} />
+      {final ? children : vista}
     </>
   )
 }

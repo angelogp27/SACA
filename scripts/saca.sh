@@ -11,7 +11,8 @@ if [ "${1:-}" != "--sin-compilar" ]; then
     mkdir -p bin
     echo "== 1/4 programas en Go"
     for p in maestro:./entrenamiento/cmd/maestro trabajador:./entrenamiento/cmd/trabajador \
-             cargador_concurrente:./cargador/cmd/concurrente saca:./lanzador/cmd/saca exportar:./herramientas/cmd/exportar; do
+             cargador_concurrente:./cargador/cmd/concurrente saca:./lanzador/cmd/saca exportar:./herramientas/cmd/exportar \
+             saca-top:./herramientas/cmd/saca-top; do
         go build -o "bin/${p%%:*}" "${p#*:}"
         echo "   bin/${p%%:*}"
     done
@@ -23,12 +24,12 @@ if [ "${1:-}" != "--sin-compilar" ]; then
     gcc -O3 -march=native -fopenmp -o bin/red_openmp nativo/openmp/red/red_openmp.c -lm
     echo "   bin/red_openmp"
 
-    echo "== 3/4 MPI y CUDA (opcionales)"
+    echo "== 3/4 MPI y CUDA (MPI obligatorio, CUDA opcional)"
     MPICC=$(command -v mpicc || ls /usr/lib64/openmpi/bin/mpicc 2>/dev/null || true)
     if [ -n "$MPICC" ] && PATH="$(dirname "$MPICC"):$PATH" "$MPICC" -O2 -o bin/puente_mpi nativo/mpi/puente/puente.c; then
         echo "   bin/puente_mpi"
     else
-        echo "   sin MPI (sudo dnf install openmpi-devel): esta laptop usa árbol, anillo o el maestro"
+        echo "   FALTA MPI: sudo dnf install openmpi openmpi-devel (docs/herramientas/linux-fedora.md)"
     fi
     NVCC=$(command -v nvcc || ls /usr/local/cuda/bin/nvcc 2>/dev/null || true)
     if [ -z "$NVCC" ]; then
@@ -44,7 +45,7 @@ if [ "${1:-}" != "--sin-compilar" ]; then
 
     echo "== 4/4 página"
     if command -v npm >/dev/null; then
-        (cd frontend && { [ -d node_modules ] || npm ci; } && npm run build >/dev/null)
+        (cd frontend && { [ node_modules/.package-lock.json -nt package-lock.json ] || npm ci; } && npm run build >/dev/null)  # npm ci si cambió package-lock.json
         echo "   frontend/dist"
     elif [ -f frontend/dist/index.html ]; then
         echo "   npm no está instalado; se usa el frontend/dist que ya existe"

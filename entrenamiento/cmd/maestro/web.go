@@ -109,6 +109,7 @@ func (a *api) rutas() *http.ServeMux {
 	mux.HandleFunc("POST /api/limpiezas/cancelar", a.cancelarLimpieza)
 	mux.HandleFunc("POST /api/huellas/verificar", a.verificarHuellas)
 	mux.HandleFunc("POST /api/predicciones", a.nuevaPrediccion)
+	mux.HandleFunc("GET /api/uso", func(w http.ResponseWriter, r *http.Request) { responder(w, http.StatusOK, a.m.Usos()) })
 	mux.HandleFunc("GET /api/historial", a.listarHistorial)
 	mux.HandleFunc("GET /api/historial/{id}", a.leerHistorial)
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, r *http.Request) {
@@ -459,11 +460,16 @@ func (a *api) nuevaPrediccion(w http.ResponseWriter, r *http.Request) {
 	var p struct {
 		Nodos        []string `json:"nodos"`
 		Motor        string   `json:"motor"`
+		Motores      []string `json:"motores"` // uno tras otro, para compararlos
 		CUDA         bool     `json:"cuda"`
 		Comunicacion string   `json:"comunicacion"`
 	}
 	json.NewDecoder(r.Body).Decode(&p)
-	if err := a.m.IniciarPrediccion(p.Nodos, distribuido.OpcionesPrediccion{MotorCPU: p.Motor, CUDA: p.CUDA, Comunicacion: p.Comunicacion}); err != nil {
+	if len(p.Motores) > 2 {
+		fallo(w, http.StatusBadRequest, errors.New("como máximo dos motores"))
+		return
+	}
+	if err := a.m.IniciarPrediccion(p.Nodos, distribuido.OpcionesPrediccion{MotorCPU: p.Motor, Comparacion: p.Motores, CUDA: p.CUDA, Comunicacion: p.Comunicacion}); err != nil {
 		fallo(w, http.StatusConflict, err)
 		return
 	}

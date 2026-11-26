@@ -22,6 +22,8 @@ Todo es opcional: lo que una laptop no tenga aparece desactivado en la página. 
 
 **No se mezclan Windows y Fedora en una corrida con MPI** (MS-MPI y Open MPI no se hablan): la página lo desactiva; usa árbol o anillo.
 
+**Predicción con MPI: solo Windows.** El maestro debe ser Windows; las laptops Linux de la sala quedan fuera de esa predicción (con TCP sí participan).
+
 ## Cómo funciona
 
 - El trabajador Go sigue siendo quien habla con el maestro. OpenMP y CUDA son procesos aparte (`nativo/comun/motor_red.h`): reciben los datos una vez y, en cada mini-lote, los parámetros.

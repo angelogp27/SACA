@@ -5,11 +5,12 @@ Al terminar, tu laptop compila y abre SACA con un solo comando. Después sigue c
 ## 1. Programas y proyecto
 
 ```sh
-sudo dnf install -y git golang nodejs npm gcc
+sudo dnf install -y git golang nodejs npm gcc openmpi openmpi-devel openssh-server
+sudo systemctl enable --now sshd
 git clone https://github.com/angelogp27/SACA.git saca && cd saca
 ```
 
-Si `go version` es menor que la que pide `go.mod`, instala Go desde https://go.dev/dl/. En Ubuntu/Debian: `sudo apt install git golang nodejs npm build-essential`.
+Si `go version` es menor que la que pide `go.mod`, instala Go desde https://go.dev/dl/. En Ubuntu/Debian: `sudo apt install git golang nodejs npm build-essential openmpi-bin libopenmpi-dev openssh-server`.
 
 ## 2. Los 4 CSV de la EPA (~4 GB)
 
@@ -32,7 +33,7 @@ Cópialos de otra laptop (USB o Drive) o descárgalos: `go run ./herramientas/cm
 bash scripts/saca.sh
 ```
 
-Compila todo y abre **http://127.0.0.1:8090**.
+Compila todo y abre **http://127.0.0.1:8090**. En el paso 3/4 debe salir `bin/puente_mpi`.
 
 ## 4. NVIDIA (opcional)
 
@@ -48,9 +49,11 @@ nvcc -O3 -o bin/red_cuda nativo/cuda/red/red.cu
 
 Más detalle: [nativo/cuda/README.md](../../nativo/cuda/README.md).
 
-## MPI (opcional)
+## Antes de entrenar con MPI
 
-Como comunicación entre laptops: [OpenMP, CUDA y MPI](../desarrollo/guias/fase6.md).
+- El maestro entra por SSH a los nodos sin contraseña: `ssh-keygen` (una vez) y `ssh-copy-id usuario@192.168.50.X` por cada nodo.
+- Cable en la zona `trusted` ([switch](../switch/nodo.md)) para que pasen los puertos de MPI.
+- Solo con otras laptops Linux: no se mezcla con Windows. Más: [fase 6](../desarrollo/guias/fase6.md).
 
 ## Si algo falla
 

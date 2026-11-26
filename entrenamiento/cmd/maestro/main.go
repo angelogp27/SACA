@@ -120,8 +120,13 @@ func main() {
 		hist = nuevoHistorial(*dirHistorial, *nodoLocal)
 		rutaTransferencias := *transferencias
 		cfgMaestro.PrediccionTerminada = func(e distribuido.EstadoPrediccion, filas []distribuido.FilaPrediccion, m distribuido.ModeloEntrenado) {
+			dur := e.TTotalS
+			for _, previa := range e.Anteriores { // comparación de motores
+				guardarTransferencia(rutaTransferencias, filaPrediccion(*previa))
+				dur += previa.TTotalS
+			}
 			guardarTransferencia(rutaTransferencias, filaPrediccion(e))
-			hist.guardar(HistPrediccion, describirPrediccion(e), e.Estado, e.TTotalS, e)
+			hist.guardar(HistPrediccion, describirPrediccion(e), e.Estado, dur, e)
 			datosDesdePrediccion(dirsPagina, e, filas, m)
 		}
 		cfgMaestro.NodoMaestro = *nodoLocal
@@ -407,7 +412,14 @@ func filaPrediccion(e distribuido.EstadoPrediccion) []string {
 	for i, n := range e.Nodos {
 		ids[i] = n.ID
 	}
-	return []string{time.Now().Format(time.RFC3339), "prediccion", e.Modelo, "gather", strconv.Itoa(len(ids)), strings.Join(ids, "+"), "",
+	gather := "gather"
+	if e.MotorCPU != "" {
+		gather += "_" + e.Comunicacion + "_" + e.MotorCPU
+		if e.CUDA {
+			gather += "_cuda"
+		}
+	}
+	return []string{time.Now().Format(time.RFC3339), "prediccion", e.Modelo, gather, strconv.Itoa(len(ids)), strings.Join(ids, "+"), "",
 		num(e.MB, 3), "", num(e.TTotalS, 3), num(e.TTotalS, 3), mbps(e.MB, e.TTotalS), strconv.Itoa(e.Filas), ""}
 }
 

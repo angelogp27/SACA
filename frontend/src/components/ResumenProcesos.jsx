@@ -33,11 +33,18 @@ function datosEntrenamiento(c) {
   ]
 }
 
+const MOTOR = { openmp: 'OpenMP', go: 'Go' }
+
 function datosPrediccion(p) {
+  const todas = [...(p.anteriores ?? []), p]
+  const cuda = p.cuda ? ' + CUDA' : ''
   return [
     ['Filas', n(p.filas)],
     ['Por la red', `${n(p.mb, 1)} MB`],
-    ['Tiempo', `${n(p.t_total_s, 2)} s`],
+    // Con la comparación de motores, el tiempo de cada uno.
+    ...(todas.length > 1
+      ? todas.map((c) => [`Tiempo ${MOTOR[c.motor_cpu] ?? c.motor_cpu}${cuda}`, `${n(c.t_total_s, 2)} s`])
+      : [['Tiempo', `${n(p.t_total_s, 2)} s`]]),
   ]
 }
 

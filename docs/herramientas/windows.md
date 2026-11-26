@@ -14,24 +14,30 @@ Instala con *Next* en todo:
 
 Abre una **PowerShell nueva** y comprueba: `git --version; go version; node --version`
 
-## 2. gcc de 64 bits (para Pthreads y OpenMP)
+## 2. gcc de 64 bits y MPI (para Pthreads, OpenMP y MPI)
 
-1. Instala MSYS2 desde https://www.msys2.org (carpeta `C:\msys64`).
-2. Abre **MSYS2 UCRT64** (ícono amarillo, **no** "MSYS2 MSYS") y pega:
+1. Instala **MS-MPI** (`msmpisetup.exe`): https://learn.microsoft.com/message-passing-interface/microsoft-mpi
+2. Instala MSYS2 desde https://www.msys2.org (carpeta `C:\msys64`).
+3. Abre **MSYS2 UCRT64** (ícono amarillo, **no** "MSYS2 MSYS") y pega:
 
    ```sh
    pacman -Syu --noconfirm
-   pacman -S --needed --noconfirm mingw-w64-ucrt-x86_64-gcc
+   pacman -S --needed --noconfirm mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-msmpi
    ```
 
    Si se cierra la ventana, ábrela y repite las dos líneas.
-3. En PowerShell, agrégalo al PATH:
+4. En PowerShell, agrégalo al PATH:
 
    ```powershell
    [Environment]::SetEnvironmentVariable("Path", "C:\msys64\ucrt64\bin;" + [Environment]::GetEnvironmentVariable("Path", "User"), "User")
    ```
 
-4. En una PowerShell **nueva**: `gcc -dumpmachine` debe decir **`x86_64-w64-mingw32`**. Si dice `i686-...` (32 bits), otro gcc va primero en el PATH (`where.exe gcc` muestra cuál): con él la limpieza falla con *"sin memoria para los registros"*.
+5. En una PowerShell **nueva**: `gcc -dumpmachine` debe decir **`x86_64-w64-mingw32`**. Si dice `i686-...` (32 bits), otro gcc va primero en el PATH (`where.exe gcc` muestra cuál): con él la limpieza falla con *"sin memoria para los registros"*.
+6. Comprueba MPI: `Get-Command mpiexec, smpd` muestra las dos rutas y esto da `True`:
+
+   ```powershell
+   Test-Path (Join-Path (Split-Path (Get-Command gcc).Source) "..\include\mpi.h")
+   ```
 
 ## 3. El proyecto
 
@@ -62,7 +68,7 @@ Cópialos de otra laptop (USB o Drive) o descárgalos: `go run .\herramientas\cm
 powershell -ExecutionPolicy Bypass -File scripts\saca.ps1
 ```
 
-Compila todo y abre **http://127.0.0.1:8090**. Si Windows pregunta por el firewall, marca **redes privadas** y **Permitir**.
+Compila todo y abre **http://127.0.0.1:8090**. Si Windows pregunta por el firewall, marca **redes privadas** y **Permitir**. En el paso 3/4 debe salir `bin/puente_mpi.exe`.
 
 ## 6. NVIDIA (opcional)
 
@@ -80,9 +86,12 @@ Solo si tienes GPU NVIDIA. Ayuda a la CPU en el entrenamiento y la predicción. 
 
    Debe mostrar tu tarjeta. Desde ahí tu nodo la usa solo. Más detalle: [nativo/cuda/README.md](../../nativo/cuda/README.md).
 
-## MPI (opcional)
+## Antes de entrenar con MPI
 
-Como comunicación entre laptops: [OpenMP, CUDA y MPI](../desarrollo/guias/fase6.md).
+- En todas: `smpd -d` en una PowerShell abierta.
+- Mismo usuario y contraseña de Windows en todas.
+- Permite `mpiexec`, `smpd` y `puente_mpi` en el firewall (redes privadas).
+- Solo con otras laptops Windows: no se mezcla con Fedora. La predicción con MPI necesita además que el maestro sea Windows. Más: [fase 6](../desarrollo/guias/fase6.md).
 
 ## Si algo falla
 

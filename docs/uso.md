@@ -22,9 +22,13 @@ Arriba: **Nuevo** / **Resultados** y las fases **Limpieza e ingeniería de featu
 |---|---|---|
 | **Limpieza e ingeniería de features** | **Iniciar limpieza**: cada laptop limpia sus 4 CSV con Pthreads y con Go y genera su `muestra.bin`. Si ya limpiaron: **Saltar limpieza** (solo comprueba que todos tengan el mismo archivo) | Por nodo y tecnología: % de CPU y tiempo de cada fase |
 | **Entrenamiento** | Modelo (▶ = video), épocas, mini-lotes, comunicación (árbol, anillo, todo por el maestro o MPI), cálculo (comparar OpenMP y Go, o uno solo; con o sin CUDA) y reparto (dinámico, según la capacidad o partes iguales). Toca un nodo para quitarlo o sumarlo. **Iniciar entrenamiento** | Un cuadro por época (más oscuro = menor pérdida), la CPU y el tiempo de cada motor por nodo, y los nodos de tamaño según su parte de los datos |
-| **Predicción distribuida** | **Iniciar predicción** (con el último modelo entrenado): OpenMP o Go, con o sin CUDA, y TCP o MPI | Filas, MB y tiempos de cada nodo |
+| **Predicción distribuida** | **Iniciar predicción** (con el último modelo entrenado): comparar OpenMP y Go (uno tras otro) o uno solo, con o sin CUDA, y TCP o MPI (MPI solo con maestro y nodos Windows) | Filas, MB y tiempos de cada nodo |
 
-**Resultados finales** (también arriba a la derecha): el mapa de estaciones, el NO2 con la alerta del modelo y el último proceso de cada fase.
+**Resultados finales** (última fase de la línea; para volver al clúster, toca otra fase): el mapa 3D de estaciones (arrastra para girar, rueda para acercar; alto y color de cada columna = su riesgo), el NO2 con la alerta del modelo y el último proceso de cada fase.
+
+## Ver el uso de todas las laptops (saca-top)
+
+En una terminal de cualquier laptop del clúster, con SACA abierto: `./bin/saca-top` (Linux) o `bin\saca-top.exe` (Windows). Muestra en vivo, por laptop, la CPU total y la de cada núcleo, la RAM y, si tiene NVIDIA, la GPU (uso, memoria, temperatura y consumo). No necesita SSH: cada nodo le manda su uso al maestro cada 2 s. `Ctrl+C` para salir; `-una-vez` imprime una sola vez.
 
 ## 4. Dónde quedan los resultados
 

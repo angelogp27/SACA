@@ -105,7 +105,15 @@ En `registro` el nodo informa `puerto_pares` (TCP 9002). Con `comunicacion: "arb
 | `predecir` | maestro → trabajador | `corrida` (número de predicción), `filtro_mongo` (estaciones del nodo), `capas` (vacío = regresión logística) y `params_bin` (la red, o los pesos y el sesgo al final) |
 | `predicciones` | trabajador → maestro | `predicciones_bin`: filas de 20 bytes (estación uint32 = índice en la lista ordenada de estaciones de `muestra.bin`, hora int64 desde 1970, probabilidad float32, NO2 observado float32), `total` de filas del nodo, `ultimo` en el último trozo; `motivo` si falló. Trozos de 50 000 filas |
 
-API: `POST /api/predicciones` `{"nodos":[...]}`; `/api/estado` incluye `prediccion` (por nodo: filas, MB, tiempos) y `modelo_listo`.
+API: `POST /api/predicciones` `{"nodos":[...], "motores":["openmp","go"]}` (`motores`: uno tras otro, para compararlos; o `motor` para uno solo); `/api/estado` incluye `prediccion` (por nodo: filas, MB, tiempos; con la comparación, `motores` y las predicciones `anteriores`) y `modelo_listo`.
+
+### Uso de cada laptop (saca-top)
+
+| Tipo | Dirección | Campos |
+|---|---|---|
+| `uso` | trabajador → maestro, cada 2 s | `uso`: `cpu` (%), `nucleos` (% por núcleo lógico), `ram_usada_gb`, `ram_total_gb` y, con NVIDIA, `gpu` (`nombre`, `uso`, `mem_usada_mb`, `mem_total_mb`, `temp_c`, `potencia_w`) |
+
+El maestro guarda el último de cada nodo (no lo publica a la página) y lo da en `GET /api/uso`; `bin/saca-top` lo pide cada segundo.
 
 ### Motores y MPI (Fase 6)
 

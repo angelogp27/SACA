@@ -1,5 +1,16 @@
-import { useState } from 'react'
+import { Suspense, lazy, useCallback, useMemo, useState } from 'react'
 import './PanelMapa.css'
+
+// El mapa 3D (three.js) se carga aparte; sin WebGL se usa el plano.
+const Mapa3D = lazy(() => import('./Mapa3D'))
+const hayWebGL = (() => {
+  try {
+    const c = document.createElement('canvas')
+    return !!(c.getContext('webgl2') || c.getContext('webgl'))
+  } catch {
+    return false
+  }
+})()
 
 // Proyección equirectangular simple del territorio continental de EE. UU.
 // Las estaciones fuera de este recuadro (Alaska, Hawái, Puerto Rico) se
@@ -56,11 +67,13 @@ export default function PanelMapa({ estaciones, seleccionada, onSeleccionar, dia
   const modo = hayAlerta ? modoElegido : 'historico'
   const enAlerta = modo === 'alerta'
   // En modo alerta solo se dibujan las estaciones con predicción (NO2).
-  const lista = enAlerta ? estaciones.lista.filter((e) => Number.isFinite(e.alerta)) : estaciones.lista
-  const valor = (e) => (enAlerta ? e.alerta : e.indice)
-  const nivelDe = (e) => (enAlerta ? nivelAlerta(e.alerta) : nivelRiesgo(e.indice))
+  const lista = useMemo(() => (enAlerta ? estaciones.lista.filter((e) => Number.isFinite(e.alerta)) : estaciones.lista), [enAlerta, estaciones.lista])
+  const valor = useCallback((e) => (enAlerta ? e.alerta : e.indice), [enAlerta])
+  const nivelDe = useCallback((e) => (enAlerta ? nivelAlerta(e.alerta) : nivelRiesgo(e.indice)), [enAlerta])
   const niveles = enAlerta ? NIVELES_ALERTA : NIVELES
-  const visibles = lista.filter(dentroDelMapa)
+  const colorDe = useCallback((e) => (enAlerta ? NIVELES_ALERTA : NIVELES)[nivelDe(e)].color, [enAlerta, nivelDe])
+  const visibles = useMemo(() => lista.filter(dentroDelMapa), [lista])
+  const [vuelta, setVuelta] = useState(0)
   const fuera = lista.length - visibles.length
   // Las de mayor riesgo se dibujan al final para quedar encima.
   const ordenadas = [...visibles].sort((a, b) => valor(a) - valor(b))
@@ -88,32 +101,51 @@ export default function PanelMapa({ estaciones, seleccionada, onSeleccionar, dia
         )}
       </figcaption>
 
-      <svg viewBox={`0 0 ${ANCHO} ${ALTO}`} role="img" aria-label="Mapa de estaciones de monitoreo coloreadas por nivel de riesgo">
-        <rect x="0" y="0" width={ANCHO} height={ALTO} fill="var(--surface)" />
-        {ordenadas.map((e) => {
-          const { x, y } = proyectar(e.lat, e.lon)
-          const nivel = nivelDe(e)
-          const activa = e.id === seleccionada
-          return (
-            <g
-              key={e.id}
-              className="estacion"
-              onClick={() => onSeleccionar(e.id)}
-              onMouseEnter={() => setHover(e)}
-              onMouseLeave={() => setHover(null)}
-              onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && onSeleccionar(e.id)}
-              tabIndex={0}
-              role="button"
-              aria-pressed={activa}
-              aria-label={`${e.nombre}: ${niveles[nivel].etiqueta}`}
-            >
-              <circle cx={x} cy={y} r={radio + 5} className="area-toque" />
-              <circle cx={x} cy={y} r={(activa ? radio * 1.8 : radio) + 1.5} fill="var(--surface)" />
-              <circle cx={x} cy={y} r={activa ? radio * 1.8 : radio} fill={niveles[nivel].color} />
-            </g>
-          )
-        })}
-      </svg>
+      {hayWebGL ? (
+        <div className="mapa-3d-marco">
+          <Suspense fallback={<div className="mapa-3d mapa-cargando">Cargando mapa 3D…</div>}>
+            <Mapa3D
+              estaciones={visibles}
+              valor={valor}
+              colorDe={colorDe}
+              seleccionada={seleccionada}
+              onSeleccionar={onSeleccionar}
+              onHover={setHover}
+              reiniciar={vuelta}
+              etiqueta="Mapa 3D de estaciones: el alto y el color de cada columna indican su nivel de riesgo"
+            />
+          </Suspense>
+          <button type="button" className="mapa-reiniciar" onClick={() => setVuelta((v) => v + 1)}>Vista inicial</button>
+          <p className="nota">Arrastra para girar, rueda para acercar, clic derecho para mover. Alto de la columna = {enAlerta ? 'probabilidad' : '% de horas sobre el umbral'}.</p>
+        </div>
+      ) : (
+        <svg viewBox={`0 0 ${ANCHO} ${ALTO}`} role="img" aria-label="Mapa de estaciones de monitoreo coloreadas por nivel de riesgo">
+          <rect x="0" y="0" width={ANCHO} height={ALTO} fill="var(--surface)" />
+          {ordenadas.map((e) => {
+            const { x, y } = proyectar(e.lat, e.lon)
+            const nivel = nivelDe(e)
+            const activa = e.id === seleccionada
+            return (
+              <g
+                key={e.id}
+                className="estacion"
+                onClick={() => onSeleccionar(e.id)}
+                onMouseEnter={() => setHover(e)}
+                onMouseLeave={() => setHover(null)}
+                onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && onSeleccionar(e.id)}
+                tabIndex={0}
+                role="button"
+                aria-pressed={activa}
+                aria-label={`${e.nombre}: ${niveles[nivel].etiqueta}`}
+              >
+                <circle cx={x} cy={y} r={radio + 5} className="area-toque" />
+                <circle cx={x} cy={y} r={(activa ? radio * 1.8 : radio) + 1.5} fill="var(--surface)" />
+                <circle cx={x} cy={y} r={activa ? radio * 1.8 : radio} fill={niveles[nivel].color} />
+              </g>
+            )
+          })}
+        </svg>
+      )}
 
       <div className="detalle-estacion" aria-live="polite">
         {enfocada ? (

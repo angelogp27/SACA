@@ -49,3 +49,25 @@ func TestDetectarNoFalla(t *testing.T) {
 		t.Fatalf("Detectar() = %+v", i)
 	}
 }
+
+func TestUso(t *testing.T) {
+	dir := t.TempDir()
+	stat := filepath.Join(dir, "stat")
+	os.WriteFile(stat, []byte("cpu  10 0 10 80 0 0 0 0 0 0\ncpu0 5 0 5 40 0 0 0 0 0 0\ncpu1 5 0 5 40 0 0 0 0 0 0\nintr 1\n"), 0o644)
+	if l := ticsLinux(stat); len(l) != 2 || l[0] != (tics{10, 50}) {
+		t.Fatalf("tics %v", l)
+	}
+	mem := filepath.Join(dir, "meminfo")
+	os.WriteFile(mem, []byte("MemTotal:       16777216 kB\nMemFree:  1 kB\nMemAvailable:    4194304 kB\n"), 0o644)
+	if u, tot := ramLinux(mem); u != 12 || tot != 16 {
+		t.Fatalf("ram %v de %v", u, tot)
+	}
+	g := parsearUsoGPU("NVIDIA GeForce RTX 3050 Laptop GPU, 37, 512, 4096, 55, [N/A]\n")
+	if g == nil || g.Uso != 37 || g.MemTotalMB != 4096 || g.TempC != 55 || g.PotenciaW != 0 {
+		t.Fatalf("gpu %+v", g)
+	}
+	m := NuevoMuestreador()
+	if u := m.Leer(); u.RAMTotalGB <= 0 || len(u.Nucleos) == 0 {
+		t.Fatalf("uso %+v", u)
+	}
+}

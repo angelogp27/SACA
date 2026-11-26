@@ -136,6 +136,8 @@ func TestGPUQueFalla(t *testing.T) {
 // entrenamiento y Gatherv en la predicción.
 func TestMPI(t *testing.T) {
 	exeDePrueba(t, "puente_mpi")
+	prediccionMPISoloWindows = false
+	t.Cleanup(func() { prediccionMPISoloWindows = true })
 	puente := pares.Puente("../../bin")
 	if err := pares.ComprobarMPI([]pares.NodoMPI{{ID: "x", Puente: puente, Puerto: 1}}); err != nil {
 		t.Skip(err)
@@ -197,6 +199,56 @@ func TestMPI(t *testing.T) {
 		}
 	case <-time.After(20 * time.Second):
 		t.Fatalf("la predicción no terminó: %+v", maestro.Instantanea().Prediccion)
+	}
+	maestro.Despedir(MotivoSesionTerminada)
+	comprobarErrores(t, &wg, errs)
+}
+
+// Predicción comparando motores: OpenMP y luego Go sobre los mismos nodos;
+// el maestro avisa una sola vez, con la primera en Anteriores.
+func TestPrediccionComparaMotores(t *testing.T) {
+	omp := exeDePrueba(t, "red_openmp")
+	datos := datosSinteticos(t)
+	for k, mu := range []*dataset.Muestra{datos.Entrenamiento, datos.Prueba} {
+		mu.Hora = make([]int64, mu.Len())
+		for i := range mu.Hora {
+			mu.Hora[i] = int64(480000 + 10000*k + i)
+		}
+	}
+	llegada := make(chan EstadoPrediccion, 2)
+	maestro, dir := levantarMaestro(t, ConfigMaestro{Capacidad: 2, Datos: datos, Huella: "h",
+		PrediccionTerminada: func(e EstadoPrediccion, f []FilaPrediccion, m ModeloEntrenado) { llegada <- e }})
+	var wg sync.WaitGroup
+	errs := make(chan error, 4)
+	for _, id := range []string{"a", "b"} {
+		lanzarTrabajador(t, &wg, errs, dir, &ConfigTrabajador{ID: id, Datos: datos, Huella: "h", Motor: NuevoMotorGo(2), Respaldo: NuevoMotorGo(2),
+			Motores: &MotoresRed{ExeOpenMP: omp}})
+	}
+	if err := maestro.EsperarNodos(context.Background(), 2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := maestro.Correr(context.Background(), OpcionesCorrida{Epocas: 1, Modelo: "red", Capas: []int{6, 3}, PasosPorEpoca: 2, Continuar: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := maestro.IniciarPrediccion(nil, OpcionesPrediccion{Comparacion: []string{"openmp", "go"}}); err != nil {
+		t.Fatal(err)
+	}
+	var e EstadoPrediccion
+	select {
+	case e = <-llegada:
+	case <-time.After(15 * time.Second):
+		t.Fatal("la predicción no terminó")
+	}
+	if e.MotorCPU != "go" || len(e.Anteriores) != 1 || e.Anteriores[0].MotorCPU != "openmp" || len(e.Motores) != 2 {
+		t.Fatalf("motor %s, motores %v, %d anteriores", e.MotorCPU, e.Motores, len(e.Anteriores))
+	}
+	if a := e.Anteriores[0]; a.Estado != PrediccionTerminada || a.Filas != e.Filas || a.Nodos[0].Motor != "openmp" {
+		t.Fatalf("openmp: %s, %d filas (go %d), motor %s", a.Estado, a.Filas, e.Filas, a.Nodos[0].Motor)
+	}
+	select {
+	case <-llegada:
+		t.Fatal("avisó más de una vez")
+	case <-time.After(200 * time.Millisecond):
 	}
 	maestro.Despedir(MotivoSesionTerminada)
 	comprobarErrores(t, &wg, errs)

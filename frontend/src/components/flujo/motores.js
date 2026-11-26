@@ -7,6 +7,17 @@ export const hayCUDA = (nodos) => nodos.some((n) => n.motores?.includes('cuda'))
 // MS-MPI y Open MPI no se comunican: todas con MPI y el mismo sistema.
 export const hayMPI = (nodos) => todos(nodos, (n) => n.mpi) && new Set(nodos.map((n) => (n.hardware?.so ?? '').split('/')[0])).size === 1
 
+// Predicción con MPI: solo Windows (MS-MPI). El maestro lanza mpiexec, así
+// que también debe ser Windows; las laptops Linux se quedan fuera.
+const esWindows = (n) => (n?.hardware?.so ?? '').startsWith('windows')
+export function mpiPrediccion(nodos, maestro) {
+  if (!esWindows(maestro)) return { nodos: [], motivo: 'solo con un maestro Windows' }
+  const win = nodos.filter((n) => esWindows(n) && n.mpi)
+  if (win.length === 0) return { nodos: [], motivo: 'ninguna laptop Windows tiene MPI' }
+  const fuera = nodos.filter((n) => !win.includes(n))
+  return { nodos: win, motivo: '', fuera }
+}
+
 // Lo que de verdad se puede usar con estos nodos, a partir de lo elegido.
 export function efectivo(ajustes, nodos) {
   const omp = hayOpenMP(nodos)

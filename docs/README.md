@@ -13,6 +13,7 @@
 1. `git pull` (todos en el mismo commit).
 2. Abre SACA: `powershell -ExecutionPolicy Bypass -File scripts\saca.ps1` (Windows) o `bash scripts/saca.sh` (Linux). Compila y abre la página.
 3. Una laptop pulsa **Iniciar clúster**; las demás, **Unirse**. Lo demás (limpieza, entrenamiento, predicción) se hace desde la página.
+4. (Opcional) Para ver la CPU, RAM y GPU de todas las laptops en vivo, en otra terminal: `./bin/saca-top` (Linux) o `bin\saca-top.exe` (Windows). `Ctrl+C` para salir. Más: [uso.md](uso.md#ver-el-uso-de-todas-las-laptops-saca-top).
 
 ## Lo demás
 

@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"runtime"
 	"slices"
+	"strings"
 	"time"
 
 	"proyecto9/internal/hardware"
@@ -46,6 +48,16 @@ type EstadoPrediccion struct {
 	MotorCPU     string `json:"motor_cpu,omitempty"`
 	CUDA         bool   `json:"cuda,omitempty"`
 	Comunicacion string `json:"comunicacion,omitempty"`
+	// Comparación: Motores de todo el pedido (uno tras otro, como en el
+	// entrenamiento) y las predicciones Anteriores del pedido, ya terminadas.
+	Motores    []string            `json:"motores,omitempty"`
+	Anteriores []*EstadoPrediccion `json:"anteriores,omitempty"`
+}
+
+// restoPrediccion: lo que falta de un pedido con varios motores.
+type restoPrediccion struct {
+	ids []string
+	op  OpcionesPrediccion // con indice en el motor que sigue
 }
 
 // OpcionesPrediccion de la Fase 6; en cero, Go y TCP.
@@ -53,6 +65,11 @@ type OpcionesPrediccion struct {
 	MotorCPU     string // "go" (por defecto) u "openmp"
 	CUDA         bool
 	Comunicacion string // "tcp" (por defecto) o "mpi"
+	// Comparacion: motores que se corren uno tras otro sobre la misma
+	// predicción ("openmp", "go"); si hay, manda sobre MotorCPU.
+	Comparacion []string
+	indice      int // el motor de Comparacion que toca
+	anteriores  []*EstadoPrediccion
 }
 
 // NodoPrediccion: la parte de un nodo. TCalculoMs es lo que tardó en
@@ -88,6 +105,9 @@ func (m *Maestro) prediccionEnCurso() bool {
 // IniciarPrediccion reparte las estaciones entre los nodos (como en el
 // entrenamiento) y les pide predecir todas sus horas con el último modelo.
 func (m *Maestro) IniciarPrediccion(ids []string, op OpcionesPrediccion) error {
+	if op.indice < len(op.Comparacion) {
+		op.MotorCPU = op.Comparacion[op.indice]
+	}
 	if op.MotorCPU == "" {
 		op.MotorCPU = MotorCPUGo
 	}
@@ -136,6 +156,9 @@ func (m *Maestro) IniciarPrediccion(ids []string, op OpcionesPrediccion) error {
 	var mpi *pares.LanzadoMPI
 	var dirs, rangos []string
 	if op.Comunicacion == pares.MPI {
+		if err := soloWindowsMPI(nodos); err != nil {
+			return err
+		}
 		// El nodo del maestro, si participa, es el rango 0: el que junta.
 		slices.SortStableFunc(nodos, func(a, b *nodoSala) int {
 			return btoi(esLoopback(soloIP(b.vista.Remoto))) - btoi(esLoopback(soloIP(a.vista.Remoto)))
@@ -152,7 +175,13 @@ func (m *Maestro) IniciarPrediccion(ids []string, op OpcionesPrediccion) error {
 	m.siguientePrediccion++
 	m.predMPI = mpi
 	e := &EstadoPrediccion{ID: m.siguientePrediccion, Estado: PrediccionEnCurso, Modelo: m.ultimoModelo.Nombre, Inicio: time.Now(),
-		MotorCPU: op.MotorCPU, CUDA: op.CUDA, Comunicacion: op.Comunicacion}
+		MotorCPU: op.MotorCPU, CUDA: op.CUDA, Comunicacion: op.Comunicacion, Motores: op.Comparacion, Anteriores: op.anteriores}
+	m.predResto = nil
+	if op.indice+1 < len(op.Comparacion) {
+		sig := op
+		sig.indice++
+		m.predResto = &restoPrediccion{ids: ids, op: sig}
+	}
 	m.predFilas = map[string][]FilaPrediccion{}
 	m.predLista = listaEstaciones(m.datos)
 	params := red.Codificar(m.ultimoModelo.Params)
@@ -257,12 +286,27 @@ func (m *Maestro) prediccionCerrada() {
 	}
 	modelo := m.ultimoModelo
 	m.predFilas = nil
-	if m.predMPI != nil {
-		go m.predMPI.Detener()
-		m.predMPI = nil
-	}
+	mpi := m.predMPI
+	m.predMPI = nil
+	resto := m.predResto
+	m.predResto = nil
 	m.mu.Unlock()
-	log.Printf("predicción %d %s: %d filas, %.1f MB por la red, %.2f s", e.ID, e.Estado, e.Filas, e.MB, e.TTotalS)
+	log.Printf("predicción %d %s (%s): %d filas, %.1f MB por la red, %.2f s", e.ID, e.Estado, e.MotorCPU, e.Filas, e.MB, e.TTotalS)
+	if mpi != nil {
+		// El siguiente motor lanza su propio mpiexec: este debe acabar antes.
+		mpi.Detener()
+	}
+	// Comparación: el siguiente motor, sobre los mismos nodos. El mapa y el
+	// historial se actualizan una sola vez, al final, con todo el pedido.
+	if e.Estado == PrediccionTerminada && resto != nil {
+		op := resto.op
+		op.anteriores = append(append([]*EstadoPrediccion{}, e.Anteriores...), e)
+		if err := m.IniciarPrediccion(resto.ids, op); err != nil {
+			log.Printf("no se pudo seguir la predicción con el motor %s: %v", op.Comparacion[op.indice], err)
+		} else {
+			return
+		}
+	}
 	if e.Estado == PrediccionTerminada && m.cfg.PrediccionTerminada != nil {
 		go m.cfg.PrediccionTerminada(*e, filas, *modelo)
 	}
@@ -319,4 +363,24 @@ func (m *Maestro) nodoSalioDePrediccion(id, motivo string) {
 	if termino {
 		m.prediccionCerrada()
 	}
+}
+
+// prediccionMPISoloWindows: la predicción con MPI se usa solo entre laptops
+// Windows (MS-MPI), con el maestro también en Windows. Las pruebas en Linux
+// lo apagan.
+var prediccionMPISoloWindows = true
+
+func soloWindowsMPI(nodos []*nodoSala) error {
+	if !prediccionMPISoloWindows {
+		return nil
+	}
+	if runtime.GOOS != "windows" {
+		return errors.New("la predicción con MPI es solo para Windows: el maestro debe ser una laptop Windows (usa TCP)")
+	}
+	for _, n := range nodos {
+		if n.vista.Hardware == nil || !strings.HasPrefix(n.vista.Hardware.SO, "windows") {
+			return fmt.Errorf("la predicción con MPI es solo para Windows: quita %s o usa TCP", n.vista.ID)
+		}
+	}
+	return nil
 }
