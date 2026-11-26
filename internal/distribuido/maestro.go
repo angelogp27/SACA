@@ -252,6 +252,7 @@ type Maestro struct {
 }
 
 func NuevoMaestro(cfg ConfigMaestro) *Maestro {
+	go hwMaestroUnaVez.Do(func() { hwMaestro = hardware.Detectar() }) // nvidia-smi tarda: antes de necesitarlo
 	if cfg.EsperaGradiente <= 0 {
 		cfg.EsperaGradiente = 2 * time.Minute
 	}
@@ -1031,16 +1032,31 @@ func (c *Corrida) terminar(estado, mensaje string, res *Resultado) {
 		r.TComunicacionMs = ms(res.TComunicacion) / epocas
 		r.PerdidaFinal = res.Perdidas[len(res.Perdidas)-1]
 		r.AUC, r.F1 = res.Evaluacion.AUC, res.Evaluacion.F1
-		if v := res.Verificacion; v != nil {
+		if v := res.Verificacion; v != nil && len(v.Perdidas) > 0 {
 			r.Verificado, r.Diferencia, r.TSecuencialS = true, v.Diferencia, v.Duracion.Seconds()
+			r.SecuencialEn, r.SecuencialHardware = m.equipoMaestro()
+			r.EpocasSecuencial, r.PerdidaSecuencial = len(v.Perdidas), v.Perdidas[len(v.Perdidas)-1]
+			if k := len(v.Perdidas) - 1; k < len(res.Perdidas) {
+				r.PerdidaComparada = res.Perdidas[k] // la red compara la primera época; la logística, la última
+			}
 		}
 		t1 := m.t1EpocaMs
 		if res.Red != nil {
 			t1 = res.T1EpocaMs // la red solo tiene T(1) si se verificó; la de la logística no sirve
 		}
 		if t1 > 0 && r.TEpocaMs > 0 {
+			r.T1EpocaMs = t1
 			r.Speedup = t1 / r.TEpocaMs
-			r.Eficiencia = r.Speedup / float64(len(r.Nodos))
+			// E = S / p, con p = los hilos de todos los nodos: T(1) es de un
+			// solo hilo (dividir entre los nodos daría más de 100 %).
+			p := 0
+			for _, n := range res.Nodos {
+				if n.Hardware != nil {
+					p += n.Hardware.Hilos
+				}
+			}
+			r.Procesadores = max(p, len(r.Nodos))
+			r.Eficiencia = r.Speedup / float64(r.Procesadores)
 		}
 		est.Resultado = &r
 		if estado == EstadoTerminado {
@@ -1336,4 +1352,24 @@ func (m *Maestro) Usos() []UsoNodo {
 		lista = append(lista, u)
 	}
 	return lista
+}
+
+var (
+	hwMaestro       hardware.Info
+	hwMaestroUnaVez sync.Once
+)
+
+// equipoMaestro: el nombre y el hardware de la laptop del maestro (donde
+// corre el entrenamiento secuencial de la verificación). Requiere m.mu.
+func (m *Maestro) equipoMaestro() (string, *hardware.Info) {
+	hwMaestroUnaVez.Do(func() { hwMaestro = hardware.Detectar() })
+	nombre := m.cfg.NodoMaestro
+	if n := m.nodos[nombre]; nombre != "" && n != nil && n.vista.Hardware != nil {
+		return nombre, n.vista.Hardware
+	}
+	if nombre == "" {
+		nombre = hwMaestro.Host
+	}
+	h := hwMaestro
+	return nombre, &h
 }

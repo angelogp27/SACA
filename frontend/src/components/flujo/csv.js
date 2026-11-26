@@ -49,6 +49,10 @@ export function csvEntrenamiento(c) {
         ...(k.nodos ?? []).flatMap((n, i) => [n.calculo_ms?.[e], n.cpu?.[e], n.gpu?.[e], k.fraccion?.[e]?.[i]]),
       ])
     }
+    // La verificación: el mismo entrenamiento en secuencial (1 hilo) en la
+    // laptop del maestro; su época es la que se comparó.
+    const r = k.resultado
+    if (r?.verificado) filas.push([`secuencial en ${r.secuencial_en ?? 'el maestro'}`, r.epocas_secuencial, r.perdida_secuencial, r.t1_epoca_ms, r.t1_epoca_ms, 0, 0])
   }
   return filas
 }

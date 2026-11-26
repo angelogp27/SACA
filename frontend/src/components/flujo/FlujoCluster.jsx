@@ -389,11 +389,43 @@ function ResultadoEntrenamiento({ corrida, inst, esMaestro, vivo, onSiguiente })
         )}
         {error && <p className="error" role="alert">{error}</p>}
       </section>
+      <Secuencial r={r} inst={inst} />
       <ComparacionMotores corrida={corrida} tarjeta={(n) => (
         <Nodo nodo={(inst.sala ?? []).find((x) => x.id === n.id) ?? n} tipo={n.id === inst.nodo_maestro ? 'maestro' : 'trabajador'} pequeno />
       )} />
       <TopologiaEntrenamiento corrida={corrida} inst={inst} />
     </>
+  )
+}
+
+// La verificación: el mismo entrenamiento en secuencial (1 hilo) en la
+// laptop del maestro. Comprueba que el distribuido da lo mismo y mide el
+// T(1) del speedup. La red repite solo la primera época (con los mismos
+// lotes); la regresión logística, todas.
+function Secuencial({ r, inst }) {
+  if (!r?.verificado) return null
+  const nodo = (inst.sala ?? []).find((n) => n.id === r.secuencial_en) ?? { id: r.secuencial_en || 'maestro', hardware: r.secuencial_hardware }
+  const datos = [
+    ['Épocas', r.epocas_secuencial === 1 ? '1 (la primera, mismos lotes)' : fmtNum(r.epocas_secuencial)],
+    ['Tiempo', fmtS2(r.t_secuencial_s)],
+    ['T(1) por época', r.t1_epoca_ms > 0 ? `${fmtNum(r.t1_epoca_ms)} ms` : '—'],
+    ['Pérdida secuencial / distribuida', `${fmtNum(r.perdida_secuencial, 6)} / ${fmtNum(r.perdida_comparada, 6)}`],
+    ['Diferencia', r.diferencia > 0 ? r.diferencia.toExponential(1) : '0 (idénticas)'],
+    ['Speedup / eficiencia', r.speedup > 0 ? `${fmtNum(r.speedup, 2)}× / ${fmtNum(r.eficiencia * 100)} % (p = ${r.procesadores} hilos)` : '—'],
+  ]
+  return (
+    <section className="flujo-limpieza resumen-entrenamiento secuencial" aria-label="Entrenamiento secuencial">
+      <div className="secuencial-cabeza">
+        <Nodo nodo={nodo} tipo="maestro" rol="Maestro" pequeno />
+        <div>
+          <h3>Entrenamiento secuencial (1 hilo)</h3>
+          <p className="detalle">Lo hizo la laptop del maestro ({nodo.id}) para comprobar el resultado distribuido y medir el T(1) del speedup.</p>
+        </div>
+      </div>
+      <dl className="datos-entrenamiento">
+        {datos.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
+      </dl>
+    </section>
   )
 }
 
@@ -422,9 +454,10 @@ function NuevoPrediccion({ inst, esMaestro, onPredecir, ocupado, error, ajustes,
               Juntar los resultados
               <select value={conMPI ? 'mpi' : 'tcp'} onChange={(e) => setAjustes((a) => ({ ...a, gather: e.target.value }))}>
                 <option value="tcp">TCP (cada nodo al maestro)</option>
-                <option value="mpi" disabled={mpi.nodos.length === 0}>MPI (Gatherv), solo Windows{mpi.motivo ? `: ${mpi.motivo}` : ''}</option>
+                <option value="mpi" disabled={mpi.nodos.length === 0}>MPI (Gatherv), solo Windows{mpi.motivo ? ' (no disponible)' : ''}</option>
               </select>
             </label>
+            {mpi.motivo && <p className="detalle">MPI no disponible: {mpi.motivo}.</p>}
             {conMPI && mpi.fuera.length > 0 && (
               <p className="detalle">Con MPI no participan: {mpi.fuera.map((n) => n.id).join(', ')} (no son Windows o no tienen MPI).</p>
             )}
@@ -567,9 +600,12 @@ function AjustesModelo({ ajustes, setAjustes, nodos }) {
             <option value="arbol">En árbol entre los nodos</option>
             <option value="anillo">En anillo entre los nodos</option>
             <option value="central">Todo por el maestro</option>
-            <option value="mpi" disabled={!hayMPI(nodos)}>MPI (Allreduce){hayMPI(nodos) ? '' : ': faltan MPI o hay sistemas distintos'}</option>
+            <option value="mpi" disabled={!hayMPI(nodos)}>MPI (Allreduce){hayMPI(nodos) ? '' : ' (no disponible)'}</option>
           </select>
         </label>
+      )}
+      {ajustes.modelo === 'red' && !hayMPI(nodos) && (
+        <p className="detalle">MPI no disponible: falta MPI en alguna laptop o hay sistemas distintos.</p>
       )}
     </fieldset>
   )

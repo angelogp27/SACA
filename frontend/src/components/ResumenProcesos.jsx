@@ -28,7 +28,8 @@ function datosEntrenamiento(c) {
     ['Por época', `${n(media(c.t_epoca_ms))} ms`],
     ['Red y espera', `${n(media(c.t_red_ms))} ms por época`],
     ['Por la red', c.mb_epoca?.length ? `${n(c.mb_epoca.reduce((a, b) => a + b, 0), 1)} MB` : '—'],
-    ['Speedup', r.speedup > 0 ? `${n(r.speedup, 2)}×` : '—'],
+    ['Speedup', r.speedup > 0 ? `${n(r.speedup, 2)}× (eficiencia ${n(r.eficiencia * 100)} % con ${r.procesadores} hilos)` : '—'],
+    ...(r.verificado ? [['Secuencial', `${n(r.t_secuencial_s, 1)} s en ${r.secuencial_en ?? 'el maestro'}`]] : []),
     ['AUC / F1', `${n(r.auc, 3)} / ${n(r.f1, 3)}`],
   ]
 }

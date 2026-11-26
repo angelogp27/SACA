@@ -123,14 +123,24 @@ type ResumenCorrida struct {
 	TEpocaMs        float64  `json:"t_epoca_ms"`
 	TCalculoMs      float64  `json:"t_calculo_ms"`
 	TComunicacionMs float64  `json:"t_comunicacion_ms"`
-	Speedup         float64  `json:"speedup"` // contra T1EpocaMs × épocas; 0 si no se conoce
-	Eficiencia      float64  `json:"eficiencia"`
+	Speedup         float64  `json:"speedup"`      // contra T1EpocaMs × épocas; 0 si no se conoce
+	Eficiencia      float64  `json:"eficiencia"`   // speedup / procesadores
+	Procesadores    int      `json:"procesadores"` // hilos de todos los nodos (la p de E = S/p)
 	PerdidaFinal    float64  `json:"perdida_final"`
 	AUC             float64  `json:"auc"`
 	F1              float64  `json:"f1"`
 	Verificado      bool     `json:"verificado"`
 	Diferencia      float64  `json:"diferencia"`     // |pérdida distribuida − secuencial|
 	TSecuencialS    float64  `json:"t_secuencial_s"` // si se verificó
+	// El entrenamiento secuencial (1 hilo) lo hace la laptop del maestro:
+	// cuál, con qué hardware, cuántas épocas (la red, solo la primera) y la
+	// pérdida de cada lado en la época comparada.
+	SecuencialEn       string         `json:"secuencial_en,omitempty"`
+	SecuencialHardware *hardware.Info `json:"secuencial_hardware,omitempty"`
+	EpocasSecuencial   int            `json:"epocas_secuencial,omitempty"`
+	PerdidaSecuencial  float64        `json:"perdida_secuencial,omitempty"`
+	PerdidaComparada   float64        `json:"perdida_comparada,omitempty"` // la distribuida en esa misma época
+	T1EpocaMs          float64        `json:"t1_epoca_ms,omitempty"`
 }
 
 // copiarSerie copia una serie y nunca devuelve nil: una serie vacía debe

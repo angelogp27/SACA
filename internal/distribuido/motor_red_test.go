@@ -67,6 +67,10 @@ func TestMotoresDanLoMismo(t *testing.T) {
 				t.Fatalf("%s %+v: pérdidas %v y %v", modelo, c, res.Perdidas, base)
 			}
 			e := maestro.Instantanea().Corrida
+			if r := e.Resultado; r == nil || !r.Verificado || r.SecuencialEn == "" || r.SecuencialHardware == nil || r.EpocasSecuencial != map[string]int{"red": 1, "logistica": 2}[modelo] ||
+				math.Abs(r.PerdidaSecuencial-r.PerdidaComparada) > 1e-9 {
+				t.Fatalf("%s: secuencial %+v", modelo, r)
+			}
 			if e.Nodos[0].Motor != c.mot {
 				t.Fatalf("%s %+v: motor %q", modelo, c, e.Nodos[0].Motor)
 			}

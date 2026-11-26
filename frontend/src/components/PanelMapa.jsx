@@ -172,6 +172,7 @@ export default function PanelMapa({ estaciones, seleccionada, onSeleccionar, dia
           </li>
         ))}
       </ul>
+      {!hayWebGL && <p className="nota">Mapa plano: este navegador no tiene WebGL activo (en Brave/Chrome: Configuración → Sistema → «Usar aceleración de hardware»). Con WebGL se ve en 3D.</p>}
       {fuera > 0 && <p className="nota">{fuera} estaciones fuera del recuadro continental (Alaska, Hawái, Puerto Rico) no se dibujan.</p>}
     </figure>
   )

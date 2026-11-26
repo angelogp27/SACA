@@ -19,7 +19,7 @@ function RolLaptop({ lanzador }) {
     <div className="rol-laptop">
       <span className={`rol-insignia ${esMaestro ? 'maestro' : 'nodo'}`}>{esMaestro ? 'Maestro' : 'Nodo'}</span>
       <span className="rol-dato">{local.id}</span>
-      {esMaestro && <span className="rol-dato">IP {local.ip || 'sin red'}</span>}
+      <span className="rol-dato" title={esMaestro ? 'Los demás se unen con esta IP' : 'IP de esta laptop en el clúster'}>IP {local.ip || 'sin red'}</span>
       <button
         type="button"
         className="rol-salir"

@@ -49,7 +49,7 @@ const maxLaptops = 8
 type config struct {
 	puertoUI, puertoWeb, puertoTCP, puertoUDP, puertoPares int
 	dirFrontend, dirBin, rutaMuestra                       string
-	dirDatos, resultado                                    string
+	dirDatos, resultado, modelo                            string
 	datosPagina                                            string
 }
 
@@ -80,6 +80,7 @@ func main() {
 	flag.StringVar(&c.dirBin, "bin", "bin", "directorio de los ejecutables compilados")
 	flag.StringVar(&c.rutaMuestra, "muestra", filepath.Join("data", "muestra.bin"), "muestra de entrenamiento de esta laptop")
 	flag.StringVar(&c.dirDatos, "datos", filepath.Join("data", "raw"), "CSV de la EPA de esta laptop")
+	flag.StringVar(&c.modelo, "modelo", filepath.Join("data", "modelo.json"), "dónde el maestro guarda el último modelo entrenado")
 	flag.StringVar(&c.resultado, "resultado", filepath.Join("resultados", "cluster.csv"), "CSV de resultados del entrenamiento (en la laptop del maestro)")
 	flag.StringVar(&c.datosPagina, "datos-pagina", "", "dónde el maestro deja los JSON del mapa regenerados (separados por comas; vacío = frontend/public/datos y los del frontend compilado)")
 	abrir := flag.Bool("abrir", true, "abrir la página en el navegador")
@@ -250,7 +251,7 @@ func (l *lanzador) arrancarMaestro(ctx context.Context, id string, participar bo
 		"-muestra", l.cfg.rutaMuestra, "-modo", "tcp_lan", "-resultado", l.cfg.resultado,
 		// Al terminar cada entrenamiento: guardar el modelo y regenerar el
 		// mapa (exportar usa MongoDB; si no está, el mapa queda como estaba).
-		"-modelo", filepath.Join("data", "modelo.json"), "-exportar", ejecutable(l.cfg.dirBin, "exportar"),
+		"-modelo", l.cfg.modelo, "-exportar", ejecutable(l.cfg.dirBin, "exportar"),
 		"-datos-pagina", l.datosPagina()}
 	if participar {
 		args = append(args, "-nodo-local", id)

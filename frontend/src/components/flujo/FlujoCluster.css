@@ -1263,3 +1263,45 @@ button.nodo-caja {
 .cpu-epocas { display: block; width: 100%; height: 3rem; }
 .tabla-motores .fila-total th,
 .tabla-motores .fila-total td { border-bottom: 0; }
+
+.secuencial-cabeza {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.secuencial-cabeza h3 {
+  font-size: 15px;
+  margin: 0 0 2px;
+}
+
+/* Los ajustes ocupan el ancho de su columna y nunca la desbordan: un
+   fieldset no se encoge por debajo de su contenido (min-width: min-content)
+   y un select mide lo que su opción más larga. */
+.sala-centro > .ajustes-modelo,
+.sala-centro > .ajustes-select,
+.sala-centro .sala-botones > .ajustes-modelo,
+.sala-centro .sala-botones > .ajustes-select {
+  align-self: stretch;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.ajustes-modelo .casilla,
+.ajustes-modelo .detalle {
+  overflow-wrap: anywhere;
+}
+
+.ajustes-select select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
+.sala-centro > .sala-botones {
+  align-self: stretch;
+  min-width: 0;
+}
